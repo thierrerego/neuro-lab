@@ -1,6 +1,7 @@
 export type ThemeMode = 'minimal' | 'gamified';
 export type PlanTier = 'free' | 'pro' | 'elite';
 export type SessionMode = 'calibration' | 'guided' | 'free';
+export type TrainingFocusMode = 'weak' | 'goals';
 
 export type DomainKey =
   | 'selective_attention'
@@ -41,19 +42,31 @@ export interface GameMeta {
 }
 
 export interface StageConfig {
-  stage: number;
+  stage: number;             // effectiveDifficulty = baseStage + (currentWave - 1)
   durationSec: number;
   gridSize: number;          // 3 -> 4 -> 5 -> 6
-  stimulusMs: number;        // 1800 -> 1400 -> 1000 -> 600
+  stimulusMs: number;        // 1800 -> 1400 -> 1000 -> 580
   targetCount: number;       // alvos simultâneos / comprimento da sequência
   nBackLevel: number;        // 1 -> 2 -> 3
-  reverseOrder: boolean;     // Matriz Espacial Reversa a partir da fase 3
+  reverseOrder: boolean;     // Matriz Espacial Reversa a partir de dificuldade >= 3
   alternatingRule: boolean;  // Stroop / Trail Making alternado
   mathComplexity: 1 | 2 | 3 | 4;
   minAccuracyPct: number;    // 80% padrão
-  scoreMultiplier: number;   // 1 + stage * 0.15
-  roundsTarget: number;      // número de rodadas em jogos por turno
-  easeBoost: boolean;        // modo mais leve ativado automaticamente após desempenho baixo na Fase 1
+  scoreMultiplier: number;
+  roundsTarget: number;
+  easeBoost: boolean;
+}
+
+export interface WaveState {
+  baseStage: number;
+  currentWave: number;       // 1..5
+  waveHits: number;          // acertos na onda atual (0..waveQuota)
+  waveQuota: number;         // cota da onda atual (2, 3, 3, 4, 4)
+  wavesCompleted: number;    // 0..5
+  totalHits: number;         // 0..16
+  totalTargetHits: number;   // 16
+  effectiveDifficulty: number;
+  isCleared: boolean;
 }
 
 export type AdaptiveStatus = 'fast_track' | 'level_up' | 'hold' | 'step_down' | 'ease_mode';
@@ -68,9 +81,9 @@ export interface CognitiveTier {
 
 export interface RawGamePerformance {
   correct: number;
-  commissionErrors: number;  // erros impulsivos / cliques errados
-  omissionErrors: number;    // erros por deixar passar / tempo esgotado
-  reactionTimesMs: number[]; // medições via performance.now()
+  commissionErrors: number;
+  omissionErrors: number;
+  reactionTimesMs: number[];
   rawPoints?: number;
 }
 
@@ -78,7 +91,7 @@ export interface ComputedSessionResult {
   domain: DomainKey;
   gameSlug: GameSlug;
   mode: SessionMode;
-  stagePlayed: number;
+  stagePlayed: number;       // baseStage jogado
   stageCleared: boolean;
   nextStage: number;
   adaptiveDelta: number;     // +3, +2, +1, 0 ou -1
@@ -87,12 +100,17 @@ export interface ComputedSessionResult {
   accuracyPct: number;       // 0..100
   accuracyPoints: number;    // 0..600 (60%)
   speedPoints: number;       // 0..400 (40%)
+  earlyBonusPoints: number;  // pontos extras de tempo economizado incluídos em speedPoints
   speedScore: number;        // 0..100
   performanceIndex: number;  // 0..100
   percentile: number;        // 1.0..99.9
   earnedTitle: string;
   earnedSubtitle: string;
   tierAccent: string;
+  wavesCompleted: number;    // 0..5
+  waveReached: number;       // 1..5
+  completedEarly: boolean;
+  timeRemainingMs: number;
   commissionErrors: number;
   omissionErrors: number;
   rtMeanMs: number;
@@ -121,6 +139,7 @@ export interface UserProfile {
   best_streak: number;
   xp: number;
   calibrated: boolean;
+  calibration_skipped?: boolean;
   selected_domains: DomainKey[];
   daily_goal_minutes: number;
   peak_time: string | null;
@@ -165,6 +184,9 @@ export interface CognitiveSessionRecord {
   speed_points: number;
   percentile: number;
   earned_title: string;
+  waves_completed: number;
+  completed_early: boolean;
+  time_remaining_ms: number;
   commission_errors: number;
   omission_errors: number;
   rt_mean_ms: number;

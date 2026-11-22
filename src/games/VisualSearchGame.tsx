@@ -24,7 +24,7 @@ interface Cell {
   found: boolean;
 }
 
-function buildBoard(gridSize: number, targetCount: number, boardNum: number): { target: string; cells: Cell[] } {
+function buildBoard(gridSize: number, targetCount: number, boardNum: number): { target: string; gridSize: number; cells: Cell[] } {
   const total = gridSize * gridSize;
   const count = Math.min(Math.max(2, targetCount), Math.floor(total / 2));
   const set = SETS[(boardNum + Math.floor(Math.random() * SETS.length)) % SETS.length];
@@ -48,13 +48,16 @@ function buildBoard(gridSize: number, targetCount: number, boardNum: number): { 
     };
   });
 
-  return { target: set.target, cells };
+  return { target: set.target, gridSize, cells };
 }
 
-export function VisualSearchGame({ config, finishRequested, onLiveUpdate, onFinish }: MinigameProps) {
+export function VisualSearchGame({ config, finishRequested, onWaveHit, onLiveUpdate, onFinish }: MinigameProps) {
   const [boardNum, setBoardNum] = useState(0);
   const [board, setBoard] = useState(() => buildBoard(config.gridSize, config.targetCount, 0));
   const [wrongId, setWrongId] = useState<number | null>(null);
+
+  const configRef = useRef(config);
+  configRef.current = config;
 
   const statsRef = useRef({
     correct: 0,
@@ -66,28 +69,31 @@ export function VisualSearchGame({ config, finishRequested, onLiveUpdate, onFini
     finished: false,
   });
 
+  const finishNow = () => {
+    if (statsRef.current.finished) return;
+    statsRef.current.finished = true;
+    onFinish({
+      correct: statsRef.current.correct,
+      commissionErrors: statsRef.current.commission,
+      omissionErrors: 0,
+      reactionTimesMs: statsRef.current.rts,
+      rawPoints: statsRef.current.rawPoints,
+    });
+  };
+
   useEffect(() => {
-    if (finishRequested && !statsRef.current.finished) {
-      statsRef.current.finished = true;
-      onFinish({
-        correct: statsRef.current.correct,
-        commissionErrors: statsRef.current.commission,
-        omissionErrors: 0,
-        reactionTimesMs: statsRef.current.rts,
-        rawPoints: statsRef.current.rawPoints,
-      });
-    }
-  }, [finishRequested, onFinish]);
+    if (finishRequested) finishNow();
+  }, [finishRequested]);
 
   const emitLive = (remaining: number) => {
     const s = statsRef.current;
     const total = s.correct + s.commission;
     const acc = total > 0 ? Math.round((s.correct / total) * 100) : 100;
     onLiveUpdate({
-      score: Math.round(s.rawPoints * config.scoreMultiplier),
+      score: Math.round(s.rawPoints * configRef.current.scoreMultiplier),
       accuracyPct: acc,
       combo: s.combo,
-      statusTag: `Faltam ${remaining}`,
+      statusTag: `Alvos: ${remaining}`,
     });
   };
 
@@ -104,14 +110,21 @@ export function VisualSearchGame({ config, finishRequested, onLiveUpdate, onFini
       statsRef.current.rawPoints += 100 + Math.min(80, statsRef.current.combo * 12);
       sound.hit(statsRef.current.combo);
 
+      const clearedAll = onWaveHit();
+      if (clearedAll) {
+        emitLive(0);
+        finishNow();
+        return;
+      }
+
       const nextCells = board.cells.map((c) => (c.id === cell.id ? { ...c, found: true } : c));
       const remaining = nextCells.filter((c) => c.isTarget && !c.found).length;
 
       if (remaining === 0) {
-        statsRef.current.rawPoints += 120;
         const nextNum = boardNum + 1;
         setBoardNum(nextNum);
-        const nb = buildBoard(config.gridSize, config.targetCount, nextNum);
+        // Usa a grade/alvos da onda atual (escala intra-partida!)
+        const nb = buildBoard(configRef.current.gridSize, configRef.current.targetCount, nextNum);
         setBoard(nb);
         emitLive(nb.cells.filter((c) => c.isTarget).length);
       } else {
@@ -141,7 +154,7 @@ export function VisualSearchGame({ config, finishRequested, onLiveUpdate, onFini
 
       <div
         className="grid gap-2 w-full max-w-[330px]"
-        style={{ gridTemplateColumns: `repeat(${config.gridSize}, minmax(0, 1fr))` }}
+        style={{ gridTemplateColumns: `repeat(${board.gridSize}, minmax(0, 1fr))` }}
       >
         {board.cells.map((cell) => {
           const isWrong = wrongId === cell.id;
@@ -150,7 +163,7 @@ export function VisualSearchGame({ config, finishRequested, onLiveUpdate, onFini
               key={`${boardNum}-${cell.id}`}
               onClick={() => handleTap(cell)}
               className={`aspect-square rounded-xl font-bold flex items-center justify-center transition-all cursor-pointer ${
-                config.gridSize >= 6 ? 'text-lg' : config.gridSize === 5 ? 'text-xl' : 'text-2xl'
+                board.gridSize >= 6 ? 'text-lg' : board.gridSize === 5 ? 'text-xl' : 'text-2xl'
               } ${isWrong ? 'animate-shake' : ''}`}
               style={{
                 background: cell.found

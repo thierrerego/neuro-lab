@@ -3,36 +3,34 @@ import { sound } from '../lib/audio';
 import type { MinigameProps } from './GameProps';
 
 interface Stimulus {
-  pos: number; // 0..8
+  pos: number;
   sym: string;
 }
 
 const SYMBOLS = ['◆', '▲', '●', '■', '★', '✦'];
 
-function generateStream(count: number, nBack: number): Stimulus[] {
-  const list: Stimulus[] = [];
-  for (let i = 0; i < count; i++) {
-    const forcePosMatch = i >= nBack && Math.random() < 0.36;
-    const forceSymMatch = i >= nBack && Math.random() < 0.36;
-    const pos = forcePosMatch ? list[i - nBack].pos : Math.floor(Math.random() * 9);
-    const sym = forceSymMatch
-      ? list[i - nBack].sym
-      : SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)];
-    list.push({ pos, sym });
-  }
-  return list;
+function nextStimulus(history: Stimulus[], nBack: number): Stimulus {
+  const canMatch = history.length >= nBack;
+  const prev = canMatch ? history[history.length - nBack] : null;
+  const forcePos = prev && Math.random() < 0.38;
+  const forceSym = prev && Math.random() < 0.38;
+  return {
+    pos: forcePos ? prev.pos : Math.floor(Math.random() * 9),
+    sym: forceSym ? prev.sym : SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)],
+  };
 }
 
-export function DualNBackGame({ config, finishRequested, onLiveUpdate, onFinish }: MinigameProps) {
+export function DualNBackGame({ config, finishRequested, onWaveHit, onLiveUpdate, onFinish }: MinigameProps) {
   const n = config.nBackLevel;
-  const dualMode = config.stage >= 3; // Fase 1-2: posição apenas; Fase 3+: Dual (posição + símbolo)
-  const totalSteps = config.roundsTarget;
-  const stepMs = Math.max(1550, config.stimulusMs + 850);
+  const dualMode = config.stage >= 4;
+  const stepMs = Math.max(1350, config.stimulusMs + 500);
 
-  const [stream] = useState<Stimulus[]>(() => generateStream(totalSteps, n));
-  const [stepIdx, setStepIdx] = useState(0);
+  const [history, setHistory] = useState<Stimulus[]>(() => [nextStimulus([], n)]);
   const [pressedPos, setPressedPos] = useState<null | 'ok' | 'err'>(null);
   const [pressedSym, setPressedSym] = useState<null | 'ok' | 'err'>(null);
+
+  const configRef = useRef(config);
+  configRef.current = config;
 
   const stepStateRef = useRef({
     respondedPos: false,
@@ -66,18 +64,19 @@ export function DualNBackGame({ config, finishRequested, onLiveUpdate, onFinish 
     if (finishRequested) finishNow();
   }, [finishRequested]);
 
-  const emitLive = (idx: number) => {
+  const emitLive = () => {
     const s = statsRef.current;
     const tot = s.correct + s.commission + s.omission;
     onLiveUpdate({
-      score: Math.round(s.rawPoints * config.scoreMultiplier),
+      score: Math.round(s.rawPoints * configRef.current.scoreMultiplier),
       accuracyPct: tot > 0 ? Math.round((s.correct / tot) * 100) : 100,
       combo: s.combo,
-      statusTag: `${n}-Back · ${idx + 1}/${totalSteps}`,
     });
   };
 
-  // Avança automaticamente a cada stepMs e registra omissões (esquecer match real) ou rejeições corretas
+  const stepIdx = history.length - 1;
+  const current = history[stepIdx];
+
   useEffect(() => {
     if (statsRef.current.finished) return;
     stepStateRef.current = {
@@ -89,9 +88,11 @@ export function DualNBackGame({ config, finishRequested, onLiveUpdate, onFinish 
     setPressedSym(null);
 
     const timer = window.setTimeout(() => {
-      if (stepIdx >= n) {
-        const cur = stream[stepIdx];
-        const prev = stream[stepIdx - n];
+      if (statsRef.current.finished) return;
+      const curN = configRef.current.nBackLevel;
+      if (stepIdx >= curN) {
+        const cur = history[stepIdx];
+        const prev = history[stepIdx - curN];
         const isPosMatch = cur.pos === prev.pos;
         const isSymMatch = cur.sym === prev.sym;
 
@@ -99,42 +100,42 @@ export function DualNBackGame({ config, finishRequested, onLiveUpdate, onFinish 
           statsRef.current.omission++;
           statsRef.current.combo = 0;
         } else if (!isPosMatch && !stepStateRef.current.respondedPos) {
-          // Rejeição correta silenciosa conta positivamente para precisão justa
           statsRef.current.correct++;
-          statsRef.current.rawPoints += 35;
+          statsRef.current.rawPoints += 65;
+          if (onWaveHit()) {
+            emitLive();
+            finishNow();
+            return;
+          }
         }
 
-        if (dualMode) {
+        if (configRef.current.stage >= 4) {
           if (isSymMatch && !stepStateRef.current.respondedSym) {
             statsRef.current.omission++;
             statsRef.current.combo = 0;
           } else if (!isSymMatch && !stepStateRef.current.respondedSym) {
             statsRef.current.correct++;
-            statsRef.current.rawPoints += 35;
+            statsRef.current.rawPoints += 65;
           }
         }
-        emitLive(stepIdx);
+        emitLive();
       }
 
-      if (stepIdx + 1 >= totalSteps) {
-        finishNow();
-      } else {
-        setStepIdx(stepIdx + 1);
-      }
+      setHistory((prevH) => [...prevH, nextStimulus(prevH, configRef.current.nBackLevel)]);
     }, stepMs);
 
     return () => clearTimeout(timer);
-  }, [stepIdx, stepMs, stream, n, dualMode, totalSteps]);
+  }, [stepIdx, stepMs]);
 
   const checkMatch = (kind: 'pos' | 'sym') => {
-    if (stepIdx < n || statsRef.current.finished) return;
+    const curN = configRef.current.nBackLevel;
+    if (stepIdx < curN || statsRef.current.finished) return;
     if (kind === 'pos' && stepStateRef.current.respondedPos) return;
     if (kind === 'sym' && stepStateRef.current.respondedSym) return;
 
     const rt = performance.now() - stepStateRef.current.stepShownAt;
-    const cur = stream[stepIdx];
-    const prev = stream[stepIdx - n];
-    const isMatch = kind === 'pos' ? cur.pos === prev.pos : cur.sym === prev.sym;
+    const prev = history[stepIdx - curN];
+    const isMatch = kind === 'pos' ? current.pos === prev.pos : current.sym === prev.sym;
 
     if (kind === 'pos') stepStateRef.current.respondedPos = true;
     else stepStateRef.current.respondedSym = true;
@@ -147,6 +148,11 @@ export function DualNBackGame({ config, finishRequested, onLiveUpdate, onFinish 
       sound.hit(statsRef.current.combo);
       if (kind === 'pos') setPressedPos('ok');
       else setPressedSym('ok');
+      if (onWaveHit()) {
+        emitLive();
+        finishNow();
+        return;
+      }
     } else {
       statsRef.current.commission++;
       statsRef.current.combo = 0;
@@ -155,19 +161,16 @@ export function DualNBackGame({ config, finishRequested, onLiveUpdate, onFinish 
       if (kind === 'pos') setPressedPos('err');
       else setPressedSym('err');
     }
-    emitLive(stepIdx);
+    emitLive();
   };
-
-  const current = stream[stepIdx];
 
   return (
     <div className="w-full flex flex-col items-center gap-4">
-      <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider px-3.5 py-1.5 rounded-full" style={{ background: 'var(--bg-subtle)', color: 'var(--accent)' }}>
-        <span>{n}-Back</span>
-        <span style={{ color: 'var(--text-soft)' }}>· {stepIdx + 1}/{totalSteps}</span>
+      <div className="text-xs font-bold uppercase tracking-wider px-3.5 py-1.5 rounded-full" style={{ background: 'var(--bg-subtle)', color: 'var(--accent)' }}>
+        {n}-Back {dualMode ? '· Dual' : ''}
       </div>
 
-      <div className="grid grid-cols-3 gap-2 w-full max-w-[240px]">
+      <div className="grid grid-cols-3 gap-2 w-full max-w-[235px]">
         {Array.from({ length: 9 }, (_, i) => {
           const active = current?.pos === i;
           return (

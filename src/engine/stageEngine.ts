@@ -1,58 +1,45 @@
 import type { GameSlug, StageConfig } from '../types/cognitive';
 
 /**
- * Motor de Fases Adaptativo (Stage Engine)
- * - Todo jogo começa fácil na Fase 1 para qualquer jogador entrar no ritmo.
- * - Escala rapidamente (grade, exposição em ms, complexidade) quando o motor sobe fases (+1/+2/+3).
- * - Se o jogador tiver dificuldade na Fase 1, `easeBoost` alivia automaticamente a próxima partida.
+ * Motor de Dificuldade Técnica por Nível Efetivo (`effectiveDifficulty = baseStage + wave - 1`).
+ * - Nível 1 começa bem acessível (3x3, 2 alvos, contas simples, janela generosa).
+ * - Escala continuamente dentro da própria partida (Ondas 1 -> 5) e entre estágios permanentes.
  */
-export function getStageConfig(slug: GameSlug, stage: number, easeBoost = false): StageConfig {
-  const s = Math.max(1, Math.floor(stage));
+export function getStageConfig(slug: GameSlug, effectiveLevel: number, easeBoost = false): StageConfig {
+  const s = Math.max(1, Math.floor(effectiveLevel));
   const easy = s === 1 && easeBoost;
 
-  // Grade cresce: Fase 1 -> 3x3, Fase 2-3 -> 4x4, Fase 4-5 -> 5x5, Fase 6+ -> 6x6
-  const gridSize = s === 1 ? 3 : s <= 3 ? 4 : s <= 5 ? 5 : 6;
+  // Grade: 1-2 -> 3x3, 3-4 -> 4x4, 5-6 -> 5x5, 7+ -> 6x6
+  const gridSize = s <= 2 ? 3 : s <= 4 ? 4 : s <= 6 ? 5 : 6;
 
-  // Fase 1 começa bem confortável (1800ms; 2250ms em easeBoost) e acelera forte com as fases
-  const baseStimulus = Math.max(540, Math.round(1800 - (s - 1) * 210));
-  const stimulusMs = easy ? Math.round(baseStimulus * 1.25) : baseStimulus;
+  // Janela de exposição (ms): começa confortável (1800ms / 2200ms em modo leve) e acelera forte
+  const baseStimulus = Math.max(520, Math.round(1800 - (s - 1) * 185));
+  const stimulusMs = easy ? Math.round(baseStimulus * 1.22) : baseStimulus;
 
-  // Quantidade de alvos / tamanho inicial de sequência (começa com 2 na Fase 1!)
-  const targetCount = easy ? 2 : Math.min(7, s === 1 ? 2 : 2 + Math.floor(s / 2));
+  // Quantidade de alvos (MOT / Varredura / Sequência)
+  const targetCount = easy ? 2 : Math.min(6, s <= 1 ? 2 : s <= 3 ? 3 : s <= 5 ? 4 : 5);
 
-  // N-Back: 1-Back (fases 1-2), 2-Back (fases 3-4), 3-Back (fases 5+)
-  const nBackLevel = s <= 2 ? 1 : s <= 4 ? 2 : 3;
+  // N-Back: 1-Back (níveis 1-3), 2-Back (níveis 4-6), 3-Back (níveis 7+)
+  const nBackLevel = s <= 3 ? 1 : s <= 6 ? 2 : 3;
 
-  // Complexidade numérica (Fase 1 bem leve, escala rápido a partir da Fase 3)
-  const mathComplexity: 1 | 2 | 3 | 4 = s === 1 ? 1 : s === 2 ? 2 : s <= 4 ? 3 : 4;
+  // Complexidade matemática: 1 (+ simples), 2 (+ / -), 3 (× e × -), 4 (composto)
+  const mathComplexity: 1 | 2 | 3 | 4 = s === 1 ? 1 : s <= 3 ? 2 : s <= 5 ? 3 : 4;
 
-  // Duração padrão entre 30s e 45s
+  // Tempo limite da partida (30s a 45s conforme o minigame; 45s para jogos com fase de observação)
   const durationBySlug: Record<GameSlug, number> = {
     'visual-search': 35,
-    'sustained-tracking': 42,
+    'sustained-tracking': 45,
     'spatial-span': 45,
-    'dual-n-back': 40,
+    'dual-n-back': 42,
     'raven-matrices': 45,
     'path-logic': 40,
-    'speed-match': 35,
+    'speed-match': 32,
     'symbol-digit': 35,
-    'chain-arithmetic': 38,
+    'chain-arithmetic': 40,
     'number-comparison': 35,
     'stroop-conflict': 35,
-    'go-nogo-reflex': 35,
+    'go-nogo-reflex': 38,
   };
-
-  // Rodadas para jogos por turno
-  const roundsTarget =
-    slug === 'sustained-tracking'
-      ? easy ? 3 : Math.min(6, 3 + Math.floor(s / 2))
-      : slug === 'spatial-span'
-        ? easy ? 3 : Math.min(6, 3 + Math.floor(s / 2))
-        : slug === 'raven-matrices'
-          ? easy ? 4 : Math.min(8, 5 + Math.floor(s / 2))
-          : slug === 'dual-n-back'
-            ? easy ? 10 : Math.min(20, 12 + s * 2)
-            : 15;
 
   return {
     stage: s,
@@ -61,22 +48,22 @@ export function getStageConfig(slug: GameSlug, stage: number, easeBoost = false)
     stimulusMs,
     targetCount,
     nBackLevel,
-    reverseOrder: s >= 3,
+    reverseOrder: s >= 4,
     alternatingRule: s >= 3,
     mathComplexity,
     minAccuracyPct: 80,
-    scoreMultiplier: Number((1 + s * 0.15).toFixed(2)),
-    roundsTarget,
+    scoreMultiplier: Number((1 + (s - 1) * 0.08).toFixed(2)),
+    roundsTarget: 16,
     easeBoost: easy,
   };
 }
 
-/** Rótulo curtíssimo da dificuldade técnica da fase */
+/** Rótulo curtíssimo da dificuldade técnica da onda atual */
 export function getStageShortBadge(slug: GameSlug, cfg: StageConfig): string {
   if (cfg.easeBoost) return 'Ritmo leve';
   switch (slug) {
     case 'visual-search':
-      return `${cfg.gridSize}×${cfg.gridSize} · ${cfg.targetCount} alvos`;
+      return `${cfg.gridSize}×${cfg.gridSize}`;
     case 'sustained-tracking':
       return `${Math.min(5, cfg.targetCount)} alvos`;
     case 'spatial-span':
@@ -84,19 +71,19 @@ export function getStageShortBadge(slug: GameSlug, cfg: StageConfig): string {
     case 'dual-n-back':
       return `${cfg.nBackLevel}-Back`;
     case 'raven-matrices':
-      return `${cfg.roundsTarget} matrizes`;
+      return `Nível ${cfg.stage}`;
     case 'path-logic':
       return cfg.stage >= 2 ? '1→A→2→B' : '1→2→3';
     case 'speed-match':
-      return `×${cfg.scoreMultiplier}`;
+      return `Nível ${cfg.stage}`;
     case 'symbol-digit':
-      return `${Math.min(9, 3 + cfg.stage)} símbolos`;
+      return `${Math.min(9, 3 + cfg.stage)} símb.`;
     case 'chain-arithmetic':
       return cfg.mathComplexity === 1 ? '+' : cfg.mathComplexity === 2 ? '+ −' : cfg.mathComplexity === 3 ? '+ − ×' : 'Composto';
     case 'number-comparison':
       return `Nível ${cfg.mathComplexity}`;
     case 'stroop-conflict':
-      return cfg.alternatingRule ? 'Alternado' : 'Cor da tinta';
+      return cfg.alternatingRule ? 'Alternado' : 'Cor';
     case 'go-nogo-reflex':
       return `${cfg.stimulusMs}ms`;
   }

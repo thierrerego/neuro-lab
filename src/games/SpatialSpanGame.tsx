@@ -14,18 +14,22 @@ function makeSequence(cells: number, length: number): number[] {
   return seq;
 }
 
-export function SpatialSpanGame({ config, finishRequested, onLiveUpdate, onFinish }: MinigameProps) {
-  const grid = Math.min(4, Math.max(3, config.gridSize));
-  const totalCells = grid * grid;
-  const baseLen = config.easeBoost ? 2 : Math.min(7, config.stage === 1 ? 3 : 2 + Math.ceil(config.stage / 2));
-
-  const [round, setRound] = useState(1);
-  const [seqLen, setSeqLen] = useState(baseLen);
-  const [sequence, setSequence] = useState<number[]>(() => makeSequence(totalCells, baseLen));
+export function SpatialSpanGame({ config, wave, finishRequested, onWaveHit, onLiveUpdate, onFinish }: MinigameProps) {
+  const getGrid = (g: number) => Math.min(4, Math.max(3, g));
+  const [grid, setGrid] = useState(() => getGrid(config.gridSize));
+  const [reverseRound, setReverseRound] = useState(() => config.reverseOrder);
+  const [sequence, setSequence] = useState<number[]>(() =>
+    makeSequence(getGrid(config.gridSize) ** 2, Math.max(2, wave.waveQuota))
+  );
   const [phase, setPhase] = useState<'show' | 'input'>('show');
   const [litCell, setLitCell] = useState<number | null>(null);
   const [inputStep, setInputStep] = useState(0);
   const [flashCell, setFlashCell] = useState<{ id: number; ok: boolean } | null>(null);
+
+  const configRef = useRef(config);
+  configRef.current = config;
+  const waveRef = useRef(wave);
+  waveRef.current = wave;
 
   const statsRef = useRef({
     correct: 0,
@@ -53,10 +57,9 @@ export function SpatialSpanGame({ config, finishRequested, onLiveUpdate, onFinis
     if (finishRequested) finishNow();
   }, [finishRequested]);
 
-  // Exibe a sequência bloco por bloco
   useEffect(() => {
     if (phase !== 'show') return;
-    const stepMs = Math.max(420, Math.round(config.stimulusMs * 0.52));
+    const stepMs = Math.max(360, Math.round(configRef.current.stimulusMs * 0.44));
     const timers: number[] = [];
 
     sequence.forEach((cellId, idx) => {
@@ -64,12 +67,12 @@ export function SpatialSpanGame({ config, finishRequested, onLiveUpdate, onFinis
         window.setTimeout(() => {
           setLitCell(cellId);
           sound.tap();
-        }, 350 + idx * (stepMs + 160))
+        }, 280 + idx * (stepMs + 130))
       );
       timers.push(
         window.setTimeout(() => {
           setLitCell(null);
-        }, 350 + idx * (stepMs + 160) + stepMs)
+        }, 280 + idx * (stepMs + 130) + stepMs)
       );
     });
 
@@ -79,38 +82,35 @@ export function SpatialSpanGame({ config, finishRequested, onLiveUpdate, onFinis
         setInputStep(0);
         statsRef.current.stepStart = performance.now();
         setPhase('input');
-      }, 350 + sequence.length * (stepMs + 160) + 120)
+      }, 280 + sequence.length * (stepMs + 130) + 100)
     );
 
     return () => timers.forEach((t) => clearTimeout(t));
-  }, [phase, sequence, config.stimulusMs]);
+  }, [phase, sequence]);
 
-  const emitLive = (r: number) => {
+  const emitLive = () => {
     const s = statsRef.current;
     const tot = s.correct + s.commission;
     onLiveUpdate({
-      score: Math.round(s.rawPoints * config.scoreMultiplier),
+      score: Math.round(s.rawPoints * configRef.current.scoreMultiplier),
       accuracyPct: tot > 0 ? Math.round((s.correct / tot) * 100) : 100,
       combo: s.combo,
-      statusTag: `${r}/${config.roundsTarget}`,
     });
   };
 
-  const advanceRound = (grow: boolean) => {
-    if (round >= config.roundsTarget) {
-      setTimeout(() => finishNow(), 340);
-      return;
-    }
-    const nextLen = grow ? Math.min(8, seqLen + 1) : seqLen;
+  const spawnNextRound = () => {
     setTimeout(() => {
-      setRound((r) => r + 1);
-      setSeqLen(nextLen);
-      setSequence(makeSequence(totalCells, nextLen));
+      if (statsRef.current.finished) return;
+      const nextGrid = getGrid(configRef.current.gridSize);
+      const nextLen = Math.min(6, Math.max(2, waveRef.current.waveQuota));
+      setGrid(nextGrid);
+      setReverseRound(configRef.current.reverseOrder);
+      setSequence(makeSequence(nextGrid * nextGrid, nextLen));
       setPhase('show');
-    }, 450);
+    }, 340);
   };
 
-  const expectedOrder = config.reverseOrder ? [...sequence].reverse() : sequence;
+  const expectedOrder = reverseRound ? [...sequence].reverse() : sequence;
 
   const handleTap = (cellId: number) => {
     if (phase !== 'input' || statsRef.current.finished) return;
@@ -118,23 +118,26 @@ export function SpatialSpanGame({ config, finishRequested, onLiveUpdate, onFinis
     const rt = now - statsRef.current.stepStart;
     statsRef.current.stepStart = now;
 
-    const expected = expectedOrder[inputStep];
-    if (cellId === expected) {
+    if (cellId === expectedOrder[inputStep]) {
       statsRef.current.correct++;
       statsRef.current.combo++;
       statsRef.current.rts.push(rt);
       statsRef.current.rawPoints += 120 + statsRef.current.combo * 15;
       sound.hit(statsRef.current.combo);
       setFlashCell({ id: cellId, ok: true });
-      setTimeout(() => setFlashCell(null), 220);
+      setTimeout(() => setFlashCell(null), 200);
+
+      const clearedAll = onWaveHit();
+      emitLive();
+      if (clearedAll) {
+        setTimeout(() => finishNow(), 180);
+        return;
+      }
 
       if (inputStep + 1 >= expectedOrder.length) {
-        statsRef.current.rawPoints += 100;
-        emitLive(round);
-        advanceRound(true);
+        spawnNextRound();
       } else {
         setInputStep(inputStep + 1);
-        emitLive(round);
       }
     } else {
       statsRef.current.commission++;
@@ -142,24 +145,23 @@ export function SpatialSpanGame({ config, finishRequested, onLiveUpdate, onFinis
       statsRef.current.rawPoints = Math.max(0, statsRef.current.rawPoints - 40);
       sound.miss();
       setFlashCell({ id: cellId, ok: false });
-      setTimeout(() => setFlashCell(null), 280);
-      emitLive(round);
-      advanceRound(false);
+      setTimeout(() => setFlashCell(null), 260);
+      emitLive();
+      spawnNextRound();
     }
   };
 
   return (
     <div className="w-full flex flex-col items-center gap-4">
-      <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider px-3.5 py-1.5 rounded-full" style={{ background: 'var(--bg-subtle)', color: config.reverseOrder ? 'var(--warn)' : 'var(--accent)' }}>
-        <span>{phase === 'show' ? 'Observe' : config.reverseOrder ? 'Ordem INVERSA ↺' : 'Sua vez'}</span>
-        <span style={{ color: 'var(--text-soft)' }}>· {round}/{config.roundsTarget}</span>
+      <div className="text-xs font-bold uppercase tracking-wider px-3.5 py-1.5 rounded-full" style={{ background: 'var(--bg-subtle)', color: reverseRound ? 'var(--warn)' : 'var(--accent)' }}>
+        {phase === 'show' ? 'Observe' : reverseRound ? 'Ordem INVERSA ↺' : 'Repita a ordem'}
       </div>
 
       <div
-        className="grid gap-2.5 w-full max-w-[300px]"
+        className="grid gap-2.5 w-full max-w-[295px]"
         style={{ gridTemplateColumns: `repeat(${grid}, minmax(0, 1fr))` }}
       >
-        {Array.from({ length: totalCells }, (_, id) => {
+        {Array.from({ length: grid * grid }, (_, id) => {
           const isLit = litCell === id;
           const isFlash = flashCell?.id === id;
           return (

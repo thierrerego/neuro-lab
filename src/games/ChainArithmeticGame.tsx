@@ -17,40 +17,39 @@ function buildQuestion(complexity: 1 | 2 | 3 | 4, easeBoost: boolean): MathQuest
   let answer = 0;
 
   if (complexity === 1) {
-    const a = easeBoost ? rnd(2, 10) : rnd(3, 18);
-    const b = easeBoost ? rnd(1, 9) : rnd(2, 14);
+    const a = easeBoost ? rnd(2, 9) : rnd(3, 16);
+    const b = easeBoost ? rnd(1, 8) : rnd(2, 14);
     expression = `${a} + ${b}`;
     answer = a + b;
   } else if (complexity === 2) {
     if (Math.random() < 0.5) {
-      const a = rnd(14, 48);
-      const b = rnd(9, 36);
+      const a = rnd(12, 42);
+      const b = rnd(7, 29);
       expression = `${a} + ${b}`;
       answer = a + b;
     } else {
-      const a = rnd(28, 75);
-      const b = rnd(8, a - 5);
+      const a = rnd(24, 68);
+      const b = rnd(7, a - 4);
       expression = `${a} − ${b}`;
       answer = a - b;
     }
   } else if (complexity === 3) {
-    const roll = Math.random();
-    if (roll < 0.45) {
+    if (Math.random() < 0.5) {
       const a = rnd(4, 12);
       const b = rnd(3, 9);
       expression = `${a} × ${b}`;
       answer = a * b;
     } else {
       const a = rnd(4, 9);
-      const b = rnd(3, 9);
-      const c = rnd(4, 18);
+      const b = rnd(3, 8);
+      const c = rnd(3, 15);
       expression = `${a} × ${b} − ${c}`;
       answer = a * b - c;
     }
   } else {
-    const a = rnd(6, 14);
+    const a = rnd(6, 13);
     const b = rnd(4, 9);
-    const c = rnd(7, 25);
+    const c = rnd(6, 24);
     if (Math.random() < 0.5) {
       expression = `${a} × ${b} + ${c}`;
       answer = a * b + c;
@@ -76,10 +75,13 @@ function buildQuestion(complexity: 1 | 2 | 3 | 4, easeBoost: boolean): MathQuest
   };
 }
 
-export function ChainArithmeticGame({ config, finishRequested, onLiveUpdate, onFinish }: MinigameProps) {
+export function ChainArithmeticGame({ config, finishRequested, onWaveHit, onLiveUpdate, onFinish }: MinigameProps) {
   const [q, setQ] = useState(() => buildQuestion(config.mathComplexity, config.easeBoost));
   const [qId, setQId] = useState(0);
   const [flash, setFlash] = useState<{ val: number; ok: boolean } | null>(null);
+
+  const configRef = useRef(config);
+  configRef.current = config;
 
   const statsRef = useRef({
     correct: 0,
@@ -91,23 +93,27 @@ export function ChainArithmeticGame({ config, finishRequested, onLiveUpdate, onF
     finished: false,
   });
 
+  const finishNow = () => {
+    if (statsRef.current.finished) return;
+    statsRef.current.finished = true;
+    onFinish({
+      correct: statsRef.current.correct,
+      commissionErrors: statsRef.current.commission,
+      omissionErrors: 0,
+      reactionTimesMs: statsRef.current.rts,
+      rawPoints: statsRef.current.rawPoints,
+    });
+  };
+
   useEffect(() => {
-    if (finishRequested && !statsRef.current.finished) {
-      statsRef.current.finished = true;
-      onFinish({
-        correct: statsRef.current.correct,
-        commissionErrors: statsRef.current.commission,
-        omissionErrors: 0,
-        reactionTimesMs: statsRef.current.rts,
-        rawPoints: statsRef.current.rawPoints,
-      });
-    }
-  }, [finishRequested, onFinish]);
+    if (finishRequested) finishNow();
+  }, [finishRequested]);
 
   const handlePick = (val: number) => {
     if (flash || statsRef.current.finished) return;
     const rt = performance.now() - statsRef.current.shownAt;
     const ok = val === q.answer;
+    let clearedAll = false;
 
     if (ok) {
       statsRef.current.correct++;
@@ -115,6 +121,7 @@ export function ChainArithmeticGame({ config, finishRequested, onLiveUpdate, onF
       statsRef.current.rts.push(rt);
       statsRef.current.rawPoints += 130 + Math.min(90, statsRef.current.combo * 15);
       sound.hit(statsRef.current.combo);
+      clearedAll = onWaveHit();
     } else {
       statsRef.current.commission++;
       statsRef.current.combo = 0;
@@ -124,18 +131,24 @@ export function ChainArithmeticGame({ config, finishRequested, onLiveUpdate, onF
 
     const tot = statsRef.current.correct + statsRef.current.commission;
     onLiveUpdate({
-      score: Math.round(statsRef.current.rawPoints * config.scoreMultiplier),
+      score: Math.round(statsRef.current.rawPoints * configRef.current.scoreMultiplier),
       accuracyPct: Math.round((statsRef.current.correct / tot) * 100),
       combo: statsRef.current.combo,
     });
 
+    if (clearedAll) {
+      finishNow();
+      return;
+    }
+
     setFlash({ val, ok });
     setTimeout(() => {
+      if (statsRef.current.finished) return;
       setFlash(null);
-      setQ(buildQuestion(config.mathComplexity, config.easeBoost));
+      setQ(buildQuestion(configRef.current.mathComplexity, configRef.current.easeBoost));
       setQId((id) => id + 1);
       statsRef.current.shownAt = performance.now();
-    }, 180);
+    }, 160);
   };
 
   return (

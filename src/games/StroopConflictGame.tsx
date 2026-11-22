@@ -30,10 +30,13 @@ function makeTrial(alternating: boolean): StroopTrial {
   return { word, ink, rule };
 }
 
-export function StroopConflictGame({ config, finishRequested, onLiveUpdate, onFinish }: MinigameProps) {
+export function StroopConflictGame({ config, finishRequested, onWaveHit, onLiveUpdate, onFinish }: MinigameProps) {
   const [trial, setTrial] = useState(() => makeTrial(config.alternatingRule));
   const [tId, setTId] = useState(0);
   const [flash, setFlash] = useState<{ id: string; ok: boolean } | null>(null);
+
+  const configRef = useRef(config);
+  configRef.current = config;
 
   const statsRef = useRef({
     correct: 0,
@@ -45,24 +48,28 @@ export function StroopConflictGame({ config, finishRequested, onLiveUpdate, onFi
     finished: false,
   });
 
+  const finishNow = () => {
+    if (statsRef.current.finished) return;
+    statsRef.current.finished = true;
+    onFinish({
+      correct: statsRef.current.correct,
+      commissionErrors: statsRef.current.commission,
+      omissionErrors: 0,
+      reactionTimesMs: statsRef.current.rts,
+      rawPoints: statsRef.current.rawPoints,
+    });
+  };
+
   useEffect(() => {
-    if (finishRequested && !statsRef.current.finished) {
-      statsRef.current.finished = true;
-      onFinish({
-        correct: statsRef.current.correct,
-        commissionErrors: statsRef.current.commission,
-        omissionErrors: 0,
-        reactionTimesMs: statsRef.current.rts,
-        rawPoints: statsRef.current.rawPoints,
-      });
-    }
-  }, [finishRequested, onFinish]);
+    if (finishRequested) finishNow();
+  }, [finishRequested]);
 
   const handlePick = (colorId: string) => {
     if (flash || statsRef.current.finished) return;
     const rt = performance.now() - statsRef.current.shownAt;
     const expected = trial.rule === 'ink' ? trial.ink.id : trial.word.id;
     const ok = colorId === expected;
+    let clearedAll = false;
 
     if (ok) {
       statsRef.current.correct++;
@@ -70,6 +77,7 @@ export function StroopConflictGame({ config, finishRequested, onLiveUpdate, onFi
       statsRef.current.rts.push(rt);
       statsRef.current.rawPoints += 125 + Math.min(85, statsRef.current.combo * 14);
       sound.hit(statsRef.current.combo);
+      clearedAll = onWaveHit();
     } else {
       statsRef.current.commission++;
       statsRef.current.combo = 0;
@@ -79,18 +87,24 @@ export function StroopConflictGame({ config, finishRequested, onLiveUpdate, onFi
 
     const tot = statsRef.current.correct + statsRef.current.commission;
     onLiveUpdate({
-      score: Math.round(statsRef.current.rawPoints * config.scoreMultiplier),
+      score: Math.round(statsRef.current.rawPoints * configRef.current.scoreMultiplier),
       accuracyPct: Math.round((statsRef.current.correct / tot) * 100),
       combo: statsRef.current.combo,
     });
 
+    if (clearedAll) {
+      finishNow();
+      return;
+    }
+
     setFlash({ id: colorId, ok });
     setTimeout(() => {
+      if (statsRef.current.finished) return;
       setFlash(null);
-      setTrial(makeTrial(config.alternatingRule));
+      setTrial(makeTrial(configRef.current.alternatingRule));
       setTId((n) => n + 1);
       statsRef.current.shownAt = performance.now();
-    }, 170);
+    }, 150);
   };
 
   return (

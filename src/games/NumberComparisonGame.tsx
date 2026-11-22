@@ -19,17 +19,17 @@ function genExpr(level: 1 | 2 | 3 | 4, easeBoost: boolean): { label: string; val
       const a = rnd(5, 25);
       return { label: `${a}`, val: a };
     }
-    const a = rnd(4, 18);
+    const a = rnd(4, 16);
     const b = rnd(2, 12);
     return { label: `${a} + ${b}`, val: a + b };
   }
   if (level === 2) {
     if (Math.random() < 0.5) {
-      const a = rnd(14, 42);
-      const b = rnd(7, 28);
+      const a = rnd(14, 40);
+      const b = rnd(7, 26);
       return { label: `${a} + ${b}`, val: a + b };
     }
-    const a = rnd(35, 78);
+    const a = rnd(35, 76);
     const b = rnd(8, 28);
     return { label: `${a} − ${b}`, val: a - b };
   }
@@ -55,10 +55,13 @@ function makePair(level: 1 | 2 | 3 | 4, easeBoost: boolean): Pair {
   return { leftLabel: '14 + 5', leftVal: 19, rightLabel: '12 + 9', rightVal: 21 };
 }
 
-export function NumberComparisonGame({ config, finishRequested, onLiveUpdate, onFinish }: MinigameProps) {
+export function NumberComparisonGame({ config, finishRequested, onWaveHit, onLiveUpdate, onFinish }: MinigameProps) {
   const [pair, setPair] = useState(() => makePair(config.mathComplexity, config.easeBoost));
   const [pId, setPId] = useState(0);
   const [flash, setFlash] = useState<{ side: 'left' | 'right'; ok: boolean } | null>(null);
+
+  const configRef = useRef(config);
+  configRef.current = config;
 
   const statsRef = useRef({
     correct: 0,
@@ -70,24 +73,28 @@ export function NumberComparisonGame({ config, finishRequested, onLiveUpdate, on
     finished: false,
   });
 
+  const finishNow = useCallback(() => {
+    if (statsRef.current.finished) return;
+    statsRef.current.finished = true;
+    onFinish({
+      correct: statsRef.current.correct,
+      commissionErrors: statsRef.current.commission,
+      omissionErrors: 0,
+      reactionTimesMs: statsRef.current.rts,
+      rawPoints: statsRef.current.rawPoints,
+    });
+  }, [onFinish]);
+
   useEffect(() => {
-    if (finishRequested && !statsRef.current.finished) {
-      statsRef.current.finished = true;
-      onFinish({
-        correct: statsRef.current.correct,
-        commissionErrors: statsRef.current.commission,
-        omissionErrors: 0,
-        reactionTimesMs: statsRef.current.rts,
-        rawPoints: statsRef.current.rawPoints,
-      });
-    }
-  }, [finishRequested, onFinish]);
+    if (finishRequested) finishNow();
+  }, [finishRequested, finishNow]);
 
   const choose = useCallback(
     (side: 'left' | 'right') => {
       if (flash || statsRef.current.finished) return;
       const rt = performance.now() - statsRef.current.shownAt;
       const ok = side === 'left' ? pair.leftVal > pair.rightVal : pair.rightVal > pair.leftVal;
+      let clearedAll = false;
 
       if (ok) {
         statsRef.current.correct++;
@@ -95,6 +102,7 @@ export function NumberComparisonGame({ config, finishRequested, onLiveUpdate, on
         statsRef.current.rts.push(rt);
         statsRef.current.rawPoints += 120 + Math.min(80, statsRef.current.combo * 12);
         sound.hit(statsRef.current.combo);
+        clearedAll = onWaveHit();
       } else {
         statsRef.current.commission++;
         statsRef.current.combo = 0;
@@ -104,20 +112,26 @@ export function NumberComparisonGame({ config, finishRequested, onLiveUpdate, on
 
       const tot = statsRef.current.correct + statsRef.current.commission;
       onLiveUpdate({
-        score: Math.round(statsRef.current.rawPoints * config.scoreMultiplier),
+        score: Math.round(statsRef.current.rawPoints * configRef.current.scoreMultiplier),
         accuracyPct: Math.round((statsRef.current.correct / tot) * 100),
         combo: statsRef.current.combo,
       });
 
+      if (clearedAll) {
+        finishNow();
+        return;
+      }
+
       setFlash({ side, ok });
       setTimeout(() => {
+        if (statsRef.current.finished) return;
         setFlash(null);
-        setPair(makePair(config.mathComplexity, config.easeBoost));
+        setPair(makePair(configRef.current.mathComplexity, configRef.current.easeBoost));
         setPId((id) => id + 1);
         statsRef.current.shownAt = performance.now();
-      }, 170);
+      }, 150);
     },
-    [flash, pair, config.mathComplexity, config.easeBoost, config.scoreMultiplier, onLiveUpdate]
+    [flash, pair, onWaveHit, onLiveUpdate, finishNow]
   );
 
   useEffect(() => {

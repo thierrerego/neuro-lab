@@ -10,32 +10,35 @@ interface CardItem {
 const SYMBOLS = ['◆', '▲', '●', '■', '★', '⬟'];
 const COLORS = ['#38bdf8', '#f472b6', '#34d399', '#fbbf24'];
 
-function randomCard(stage: number): CardItem {
-  const symPool = SYMBOLS.slice(0, Math.min(SYMBOLS.length, 3 + Math.ceil(stage / 2)));
-  const colPool = COLORS.slice(0, stage >= 2 ? COLORS.length : 2);
+function randomCard(effectiveDiff: number): CardItem {
+  const symPool = SYMBOLS.slice(0, Math.min(SYMBOLS.length, 3 + Math.ceil(effectiveDiff / 2)));
+  const colPool = COLORS.slice(0, effectiveDiff >= 2 ? COLORS.length : 2);
   return {
     symbol: symPool[Math.floor(Math.random() * symPool.length)],
     color: colPool[Math.floor(Math.random() * colPool.length)],
   };
 }
 
-function nextCardFrom(prev: CardItem, stage: number): { card: CardItem; same: boolean } {
+function nextCardFrom(prev: CardItem, effectiveDiff: number): { card: CardItem; same: boolean } {
   const same = Math.random() < 0.48;
   if (same) return { card: { ...prev }, same: true };
-  let candidate = randomCard(stage);
+  let candidate = randomCard(effectiveDiff);
   for (let i = 0; i < 12; i++) {
     if (candidate.symbol !== prev.symbol || candidate.color !== prev.color) break;
-    candidate = randomCard(stage);
+    candidate = randomCard(effectiveDiff);
   }
   return { card: candidate, same: candidate.symbol === prev.symbol && candidate.color === prev.color };
 }
 
-export function SpeedMatchGame({ config, finishRequested, onLiveUpdate, onFinish }: MinigameProps) {
+export function SpeedMatchGame({ config, finishRequested, onWaveHit, onLiveUpdate, onFinish }: MinigameProps) {
   const [prevCard, setPrevCard] = useState<CardItem>(() => randomCard(config.stage));
   const [current, setCurrent] = useState<CardItem | null>(null);
   const [isSame, setIsSame] = useState(false);
   const [cardId, setCardId] = useState(0);
   const [flash, setFlash] = useState<'ok' | 'err' | null>(null);
+
+  const configRef = useRef(config);
+  configRef.current = config;
 
   const statsRef = useRef({
     correct: 0,
@@ -47,36 +50,39 @@ export function SpeedMatchGame({ config, finishRequested, onLiveUpdate, onFinish
     finished: false,
   });
 
-  // Mostra primeira carta por 1.1s antes de começar comparações
+  const finishNow = useCallback(() => {
+    if (statsRef.current.finished) return;
+    statsRef.current.finished = true;
+    onFinish({
+      correct: statsRef.current.correct,
+      commissionErrors: statsRef.current.commission,
+      omissionErrors: 0,
+      reactionTimesMs: statsRef.current.rts,
+      rawPoints: statsRef.current.rawPoints,
+    });
+  }, [onFinish]);
+
   useEffect(() => {
     const t = window.setTimeout(() => {
-      const n = nextCardFrom(prevCard, config.stage);
+      const n = nextCardFrom(prevCard, configRef.current.stage);
       setCurrent(n.card);
       setIsSame(n.same);
       setCardId(1);
       statsRef.current.shownAt = performance.now();
-    }, 1050);
+    }, 950);
     return () => clearTimeout(t);
   }, []);
 
   useEffect(() => {
-    if (finishRequested && !statsRef.current.finished) {
-      statsRef.current.finished = true;
-      onFinish({
-        correct: statsRef.current.correct,
-        commissionErrors: statsRef.current.commission,
-        omissionErrors: 0,
-        reactionTimesMs: statsRef.current.rts,
-        rawPoints: statsRef.current.rawPoints,
-      });
-    }
-  }, [finishRequested, onFinish]);
+    if (finishRequested) finishNow();
+  }, [finishRequested, finishNow]);
 
   const answer = useCallback(
     (userSaysSame: boolean) => {
       if (!current || statsRef.current.finished) return;
       const rt = performance.now() - statsRef.current.shownAt;
       const ok = userSaysSame === isSame;
+      let clearedAll = false;
 
       if (ok) {
         statsRef.current.correct++;
@@ -85,6 +91,7 @@ export function SpeedMatchGame({ config, finishRequested, onLiveUpdate, onFinish
         statsRef.current.rawPoints += 100 + Math.min(80, statsRef.current.combo * 10);
         sound.hit(statsRef.current.combo);
         setFlash('ok');
+        clearedAll = onWaveHit();
       } else {
         statsRef.current.commission++;
         statsRef.current.combo = 0;
@@ -92,26 +99,30 @@ export function SpeedMatchGame({ config, finishRequested, onLiveUpdate, onFinish
         sound.miss();
         setFlash('err');
       }
-      setTimeout(() => setFlash(null), 160);
+      setTimeout(() => setFlash(null), 150);
 
       const tot = statsRef.current.correct + statsRef.current.commission;
       onLiveUpdate({
-        score: Math.round(statsRef.current.rawPoints * config.scoreMultiplier),
+        score: Math.round(statsRef.current.rawPoints * configRef.current.scoreMultiplier),
         accuracyPct: Math.round((statsRef.current.correct / tot) * 100),
         combo: statsRef.current.combo,
       });
 
-      const nxt = nextCardFrom(current, config.stage);
+      if (clearedAll) {
+        finishNow();
+        return;
+      }
+
+      const nxt = nextCardFrom(current, configRef.current.stage);
       setPrevCard(current);
       setCurrent(nxt.card);
       setIsSame(nxt.same);
       setCardId((id) => id + 1);
       statsRef.current.shownAt = performance.now();
     },
-    [current, isSame, config.scoreMultiplier, config.stage, onLiveUpdate]
+    [current, isSame, onWaveHit, onLiveUpdate, finishNow]
   );
 
-  // Atalhos de teclado (← Diferente, → Igual)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'ArrowLeft') answer(false);

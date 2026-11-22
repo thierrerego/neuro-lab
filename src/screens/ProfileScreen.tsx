@@ -1,6 +1,7 @@
-import { Award, LogOut, RefreshCw, Sparkles, Target } from 'lucide-react';
+import { AlertTriangle, Award, LogOut, RefreshCw, Sparkles, Target } from 'lucide-react';
 import type { AppDataState } from '../lib/dataService';
-import { getCognitiveTier } from '../engine/psychometricEngine';
+import { DOMAIN_MAP } from '../engine/gameRegistry';
+import { getCognitiveTier, getWeakestDomains } from '../engine/psychometricEngine';
 import type { PlanTier, ThemeMode } from '../types/cognitive';
 
 interface ProfileScreenProps {
@@ -22,8 +23,9 @@ export function ProfileScreen({
   onOpenCalibration,
   onLogout,
 }: ProfileScreenProps) {
-  const { profile } = data;
+  const { profile, scores } = data;
   const tier = getCognitiveTier(profile.global_cognitive_index);
+  const weakest2 = getWeakestDomains(scores, 2);
 
   return (
     <div className="flex flex-col gap-4 animate-pop">
@@ -63,6 +65,50 @@ export function ProfileScreen({
           <div className="text-center">
             <div className="text-sm font-black">{profile.peak_time || '—'}</div>
             <div className="text-[10px] font-semibold" style={{ color: 'var(--text-soft)' }}>Pico</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Diagnóstico do Rastreio: Pontos Fracos vs. Suas Metas */}
+      <div className="surface-card p-4 flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-extrabold uppercase tracking-wider inline-flex items-center gap-1.5" style={{ color: 'var(--warn)' }}>
+            <AlertTriangle size={14} /> Alerta de Pontos Fracos
+          </span>
+          {profile.calibration_skipped && (
+            <span className="text-[10px] font-bold" style={{ color: 'var(--text-soft)' }}>Sem rastreio</span>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          {weakest2.map((domKey) => (
+            <div
+              key={domKey}
+              className="rounded-xl p-2.5 flex items-center justify-between"
+              style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
+            >
+              <span className="text-xs font-bold">{DOMAIN_MAP[domKey].shortName}</span>
+              <span className="text-xs font-black tabular" style={{ color: 'var(--warn)' }}>
+                {scores[domKey]}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <div className="pt-2" style={{ borderTop: '1px solid var(--border)' }}>
+          <div className="text-[11px] font-bold mb-1.5" style={{ color: 'var(--text-muted)' }}>
+            Áreas escolhidas para treinar
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {(profile.selected_domains.length ? profile.selected_domains : Object.keys(DOMAIN_MAP)).map((k) => (
+              <span
+                key={k}
+                className="px-2.5 py-1 rounded-full text-[11px] font-bold"
+                style={{ background: 'var(--bg-subtle)', color: 'var(--accent)' }}
+              >
+                {DOMAIN_MAP[k as keyof typeof DOMAIN_MAP].shortName}
+              </span>
+            ))}
           </div>
         </div>
       </div>
@@ -116,10 +162,10 @@ export function ProfileScreen({
         </div>
 
         <button onClick={onOpenCalibration} className="w-full py-3 rounded-xl font-bold text-xs btn-soft flex items-center justify-center gap-2 cursor-pointer">
-          <RefreshCw size={14} /> Calibração
+          <RefreshCw size={14} /> {profile.calibration_skipped ? 'Fazer Teste de Rastreio' : 'Refazer Rastreio'}
         </button>
         <button onClick={onRedoOnboarding} className="w-full py-3 rounded-xl font-bold text-xs btn-soft cursor-pointer">
-          Refazer Onboarding (metas e rotina)
+          Ajustar Metas e Rotina
         </button>
         <button
           onClick={onLogout}

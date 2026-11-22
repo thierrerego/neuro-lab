@@ -9,13 +9,13 @@ interface Glyph {
   shape: ShapeKind;
   color: string;
   rotation: number;
-  count: number; // 1..3
+  count: number;
   fill: FillMode;
 }
 
 interface MatrixPuzzle {
-  cells: (Glyph | null)[]; // 9 itens, último é null (?)
-  options: Glyph[];        // 4 opções
+  cells: (Glyph | null)[];
+  options: Glyph[];
   answerIdx: number;
 }
 
@@ -23,19 +23,18 @@ const SHAPES: ShapeKind[] = ['circle', 'square', 'triangle', 'diamond'];
 const COLORS = ['#38bdf8', '#f472b6', '#34d399', '#fbbf24'];
 const FILLS: FillMode[] = ['solid', 'outline', 'striped'];
 
-function makePuzzle(stage: number): MatrixPuzzle {
-  // Regras reais em matriz 3x3 (linha r = 0..2, coluna c = 0..2)
+function makePuzzle(effectiveDiff: number): MatrixPuzzle {
   const sOffset = Math.floor(Math.random() * SHAPES.length);
   const cOffset = Math.floor(Math.random() * COLORS.length);
   const fOffset = Math.floor(Math.random() * FILLS.length);
-  const rotateRule = stage >= 2;
-  const countRule = stage >= 3;
-  const fillRule = stage >= 2;
+  const rotateRule = effectiveDiff >= 3;
+  const countRule = effectiveDiff >= 4;
+  const fillRule = effectiveDiff >= 2;
 
   const glyphAt = (r: number, c: number): Glyph => ({
-    shape: SHAPES[(sOffset + r + (stage >= 4 ? c : 0)) % SHAPES.length],
+    shape: SHAPES[(sOffset + r + (effectiveDiff >= 5 ? c : 0)) % SHAPES.length],
     color: COLORS[(cOffset + c) % COLORS.length],
-    rotation: rotateRule ? ((r * 90 + c * 45) % 360) : 0,
+    rotation: rotateRule ? (r * 90 + c * 45) % 360 : 0,
     count: countRule ? ((r + c) % 3) + 1 : 1,
     fill: fillRule ? FILLS[(fOffset + r + c) % FILLS.length] : 'solid',
   });
@@ -59,9 +58,7 @@ function makePuzzle(stage: number): MatrixPuzzle {
     },
   ];
 
-  const options = [answer, ...distractors];
-  // Embaralha opções
-  const tagged = options.map((g, idx) => ({ g, ok: idx === 0 }));
+  const tagged = [answer, ...distractors].map((g, idx) => ({ g, ok: idx === 0 }));
   for (let i = tagged.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [tagged[i], tagged[j]] = [tagged[j], tagged[i]];
@@ -79,35 +76,35 @@ function GlyphSvg({ glyph }: { glyph: Glyph }) {
   const offsets = glyph.count === 1 ? [0] : glyph.count === 2 ? [-13, 13] : [-17, 0, 17];
   const scale = glyph.count === 1 ? 1 : glyph.count === 2 ? 0.65 : 0.5;
 
-  const renderShape = (key: number, dx: number) => (
-    <g key={key} transform={`translate(${32 + dx}, 32) rotate(${glyph.rotation}) scale(${scale})`}>
-      {glyph.shape === 'circle' && (
-        <circle cx="0" cy="0" r="18" fill={fillVal} stroke={glyph.color} strokeWidth="3.2" />
-      )}
-      {glyph.shape === 'square' && (
-        <rect x="-16" y="-16" width="32" height="32" rx="4" fill={fillVal} stroke={glyph.color} strokeWidth="3.2" />
-      )}
-      {glyph.shape === 'triangle' && (
-        <polygon points="0,-19 18,15 -18,15" fill={fillVal} stroke={glyph.color} strokeWidth="3.2" strokeLinejoin="round" />
-      )}
-      {glyph.shape === 'diamond' && (
-        <polygon points="0,-19 18,0 0,19 -18,0" fill={fillVal} stroke={glyph.color} strokeWidth="3.2" strokeLinejoin="round" />
-      )}
-      {glyph.rotation !== 0 && <circle cx="0" cy="-12" r="2.6" fill="#ffffff" />}
-    </g>
-  );
-
   return (
     <svg viewBox="0 0 64 64" className="w-12 h-12">
-      {offsets.map((dx, i) => renderShape(i, dx))}
+      {offsets.map((dx, i) => (
+        <g key={i} transform={`translate(${32 + dx}, 32) rotate(${glyph.rotation}) scale(${scale})`}>
+          {glyph.shape === 'circle' && (
+            <circle cx="0" cy="0" r="18" fill={fillVal} stroke={glyph.color} strokeWidth="3.2" />
+          )}
+          {glyph.shape === 'square' && (
+            <rect x="-16" y="-16" width="32" height="32" rx="4" fill={fillVal} stroke={glyph.color} strokeWidth="3.2" />
+          )}
+          {glyph.shape === 'triangle' && (
+            <polygon points="0,-19 18,15 -18,15" fill={fillVal} stroke={glyph.color} strokeWidth="3.2" strokeLinejoin="round" />
+          )}
+          {glyph.shape === 'diamond' && (
+            <polygon points="0,-19 18,0 0,19 -18,0" fill={fillVal} stroke={glyph.color} strokeWidth="3.2" strokeLinejoin="round" />
+          )}
+          {glyph.rotation !== 0 && <circle cx="0" cy="-12" r="2.6" fill="#ffffff" />}
+        </g>
+      ))}
     </svg>
   );
 }
 
-export function RavenMatricesGame({ config, finishRequested, onLiveUpdate, onFinish }: MinigameProps) {
-  const [round, setRound] = useState(1);
+export function RavenMatricesGame({ config, finishRequested, onWaveHit, onLiveUpdate, onFinish }: MinigameProps) {
   const [puzzle, setPuzzle] = useState(() => makePuzzle(config.stage));
   const [feedback, setFeedback] = useState<{ idx: number; ok: boolean } | null>(null);
+
+  const configRef = useRef(config);
+  configRef.current = config;
 
   const statsRef = useRef({
     correct: 0,
@@ -139,6 +136,7 @@ export function RavenMatricesGame({ config, finishRequested, onLiveUpdate, onFin
     if (feedback || statsRef.current.finished) return;
     const rt = performance.now() - statsRef.current.shownAt;
     const ok = idx === puzzle.answerIdx;
+    let clearedAll = false;
 
     if (ok) {
       statsRef.current.correct++;
@@ -146,6 +144,7 @@ export function RavenMatricesGame({ config, finishRequested, onLiveUpdate, onFin
       statsRef.current.rts.push(rt);
       statsRef.current.rawPoints += 180 + statsRef.current.combo * 20;
       sound.hit(statsRef.current.combo);
+      clearedAll = onWaveHit();
     } else {
       statsRef.current.commission++;
       statsRef.current.combo = 0;
@@ -155,23 +154,23 @@ export function RavenMatricesGame({ config, finishRequested, onLiveUpdate, onFin
 
     const tot = statsRef.current.correct + statsRef.current.commission;
     onLiveUpdate({
-      score: Math.round(statsRef.current.rawPoints * config.scoreMultiplier),
+      score: Math.round(statsRef.current.rawPoints * configRef.current.scoreMultiplier),
       accuracyPct: Math.round((statsRef.current.correct / tot) * 100),
       combo: statsRef.current.combo,
-      statusTag: `${round}/${config.roundsTarget}`,
     });
+
+    if (clearedAll) {
+      finishNow();
+      return;
+    }
 
     setFeedback({ idx, ok });
     setTimeout(() => {
+      if (statsRef.current.finished) return;
       setFeedback(null);
-      if (round >= config.roundsTarget) {
-        finishNow();
-      } else {
-        setRound((r) => r + 1);
-        setPuzzle(makePuzzle(config.stage));
-        statsRef.current.shownAt = performance.now();
-      }
-    }, 340);
+      setPuzzle(makePuzzle(configRef.current.stage));
+      statsRef.current.shownAt = performance.now();
+    }, 240);
   };
 
   return (

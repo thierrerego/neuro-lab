@@ -19,7 +19,7 @@ import {
 import { DOMAIN_LIST, GAME_REGISTRY } from '../engine/gameRegistry';
 import { supabase } from './supabase';
 
-const STORAGE_KEY = 'neurolab_local_state_v2';
+const STORAGE_KEY = 'neurolab_local_state_v3';
 
 export interface AppDataState {
   profile: UserProfile;
@@ -37,7 +37,7 @@ export function todayIso(): string {
   return `${y}-${m}-${d}`;
 }
 
-export function createInitialProgress(): Record<GameSlug, GameProgressRecord> {
+export function createInitialProgress(easeMode = false): Record<GameSlug, GameProgressRecord> {
   const now = new Date().toISOString();
   return GAME_REGISTRY.reduce((acc, g) => {
     acc[g.slug] = {
@@ -46,7 +46,7 @@ export function createInitialProgress(): Record<GameSlug, GameProgressRecord> {
       current_stage: 1,
       highest_score: 0,
       total_plays: 0,
-      ease_mode: false,
+      ease_mode: easeMode,
       updated_at: now,
     };
     return acc;
@@ -83,6 +83,7 @@ export function createDefaultState(
       best_streak: 0,
       xp: 0,
       calibrated: false,
+      calibration_skipped: false,
       selected_domains: [],
       daily_goal_minutes: 10,
       peak_time: null,
@@ -92,7 +93,7 @@ export function createDefaultState(
       isLocalGuest,
     },
     scores,
-    progress: createInitialProgress(),
+    progress: createInitialProgress(false),
     sessions: [],
     dailyProtocol: generateDailyProtocol(scores, todayIso(), [], 10),
   };
@@ -105,7 +106,6 @@ export function loadLocalState(): AppDataState | null {
     const parsed = JSON.parse(raw) as AppDataState;
     if (!parsed?.profile?.id) return null;
 
-    // Garante campos novos em perfis antigos
     parsed.profile.selected_domains = parsed.profile.selected_domains ?? [];
     parsed.profile.daily_goal_minutes = parsed.profile.daily_goal_minutes ?? 10;
     parsed.profile.peak_time = parsed.profile.peak_time ?? null;
@@ -252,7 +252,71 @@ export async function loadRemoteState(userId: string, email?: string): Promise<A
   return base;
 }
 
-/** Aplica o resultado de uma partida ao estado (local + sync Supabase) */
+/**
+ * Se o usuário optar por pular o Teste de Rastreio, inicia tudo nos níveis mais baixos
+ * (Fase 1 · Ritmo leve) e scores iniciais conservadores (420), com alerta discreto no perfil.
+ */
+export async function skipCalibrationToLowestLevel(state: AppDataState): Promise<AppDataState> {
+  const now = new Date().toISOString();
+  const lowScores: DomainScoresRecord = {
+    user_id: state.profile.id,
+    selective_attention: 420,
+    working_memory: 420,
+    fluid_reasoning: 420,
+    processing_speed: 420,
+    numerical_cognition: 420,
+    inhibitory_control: 420,
+    baseline_scores: {
+      selective_attention: 420,
+      working_memory: 420,
+      fluid_reasoning: 420,
+      processing_speed: 420,
+      numerical_cognition: 420,
+      inhibitory_control: 420,
+    },
+    updated_at: now,
+  };
+
+  const easyProgress = createInitialProgress(true);
+  const icg = calculateGlobalCognitiveIndex(lowScores);
+  const title = getCognitiveTier(icg).title;
+  const nextDaily = generateDailyProtocol(
+    lowScores,
+    todayIso(),
+    state.profile.selected_domains,
+    state.profile.daily_goal_minutes
+  );
+
+  const nextState: AppDataState = {
+    ...state,
+    profile: {
+      ...state.profile,
+      calibrated: true,
+      calibration_skipped: true,
+      global_cognitive_index: icg,
+      current_title: title,
+    },
+    scores: lowScores,
+    progress: easyProgress,
+    dailyProtocol: nextDaily,
+  };
+
+  saveLocalState(nextState);
+
+  if (!state.profile.isLocalGuest) {
+    const uid = state.profile.id;
+    void Promise.allSettled([
+      supabase
+        .from('profiles')
+        .update({ calibrated: true, global_cognitive_index: icg, current_title: title })
+        .eq('id', uid),
+      supabase.from('domain_scores').upsert(lowScores),
+    ]);
+  }
+
+  return nextState;
+}
+
 export async function recordSessionResult(
   state: AppDataState,
   result: ComputedSessionResult
@@ -260,7 +324,6 @@ export async function recordSessionResult(
   const now = new Date().toISOString();
   const today = todayIso();
 
-  // 1. Progresso do minigame (sobe +1/+2/+3 ou desce -1 / ativa modo leve)
   const prevProg = state.progress[result.gameSlug];
   const updatedProg: GameProgressRecord = {
     game_slug: result.gameSlug,
@@ -272,7 +335,6 @@ export async function recordSessionResult(
     updated_at: now,
   };
 
-  // 2. Pontuação do domínio e baseline (na calibração usa a nota real 0..1000 obtida!)
   const nextScores: DomainScoresRecord = {
     ...state.scores,
     baseline_scores: { ...state.scores.baseline_scores },
@@ -291,14 +353,12 @@ export async function recordSessionResult(
     }
   }
 
-  // 3. Verifica se a bateria dinâmica de calibração foi concluída
   const requiredCalDomains = getCalibrationDomains(state.profile.selected_domains);
   const allCalibratedNow = requiredCalDomains.every((d) =>
     Boolean(nextScores.baseline_scores[d])
   );
   const calibrated = state.profile.calibrated || allCalibratedNow;
 
-  // Domínios não escolhidos na calibração ficam em 500 neutro como linha de base
   if (calibrated && !state.profile.calibrated) {
     for (const d of DOMAIN_LIST) {
       if (!nextScores.baseline_scores[d.key]) {
@@ -311,7 +371,6 @@ export async function recordSessionResult(
   const icg = calculateGlobalCognitiveIndex(nextScores);
   const currentTitle = getCognitiveTier(icg).title;
 
-  // 4. Streak diário
   let currentStreak = state.profile.current_streak;
   if (state.profile.last_played_date !== today) {
     const yesterday = new Date();
@@ -321,16 +380,12 @@ export async function recordSessionResult(
   }
   const bestStreak = Math.max(state.profile.best_streak, currentStreak);
 
-  // 5. Protocolo diário
   const completedSet = new Set<GameSlug>(state.dailyProtocol.completed_games);
-  if (
-    state.dailyProtocol.recommended_games.some((g) => g.slug === result.gameSlug) &&
-    result.mode !== 'calibration'
-  ) {
+  if (result.mode === 'guided') {
     completedSet.add(result.gameSlug);
   }
   const nextDaily: DailyProtocolRecord =
-    result.mode === 'calibration' && calibrated && !state.profile.calibrated
+    result.mode === 'calibration' && calibrated
       ? generateDailyProtocol(
           nextScores,
           today,
@@ -342,7 +397,6 @@ export async function recordSessionResult(
           completed_games: Array.from(completedSet),
         };
 
-  // 6. Registro de sessão com breakdown 60/40, percentil e alcunha
   const newSession: CognitiveSessionRecord = {
     id: crypto.randomUUID ? crypto.randomUUID() : `sess-${Date.now()}`,
     domain: result.domain,
@@ -356,6 +410,9 @@ export async function recordSessionResult(
     speed_points: result.speedPoints,
     percentile: result.percentile,
     earned_title: result.earnedTitle,
+    waves_completed: result.wavesCompleted,
+    completed_early: result.completedEarly,
+    time_remaining_ms: result.timeRemainingMs,
     commission_errors: result.commissionErrors,
     omission_errors: result.omissionErrors,
     rt_mean_ms: result.rtMeanMs,
@@ -372,6 +429,8 @@ export async function recordSessionResult(
       best_streak: bestStreak,
       xp: state.profile.xp + result.xpEarned,
       calibrated,
+      calibration_skipped:
+        result.mode === 'calibration' && allCalibratedNow ? false : state.profile.calibration_skipped,
       last_played_date: today,
     },
     scores: nextScores,
@@ -436,6 +495,9 @@ export async function recordSessionResult(
         speed_points: newSession.speed_points,
         percentile: newSession.percentile,
         earned_title: newSession.earned_title,
+        waves_completed: newSession.waves_completed,
+        completed_early: newSession.completed_early,
+        time_remaining_ms: newSession.time_remaining_ms,
         commission_errors: newSession.commission_errors,
         omission_errors: newSession.omission_errors,
         rt_mean_ms: newSession.rt_mean_ms,
@@ -462,6 +524,7 @@ export async function updateProfilePreferences(
     theme_preference: ThemeMode;
     plan_tier: PlanTier;
     calibrated: boolean;
+    calibration_skipped: boolean;
     selected_domains: DomainKey[];
     daily_goal_minutes: number;
     peak_time: string | null;
@@ -472,26 +535,10 @@ export async function updateProfilePreferences(
 ): Promise<AppDataState> {
   const nextProfile = { ...state.profile, ...patch };
   let nextDaily = state.dailyProtocol;
-  let nextScores = state.scores;
 
-  // Quando finaliza calibração manualmente, garante 500 neutro nos não-calibrados
-  if (patch.calibrated && !state.profile.calibrated) {
-    nextScores = {
-      ...state.scores,
-      baseline_scores: { ...state.scores.baseline_scores },
-    };
-    for (const d of DOMAIN_LIST) {
-      if (!nextScores.baseline_scores[d.key]) {
-        nextScores[d.key] = 500;
-        nextScores.baseline_scores[d.key] = 500;
-      }
-    }
-  }
-
-  // Se alterou domínios ou meta diária, recalcula o protocolo do dia dinamicamente
   if (patch.selected_domains || patch.daily_goal_minutes || patch.onboarding_answers) {
     const regenerated = generateDailyProtocol(
-      nextScores,
+      state.scores,
       todayIso(),
       nextProfile.selected_domains,
       nextProfile.daily_goal_minutes
@@ -505,24 +552,14 @@ export async function updateProfilePreferences(
   const nextState: AppDataState = {
     ...state,
     profile: nextProfile,
-    scores: nextScores,
     dailyProtocol: nextDaily,
   };
   saveLocalState(nextState);
 
   if (!state.profile.isLocalGuest) {
-    void supabase.from('profiles').update(patch).eq('id', state.profile.id);
-    if (patch.selected_domains || patch.daily_goal_minutes || patch.onboarding_answers) {
-      void supabase.from('daily_protocols').upsert(
-        {
-          user_id: state.profile.id,
-          protocol_date: nextDaily.protocol_date,
-          recommended_games: nextDaily.recommended_games,
-          completed_games: nextDaily.completed_games,
-        },
-        { onConflict: 'user_id,protocol_date' }
-      );
-    }
+    const remotePatch = { ...patch };
+    delete remotePatch.calibration_skipped;
+    void supabase.from('profiles').update(remotePatch).eq('id', state.profile.id);
   }
 
   return nextState;

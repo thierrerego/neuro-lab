@@ -1,4 +1,4 @@
-import type { RawGamePerformance, StageConfig } from '../types/cognitive';
+import type { RawGamePerformance, StageConfig, WaveState } from '../types/cognitive';
 
 export interface LiveMetrics {
   score: number;
@@ -9,7 +9,9 @@ export interface LiveMetrics {
 
 export interface MinigameProps {
   config: StageConfig;
+  wave: WaveState;
   finishRequested: boolean;
+  onWaveHit: () => boolean;
   onLiveUpdate: (live: LiveMetrics) => void;
   onFinish: (perf: RawGamePerformance) => void;
 }

@@ -1,24 +1,40 @@
-import { Award, Check, Play, Zap } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { AlertTriangle, Award, Check, Play, Sparkles, Target, Zap } from 'lucide-react';
 import type { AppDataState } from '../lib/dataService';
+import { todayIso } from '../lib/dataService';
 import { DOMAIN_MAP, GAME_MAP } from '../engine/gameRegistry';
-import { getCognitiveTier } from '../engine/psychometricEngine';
-import type { GameSlug, SessionMode } from '../types/cognitive';
+import { buildTrainingQueue, getCognitiveTier, getWeakestDomains } from '../engine/psychometricEngine';
+import type { GameSlug, SessionMode, TrainingFocusMode } from '../types/cognitive';
 import { GameIcon } from '../components/DomainIcon';
 
 interface HomeScreenProps {
   data: AppDataState;
-  onStartGame: (slug: GameSlug, mode: SessionMode) => void;
+  onStartGame: (slug: GameSlug, mode: SessionMode, queue?: GameSlug[]) => void;
   onGoStats: () => void;
+  onOpenCalibration: () => void;
 }
 
-export function HomeScreen({ data, onStartGame, onGoStats }: HomeScreenProps) {
-  const { profile, dailyProtocol, progress } = data;
-  const totalToday = dailyProtocol.recommended_games.length;
+export function HomeScreen({ data, onStartGame, onGoStats, onOpenCalibration }: HomeScreenProps) {
+  const { profile, scores, dailyProtocol, progress } = data;
+  const [focusMode, setFocusMode] = useState<TrainingFocusMode>('weak');
+
+  const queue = useMemo(
+    () =>
+      buildTrainingQueue(
+        scores,
+        todayIso(),
+        focusMode,
+        profile.selected_domains,
+        profile.daily_goal_minutes
+      ),
+    [scores, focusMode, profile.selected_domains, profile.daily_goal_minutes]
+  );
+
+  const weakest2 = useMemo(() => getWeakestDomains(scores, 2), [scores]);
   const completedSet = new Set(dailyProtocol.completed_games);
-  const completedCount = dailyProtocol.recommended_games.filter((g) => completedSet.has(g.slug)).length;
-  const nextGame =
-    dailyProtocol.recommended_games.find((g) => !completedSet.has(g.slug)) ??
-    dailyProtocol.recommended_games[0];
+  const completedCount = queue.filter((g) => completedSet.has(g.slug)).length;
+  const nextGame = queue.find((g) => !completedSet.has(g.slug)) ?? queue[0];
+  const queueSlugs = queue.map((g) => g.slug);
 
   const tier = getCognitiveTier(profile.global_cognitive_index);
   const level = Math.floor(profile.xp / 600) + 1;
@@ -54,7 +70,7 @@ export function HomeScreen({ data, onStartGame, onGoStats }: HomeScreenProps) {
         </div>
       )}
 
-      {/* Hero ICG + Alcunha Atual + Botão 1 toque */}
+      {/* Hero ICG + Alcunha + Alerta de Pontos Fracos */}
       <div className="surface-card p-5 flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <div>
@@ -82,27 +98,72 @@ export function HomeScreen({ data, onStartGame, onGoStats }: HomeScreenProps) {
           </button>
         </div>
 
+        {/* Alerta do Rastreio: áreas mais fracas OU convite sutil se pulou o rastreio */}
+        {profile.calibration_skipped ? (
+          <button
+            onClick={onOpenCalibration}
+            className="w-full px-3.5 py-2.5 rounded-xl flex items-center justify-between text-xs font-bold cursor-pointer"
+            style={{ background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.35)', color: 'var(--warn)' }}
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <AlertTriangle size={14} /> Rastreio pendente · nível inicial
+            </span>
+            <span>Fazer →</span>
+          </button>
+        ) : (
+          <div
+            className="px-3.5 py-2.5 rounded-xl flex items-center justify-between text-xs font-bold"
+            style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
+          >
+            <span className="inline-flex items-center gap-1.5" style={{ color: 'var(--warn)' }}>
+              <AlertTriangle size={13} /> Pontos fracos:
+            </span>
+            <span className="font-extrabold">
+              {weakest2.map((k) => DOMAIN_MAP[k].shortName).join(' · ')}
+            </span>
+          </div>
+        )}
+
         <button
-          onClick={() => onStartGame(nextGame.slug, 'guided')}
+          onClick={() => onStartGame(nextGame.slug, 'guided', queueSlugs)}
           className="w-full py-4 rounded-2xl font-extrabold text-base btn-accent flex items-center justify-center gap-2 cursor-pointer"
         >
           <Play size={18} fill="currentColor" />
-          <span>{completedCount >= totalToday ? 'Treinar de novo' : 'Treinar agora'}</span>
+          <span>{completedCount >= queue.length ? 'Treinar de novo' : 'Treinar agora'}</span>
         </button>
       </div>
 
-      {/* Treino Diário dinâmico (2 a 5 jogos conforme meta diária) */}
-      <div className="flex items-center justify-between px-1 mt-1">
+      {/* Seletor dos 2 tipos de treino: Pontos Fracos vs. Suas Metas */}
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          onClick={() => setFocusMode('weak')}
+          className={`py-2.5 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer ${
+            focusMode === 'weak' ? 'btn-accent' : 'btn-soft'
+          }`}
+        >
+          <Target size={14} /> Pontos Fracos
+        </button>
+        <button
+          onClick={() => setFocusMode('goals')}
+          className={`py-2.5 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer ${
+            focusMode === 'goals' ? 'btn-accent' : 'btn-soft'
+          }`}
+        >
+          <Sparkles size={14} /> Suas Metas
+        </button>
+      </div>
+
+      <div className="flex items-center justify-between px-1">
         <span className="text-xs font-extrabold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-          Hoje · {profile.daily_goal_minutes} min
+          {focusMode === 'weak' ? 'Reforço' : 'Metas'} · {profile.daily_goal_minutes} min
         </span>
         <span className="text-xs font-extrabold tabular" style={{ color: 'var(--accent)' }}>
-          {completedCount}/{totalToday}
+          {completedCount}/{queue.length}
         </span>
       </div>
 
       <div className="flex flex-col gap-2.5">
-        {dailyProtocol.recommended_games.map((item) => {
+        {queue.map((item) => {
           const game = GAME_MAP[item.slug];
           const dom = DOMAIN_MAP[item.domain];
           const prog = progress[item.slug];
@@ -111,7 +172,7 @@ export function HomeScreen({ data, onStartGame, onGoStats }: HomeScreenProps) {
           return (
             <button
               key={item.slug}
-              onClick={() => onStartGame(item.slug, 'guided')}
+              onClick={() => onStartGame(item.slug, 'guided', queueSlugs)}
               className="surface-card surface-card-click px-4 py-3.5 flex items-center gap-3.5 text-left cursor-pointer"
               style={{ opacity: done ? 0.65 : 1 }}
             >
@@ -126,10 +187,7 @@ export function HomeScreen({ data, onStartGame, onGoStats }: HomeScreenProps) {
                 <div className="text-sm font-extrabold truncate">{game.name}</div>
                 <div className="flex items-center gap-2 mt-0.5 text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>
                   <span>{dom.shortName}</span>
-                  {item.role === 'priority' && !done && (
-                    <span style={{ color: 'var(--accent)' }}>Meta</span>
-                  )}
-                  {item.role === 'weak' && !done && (
+                  {weakest2.includes(item.domain) && !done && (
                     <span style={{ color: 'var(--warn)' }}>+20% XP</span>
                   )}
                 </div>
@@ -140,7 +198,7 @@ export function HomeScreen({ data, onStartGame, onGoStats }: HomeScreenProps) {
                   className="px-2.5 py-1 rounded-lg text-xs font-extrabold tabular"
                   style={{ background: 'var(--bg-subtle)', color: 'var(--accent)' }}
                 >
-                  F{prog.current_stage}
+                  E{prog.current_stage}
                 </span>
                 {done ? (
                   <span className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: 'rgba(52,211,153,0.18)', color: 'var(--ok)' }}>

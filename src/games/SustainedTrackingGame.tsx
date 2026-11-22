@@ -41,18 +41,25 @@ function createBalls(total: number, targets: number, speed: number): Ball[] {
   return balls;
 }
 
-export function SustainedTrackingGame({ config, finishRequested, onLiveUpdate, onFinish }: MinigameProps) {
-  const targetCount = Math.min(5, Math.max(2, 1 + Math.ceil(config.stage / 2)));
-  const totalBalls = Math.min(10, targetCount + 4);
-  const speed = Math.min(3.3, 1.35 + config.stage * 0.28);
+export function SustainedTrackingGame({ config, wave, finishRequested, onWaveHit, onLiveUpdate, onFinish }: MinigameProps) {
+  // Cada rodada acompanha a cota da onda atual (2, 3, 3, 4, 4 alvos!) e velocidade da effectiveDifficulty
+  const initialTargets = Math.min(5, wave.waveQuota);
+  const initialTotal = Math.min(10, initialTargets + 3 + (config.stage >= 4 ? 1 : 0));
+  const initialSpeed = Math.min(3.5, 1.3 + config.stage * 0.25);
 
   const [round, setRound] = useState(1);
   const [phase, setPhase] = useState<Phase>('memorize');
-  const [balls, setBalls] = useState<Ball[]>(() => createBalls(totalBalls, targetCount, speed));
+  const [balls, setBalls] = useState<Ball[]>(() => createBalls(initialTotal, initialTargets, initialSpeed));
   const [wrongPick, setWrongPick] = useState<number | null>(null);
 
   const ballsRef = useRef<Ball[]>(balls);
   ballsRef.current = balls;
+
+  const waveRef = useRef(wave);
+  waveRef.current = wave;
+
+  const configRef = useRef(config);
+  configRef.current = config;
 
   const statsRef = useRef({
     correct: 0,
@@ -80,15 +87,14 @@ export function SustainedTrackingGame({ config, finishRequested, onLiveUpdate, o
     if (finishRequested) finishNow();
   }, [finishRequested]);
 
-  // Controla transições memorize -> move -> pick
   useEffect(() => {
     if (phase === 'memorize') {
-      const t = setTimeout(() => setPhase('move'), 1550);
+      const t = setTimeout(() => setPhase('move'), 1350);
       return () => clearTimeout(t);
     }
     if (phase === 'move') {
       let raf = 0;
-      const moveDur = Math.min(4400, 2800 + config.stage * 220);
+      const moveDur = Math.min(3500, 2200 + configRef.current.stage * 180);
       const start = performance.now();
 
       const step = (now: number) => {
@@ -108,7 +114,6 @@ export function SustainedTrackingGame({ config, finishRequested, onLiveUpdate, o
           return { ...b, x: nx, y: ny, vx: nvx, vy: nvy };
         });
 
-        // Colisão elástica simples entre bolinhas
         for (let i = 0; i < next.length; i++) {
           for (let j = i + 1; j < next.length; j++) {
             const dx = next[j].x - next[i].x;
@@ -139,16 +144,15 @@ export function SustainedTrackingGame({ config, finishRequested, onLiveUpdate, o
       raf = requestAnimationFrame(step);
       return () => cancelAnimationFrame(raf);
     }
-  }, [phase, round, config.stage]);
+  }, [phase, round]);
 
   const emitLive = () => {
     const s = statsRef.current;
     const tot = s.correct + s.commission;
     onLiveUpdate({
-      score: Math.round(s.rawPoints * config.scoreMultiplier),
+      score: Math.round(s.rawPoints * configRef.current.scoreMultiplier),
       accuracyPct: tot > 0 ? Math.round((s.correct / tot) * 100) : 100,
       combo: s.combo,
-      statusTag: `${round}/${config.roundsTarget}`,
     });
   };
 
@@ -164,21 +168,27 @@ export function SustainedTrackingGame({ config, finishRequested, onLiveUpdate, o
       statsRef.current.rawPoints += 150 + statsRef.current.combo * 15;
       sound.hit(statsRef.current.combo);
 
+      const clearedAll = onWaveHit();
       const updated = balls.map((b) => (b.id === ball.id ? { ...b, picked: true } : b));
       setBalls(updated);
       emitLive();
 
+      if (clearedAll) {
+        setTimeout(() => finishNow(), 180);
+        return;
+      }
+
       const left = updated.filter((b) => b.isTarget && !b.picked).length;
       if (left === 0) {
-        if (round >= config.roundsTarget) {
-          setTimeout(() => finishNow(), 320);
-        } else {
-          setTimeout(() => {
-            setRound((r) => r + 1);
-            setBalls(createBalls(totalBalls, targetCount, speed));
-            setPhase('memorize');
-          }, 420);
-        }
+        setTimeout(() => {
+          if (statsRef.current.finished) return;
+          const nxtTargets = Math.min(5, Math.max(2, waveRef.current.waveQuota));
+          const nxtTotal = Math.min(10, nxtTargets + 3 + (configRef.current.stage >= 4 ? 1 : 0));
+          const nxtSpeed = Math.min(3.6, 1.3 + configRef.current.stage * 0.26);
+          setRound((r) => r + 1);
+          setBalls(createBalls(nxtTotal, nxtTargets, nxtSpeed));
+          setPhase('memorize');
+        }, 320);
       }
     } else {
       statsRef.current.commission++;
@@ -186,7 +196,7 @@ export function SustainedTrackingGame({ config, finishRequested, onLiveUpdate, o
       statsRef.current.rawPoints = Math.max(0, statsRef.current.rawPoints - 50);
       sound.miss();
       setWrongPick(ball.id);
-      setTimeout(() => setWrongPick(null), 350);
+      setTimeout(() => setWrongPick(null), 320);
       emitLive();
     }
   };
@@ -195,14 +205,13 @@ export function SustainedTrackingGame({ config, finishRequested, onLiveUpdate, o
 
   return (
     <div className="w-full flex flex-col items-center gap-3">
-      <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider px-3.5 py-1.5 rounded-full" style={{ background: 'var(--bg-subtle)', color: phase === 'pick' ? 'var(--ok)' : 'var(--accent)' }}>
-        <span>{phaseLabel}</span>
-        <span style={{ color: 'var(--text-soft)' }}>· {round}/{config.roundsTarget}</span>
+      <div className="text-xs font-bold uppercase tracking-wider px-3.5 py-1.5 rounded-full" style={{ background: 'var(--bg-subtle)', color: phase === 'pick' ? 'var(--ok)' : 'var(--accent)' }}>
+        {phaseLabel}
       </div>
 
       <svg
         viewBox={`0 0 ${ARENA} ${ARENA}`}
-        className="w-full max-w-[310px] aspect-square rounded-2xl touch-none"
+        className="w-full max-w-[305px] aspect-square rounded-2xl touch-none"
         style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
       >
         {balls.map((b) => {
@@ -230,9 +239,7 @@ export function SustainedTrackingGame({ config, finishRequested, onLiveUpdate, o
                 stroke={highlight ? '#fde68a' : 'rgba(255,255,255,0.2)'}
                 strokeWidth={highlight ? 3 : 1.5}
               />
-              {highlight && (
-                <circle cx={b.x} cy={b.y} r={6} fill="#ffffff" opacity={0.85} />
-              )}
+              {highlight && <circle cx={b.x} cy={b.y} r={6} fill="#ffffff" opacity={0.85} />}
             </g>
           );
         })}

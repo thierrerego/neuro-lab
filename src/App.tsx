@@ -14,6 +14,7 @@ import {
   loadRemoteState,
   recordSessionResult,
   saveLocalState,
+  skipCalibrationToLowestLevel,
   updateProfilePreferences,
   type AppDataState,
 } from './lib/dataService';
@@ -22,7 +23,7 @@ import { getCalibrationDomains, getWeakestDomains } from './engine/psychometricE
 import { DOMAIN_MAP } from './engine/gameRegistry';
 import { sound } from './lib/audio';
 import { Layout, type TabKey } from './components/Layout';
-import { GameShell } from './components/GameShell';
+import { GameShell, type CalibrationBannerInfo } from './components/GameShell';
 import { AuthScreen } from './screens/AuthScreen';
 import { OnboardingScreen } from './screens/OnboardingScreen';
 import { CalibrationScreen } from './screens/CalibrationScreen';
@@ -56,6 +57,8 @@ export default function App() {
     easeBoost: boolean;
     mode: SessionMode;
     returnView: FlowView;
+    calibrationInfo?: CalibrationBannerInfo;
+    guidedQueue?: GameSlug[];
   } | null>(null);
 
   useEffect(() => {
@@ -123,12 +126,18 @@ export default function App() {
     setView(updated.profile.calibrated ? 'app' : 'calibration');
   };
 
-  const startGame = (slug: GameSlug, mode: SessionMode, returnView: FlowView = 'app') => {
+  const startGame = (
+    slug: GameSlug,
+    mode: SessionMode,
+    returnView: FlowView = 'app',
+    calibrationInfo?: CalibrationBannerInfo,
+    guidedQueue?: GameSlug[]
+  ) => {
     if (!data) return;
     const prog = data.progress[slug];
     const stage = mode === 'calibration' ? 1 : (prog?.current_stage ?? 1);
     const easeBoost = mode === 'calibration' ? false : Boolean(prog?.ease_mode && stage === 1);
-    setActivePlay({ slug, stage, easeBoost, mode, returnView });
+    setActivePlay({ slug, stage, easeBoost, mode, returnView, calibrationInfo, guidedQueue });
     setView('playing');
   };
 
@@ -162,19 +171,23 @@ export default function App() {
   if (view === 'playing' && activePlay) {
     const weakest2 = getWeakestDomains(data.scores, 2);
 
-    // Determina próximo desafio automático para Calibração ou Modo Guiado
     let nextChallengeLabel: string | undefined;
     let onNextChallenge: (() => void) | undefined;
 
     if (activePlay.mode === 'calibration') {
       const calDomains = getCalibrationDomains(data.profile.selected_domains);
-      const pending = calDomains.find((d) => !data.scores.baseline_scores?.[d]);
-      if (pending) {
-        const nextSlug = DOMAIN_MAP[pending].calibrationGame;
-        nextChallengeLabel = 'Próximo Desafio';
-        onNextChallenge = () => startGame(nextSlug, 'calibration', 'calibration');
+      const pendingIdx = calDomains.findIndex((d) => !data.scores.baseline_scores?.[d]);
+      if (pendingIdx !== -1) {
+        const nextDom = DOMAIN_MAP[calDomains[pendingIdx]];
+        nextChallengeLabel = `Próximo Teste (${pendingIdx + 1}/${calDomains.length})`;
+        onNextChallenge = () =>
+          startGame(nextDom.calibrationGame, 'calibration', 'calibration', {
+            currentIndex: pendingIdx + 1,
+            total: calDomains.length,
+            domainName: nextDom.shortName,
+          });
       } else {
-        nextChallengeLabel = 'Ir para o Painel';
+        nextChallengeLabel = 'Ver Perfil Inicial';
         onNextChallenge = () => {
           setActivePlay(null);
           setView('app');
@@ -182,10 +195,11 @@ export default function App() {
       }
     } else if (activePlay.mode === 'guided') {
       const done = new Set(data.dailyProtocol.completed_games);
-      const nextDaily = data.dailyProtocol.recommended_games.find((g) => !done.has(g.slug));
-      if (nextDaily && nextDaily.slug !== activePlay.slug) {
+      const list = activePlay.guidedQueue ?? data.dailyProtocol.recommended_games.map((g) => g.slug);
+      const nextSlug = list.find((s) => !done.has(s) && s !== activePlay.slug);
+      if (nextSlug) {
         nextChallengeLabel = 'Próximo Desafio';
-        onNextChallenge = () => startGame(nextDaily.slug, 'guided', 'app');
+        onNextChallenge = () => startGame(nextSlug, 'guided', 'app', undefined, list);
       }
     }
 
@@ -197,6 +211,7 @@ export default function App() {
         mode={activePlay.mode}
         theme={theme}
         weakestTwo={weakest2}
+        calibrationInfo={activePlay.calibrationInfo}
         nextChallengeLabel={nextChallengeLabel}
         onNextChallenge={onNextChallenge}
         onComplete={handleSessionComplete}
@@ -204,7 +219,10 @@ export default function App() {
           setActivePlay((prev) => (prev ? { ...prev, stage: nextStage, easeBoost: nextEase } : null))
         }
         onExit={() => {
-          const target = activePlay.mode === 'calibration' && data.profile.calibrated ? 'app' : activePlay.returnView;
+          const target =
+            activePlay.mode === 'calibration' && data.profile.calibrated
+              ? 'app'
+              : activePlay.returnView;
           setActivePlay(null);
           setView(target);
         }}
@@ -247,9 +265,23 @@ export default function App() {
         <CalibrationScreen
           selectedDomains={data.profile.selected_domains}
           scores={data.scores}
-          onStartGame={(slug) => startGame(slug, 'calibration', 'calibration')}
+          onStartGame={(slug, idx, total, domainName) =>
+            startGame(slug, 'calibration', 'calibration', {
+              currentIndex: idx,
+              total,
+              domainName,
+            })
+          }
+          onSkipCalibration={async () => {
+            const updated = await skipCalibrationToLowestLevel(data);
+            setData(updated);
+            setView('app');
+          }}
           onFinishCalibration={async () => {
-            const updated = await updateProfilePreferences(data, { calibrated: true });
+            const updated = await updateProfilePreferences(data, {
+              calibrated: true,
+              calibration_skipped: false,
+            });
             setData(updated);
             setView('app');
           }}
@@ -272,8 +304,9 @@ export default function App() {
       {tab === 'home' && (
         <HomeScreen
           data={data}
-          onStartGame={(slug, mode) => startGame(slug, mode, 'app')}
+          onStartGame={(slug, mode, queue) => startGame(slug, mode, 'app', undefined, queue)}
           onGoStats={() => setTab('stats')}
+          onOpenCalibration={() => setView('calibration')}
         />
       )}
       {tab === 'catalog' && (

@@ -5,13 +5,14 @@ import type { MinigameProps } from './GameProps';
 interface GoTrial {
   id: number;
   isGo: boolean;
-  shape: 'circle' | 'square';
 }
 
-export function GoNoGoReflexGame({ config, finishRequested, onLiveUpdate, onFinish }: MinigameProps) {
-  const windowMs = Math.max(720, config.stimulusMs);
+export function GoNoGoReflexGame({ config, finishRequested, onWaveHit, onLiveUpdate, onFinish }: MinigameProps) {
   const [trial, setTrial] = useState<GoTrial | null>(null);
   const [feedback, setFeedback] = useState<'ok' | 'impulsive' | 'missed' | null>(null);
+
+  const configRef = useRef(config);
+  configRef.current = config;
 
   const trialRef = useRef({
     responded: false,
@@ -21,38 +22,40 @@ export function GoNoGoReflexGame({ config, finishRequested, onLiveUpdate, onFini
 
   const statsRef = useRef({
     correct: 0,
-    commission: 0, // erro impulsivo (tocar em NO-GO)
-    omission: 0,   // deixou passar um GO
+    commission: 0,
+    omission: 0,
     rts: [] as number[],
     combo: 0,
     rawPoints: 0,
     finished: false,
   });
 
+  const finishNow = useCallback(() => {
+    if (statsRef.current.finished) return;
+    statsRef.current.finished = true;
+    onFinish({
+      correct: statsRef.current.correct,
+      commissionErrors: statsRef.current.commission,
+      omissionErrors: statsRef.current.omission,
+      reactionTimesMs: statsRef.current.rts,
+      rawPoints: statsRef.current.rawPoints,
+    });
+  }, [onFinish]);
+
   const emitLive = useCallback(() => {
     const s = statsRef.current;
     const tot = s.correct + s.commission + s.omission;
     onLiveUpdate({
-      score: Math.round(s.rawPoints * config.scoreMultiplier),
+      score: Math.round(s.rawPoints * configRef.current.scoreMultiplier),
       accuracyPct: tot > 0 ? Math.round((s.correct / tot) * 100) : 100,
       combo: s.combo,
     });
-  }, [config.scoreMultiplier, onLiveUpdate]);
+  }, [onLiveUpdate]);
 
   useEffect(() => {
-    if (finishRequested && !statsRef.current.finished) {
-      statsRef.current.finished = true;
-      onFinish({
-        correct: statsRef.current.correct,
-        commissionErrors: statsRef.current.commission,
-        omissionErrors: statsRef.current.omission,
-        reactionTimesMs: statsRef.current.rts,
-        rawPoints: statsRef.current.rawPoints,
-      });
-    }
-  }, [finishRequested, onFinish]);
+    if (finishRequested) finishNow();
+  }, [finishRequested, finishNow]);
 
-  // Loop de estímulos: intervalo curto (380ms) -> estímulo visível por windowMs
   useEffect(() => {
     let cancelled = false;
     let seq = 0;
@@ -67,13 +70,13 @@ export function GoNoGoReflexGame({ config, finishRequested, onLiveUpdate, onFini
       t1 = window.setTimeout(() => {
         if (cancelled || statsRef.current.finished) return;
         seq++;
-        // ~68% GO (verde), ~32% NO-GO (vermelho bloqueio)
         const isGo = Math.random() < 0.68;
-        const next: GoTrial = { id: seq, isGo, shape: isGo ? 'circle' : 'square' };
+        const next: GoTrial = { id: seq, isGo };
         trialRef.current = { responded: false, shownAt: performance.now(), current: next };
         setTrial(next);
         setFeedback(null);
 
+        const winMs = Math.max(660, configRef.current.stimulusMs);
         t2 = window.setTimeout(() => {
           if (cancelled || statsRef.current.finished) return;
           if (!trialRef.current.responded) {
@@ -83,16 +86,22 @@ export function GoNoGoReflexGame({ config, finishRequested, onLiveUpdate, onFini
               setFeedback('missed');
               sound.miss();
             } else {
-              // Inibição bem-sucedida no NO-GO!
+              // Inibição bem-sucedida conta para a onda!
               statsRef.current.correct++;
               statsRef.current.combo++;
               statsRef.current.rawPoints += 110;
+              const clearedAll = onWaveHit();
+              emitLive();
+              if (clearedAll) {
+                finishNow();
+                return;
+              }
             }
             emitLive();
           }
           scheduleNext();
-        }, windowMs);
-      }, 360 + Math.floor(Math.random() * 260));
+        }, winMs);
+      }, 300 + Math.floor(Math.random() * 240));
     };
 
     scheduleNext();
@@ -101,7 +110,7 @@ export function GoNoGoReflexGame({ config, finishRequested, onLiveUpdate, onFini
       clearTimeout(t1);
       clearTimeout(t2);
     };
-  }, [windowMs, emitLive]);
+  }, [emitLive, onWaveHit, finishNow]);
 
   const handleTap = useCallback(() => {
     const cur = trialRef.current.current;
@@ -116,16 +125,20 @@ export function GoNoGoReflexGame({ config, finishRequested, onLiveUpdate, onFini
       statsRef.current.rawPoints += 130 + Math.min(80, statsRef.current.combo * 12);
       sound.hit(statsRef.current.combo);
       setFeedback('ok');
+      const clearedAll = onWaveHit();
+      emitLive();
+      if (clearedAll) {
+        finishNow();
+      }
     } else {
-      // Penalização forte por erro impulsivo em NO-GO
       statsRef.current.commission++;
       statsRef.current.combo = 0;
       statsRef.current.rawPoints = Math.max(0, statsRef.current.rawPoints - 120);
       sound.miss();
       setFeedback('impulsive');
+      emitLive();
     }
-    emitLive();
-  }, [emitLive]);
+  }, [emitLive, onWaveHit, finishNow]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

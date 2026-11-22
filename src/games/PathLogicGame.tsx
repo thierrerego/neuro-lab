@@ -38,12 +38,14 @@ function buildTrail(count: number, alternating: boolean): TrailNode[] {
   return nodes;
 }
 
-export function PathLogicGame({ config, finishRequested, onLiveUpdate, onFinish }: MinigameProps) {
-  const alternating = config.stage >= 2;
-  const nodeCount = Math.min(12, 6 + config.stage);
-  const [nodes, setNodes] = useState<TrailNode[]>(() => buildTrail(nodeCount, alternating));
+export function PathLogicGame({ config, finishRequested, onWaveHit, onLiveUpdate, onFinish }: MinigameProps) {
+  const [alternating, setAlternating] = useState(() => config.stage >= 2);
+  const [nodes, setNodes] = useState<TrailNode[]>(() => buildTrail(Math.min(10, 5 + config.stage), config.stage >= 2));
   const [nextOrder, setNextOrder] = useState(0);
   const [wrongOrder, setWrongOrder] = useState<number | null>(null);
+
+  const configRef = useRef(config);
+  configRef.current = config;
 
   const statsRef = useRef({
     correct: 0,
@@ -55,27 +57,29 @@ export function PathLogicGame({ config, finishRequested, onLiveUpdate, onFinish 
     finished: false,
   });
 
-  useEffect(() => {
-    if (finishRequested && !statsRef.current.finished) {
-      statsRef.current.finished = true;
-      onFinish({
-        correct: statsRef.current.correct,
-        commissionErrors: statsRef.current.commission,
-        omissionErrors: 0,
-        reactionTimesMs: statsRef.current.rts,
-        rawPoints: statsRef.current.rawPoints,
-      });
-    }
-  }, [finishRequested, onFinish]);
+  const finishNow = () => {
+    if (statsRef.current.finished) return;
+    statsRef.current.finished = true;
+    onFinish({
+      correct: statsRef.current.correct,
+      commissionErrors: statsRef.current.commission,
+      omissionErrors: 0,
+      reactionTimesMs: statsRef.current.rts,
+      rawPoints: statsRef.current.rawPoints,
+    });
+  };
 
-  const emitLive = (curNext: number) => {
+  useEffect(() => {
+    if (finishRequested) finishNow();
+  }, [finishRequested]);
+
+  const emitLive = () => {
     const s = statsRef.current;
     const tot = s.correct + s.commission;
     onLiveUpdate({
-      score: Math.round(s.rawPoints * config.scoreMultiplier),
+      score: Math.round(s.rawPoints * configRef.current.scoreMultiplier),
       accuracyPct: tot > 0 ? Math.round((s.correct / tot) * 100) : 100,
       combo: s.combo,
-      statusTag: `${curNext}/${nodes.length}`,
     });
   };
 
@@ -92,15 +96,21 @@ export function PathLogicGame({ config, finishRequested, onLiveUpdate, onFinish 
       statsRef.current.rawPoints += 110 + Math.min(70, statsRef.current.combo * 10);
       sound.hit(statsRef.current.combo);
 
+      const clearedAll = onWaveHit();
+      emitLive();
+      if (clearedAll) {
+        finishNow();
+        return;
+      }
+
       if (nextOrder + 1 >= nodes.length) {
-        statsRef.current.rawPoints += 160;
-        const fresh = buildTrail(nodeCount, alternating);
-        setNodes(fresh);
+        const nextAlt = configRef.current.stage >= 2;
+        const nextCount = Math.min(12, 5 + configRef.current.stage);
+        setAlternating(nextAlt);
+        setNodes(buildTrail(nextCount, nextAlt));
         setNextOrder(0);
-        emitLive(0);
       } else {
         setNextOrder(nextOrder + 1);
-        emitLive(nextOrder + 1);
       }
     } else {
       statsRef.current.commission++;
@@ -109,7 +119,7 @@ export function PathLogicGame({ config, finishRequested, onLiveUpdate, onFinish 
       sound.miss();
       setWrongOrder(node.order);
       setTimeout(() => setWrongOrder(null), 260);
-      emitLive(nextOrder);
+      emitLive();
     }
   };
 
@@ -123,7 +133,7 @@ export function PathLogicGame({ config, finishRequested, onLiveUpdate, onFinish 
 
       <svg
         viewBox={`0 0 ${SIZE} ${SIZE}`}
-        className="w-full max-w-[310px] aspect-square rounded-2xl touch-none"
+        className="w-full max-w-[305px] aspect-square rounded-2xl touch-none"
         style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
       >
         {connected.map((n, i) => {
