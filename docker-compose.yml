@@ -1,0 +1,93 @@
+services:
+  # Banco Postgres 16 local (carrega roles + migration SQL automaticamente)
+  db:
+    image: postgres:16-alpine
+    container_name: neurolab-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "54322:5432"
+    volumes:
+      - neurolab_pgdata:/var/lib/postgresql/data
+      - ./docker/init/01-roles.sql:/docker-entrypoint-initdb.d/01-roles.sql:ro
+      - ./supabase/migrations/20261121000000_initial_schema.sql:/docker-entrypoint-initdb.d/02-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Autenticação compatível com Supabase Auth (sem confirmação de e-mail)
+  auth:
+    image: supabase/gotrue:v2.158.1
+    container_name: neurolab-auth
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      API_EXTERNAL_URL: http://127.0.0.1:54321
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:postgres@db:5432/postgres?search_path=auth
+      GOTRUE_SITE_URL: http://localhost:5173
+      GOTRUE_URI_ALLOW_LIST: http://localhost:5173,http://127.0.0.1:5173
+      GOTRUE_DISABLE_SIGNUP: "false"
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_EXP: 3600
+      GOTRUE_JWT_SECRET: super-secret-jwt-token-with-at-least-32-characters-long
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+      GOTRUE_MAILER_AUTOCONFIRM: "true"
+
+  # API REST automática (PostgREST com suporte a RLS via JWT)
+  rest:
+    image: postgrest/postgrest:v12.2.3
+    container_name: neurolab-rest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGRST_DB_URI: postgres://authenticator:postgres@db:5432/postgres
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: super-secret-jwt-token-with-at-least-32-characters-long
+      PGRST_DB_USE_LEGACY_GUCS: "false"
+
+  # Gateway unificado na porta 54321 (mesma URL do Supabase Local)
+  kong:
+    image: kong:2.8.1
+    container_name: neurolab-kong
+    restart: unless-stopped
+    depends_on:
+      - auth
+      - rest
+    ports:
+      - "54321:8000"
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /var/lib/kong/kong.yml
+      KONG_DNS_ORDER: LAST,A,CNAME
+      KONG_PLUGINS: request-transformer,cors,key-auth,acl,basic-auth
+    volumes:
+      - ./docker/kong.yml:/var/lib/kong/kong.yml:ro
+
+  # Opcional: subir o front-end dentro do Docker com `docker compose --profile app up`
+  web:
+    profiles: ["app"]
+    build: .
+    container_name: neurolab-web
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_SUPABASE_URL: http://127.0.0.1:54321
+      VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+
+volumes:
+  neurolab_pgdata:
