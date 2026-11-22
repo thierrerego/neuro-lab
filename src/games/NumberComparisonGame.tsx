@@ -55,7 +55,15 @@ function makePair(level: 1 | 2 | 3 | 4, easeBoost: boolean): Pair {
   return { leftLabel: '14 + 5', leftVal: 19, rightLabel: '12 + 9', rightVal: 21 };
 }
 
-export function NumberComparisonGame({ config, finishRequested, onWaveHit, onLiveUpdate, onFinish }: MinigameProps) {
+export function NumberComparisonGame({
+  config,
+  finishRequested,
+  paused = false,
+  onWaveHit,
+  onWaveError,
+  onLiveUpdate,
+  onFinish,
+}: MinigameProps) {
   const [pair, setPair] = useState(() => makePair(config.mathComplexity, config.easeBoost));
   const [pId, setPId] = useState(0);
   const [flash, setFlash] = useState<{ side: 'left' | 'right'; ok: boolean } | null>(null);
@@ -91,7 +99,7 @@ export function NumberComparisonGame({ config, finishRequested, onWaveHit, onLiv
 
   const choose = useCallback(
     (side: 'left' | 'right') => {
-      if (flash || statsRef.current.finished) return;
+      if (flash || paused || statsRef.current.finished) return;
       const rt = performance.now() - statsRef.current.shownAt;
       const ok = side === 'left' ? pair.leftVal > pair.rightVal : pair.rightVal > pair.leftVal;
       let clearedAll = false;
@@ -108,6 +116,7 @@ export function NumberComparisonGame({ config, finishRequested, onWaveHit, onLiv
         statsRef.current.combo = 0;
         statsRef.current.rawPoints = Math.max(0, statsRef.current.rawPoints - 45);
         sound.miss();
+        onWaveError?.();
       }
 
       const tot = statsRef.current.correct + statsRef.current.commission;
@@ -131,7 +140,7 @@ export function NumberComparisonGame({ config, finishRequested, onWaveHit, onLiv
         statsRef.current.shownAt = performance.now();
       }, 150);
     },
-    [flash, pair, onWaveHit, onLiveUpdate, finishNow]
+    [flash, pair, paused, onWaveHit, onWaveError, onLiveUpdate, finishNow]
   );
 
   useEffect(() => {

@@ -51,7 +51,15 @@ function buildBoard(gridSize: number, targetCount: number, boardNum: number): { 
   return { target: set.target, gridSize, cells };
 }
 
-export function VisualSearchGame({ config, finishRequested, onWaveHit, onLiveUpdate, onFinish }: MinigameProps) {
+export function VisualSearchGame({
+  config,
+  finishRequested,
+  paused = false,
+  onWaveHit,
+  onWaveError,
+  onLiveUpdate,
+  onFinish,
+}: MinigameProps) {
   const [boardNum, setBoardNum] = useState(0);
   const [board, setBoard] = useState(() => buildBoard(config.gridSize, config.targetCount, 0));
   const [wrongId, setWrongId] = useState<number | null>(null);
@@ -98,7 +106,7 @@ export function VisualSearchGame({ config, finishRequested, onWaveHit, onLiveUpd
   };
 
   const handleTap = (cell: Cell) => {
-    if (cell.found || statsRef.current.finished) return;
+    if (cell.found || paused || statsRef.current.finished) return;
     const now = performance.now();
     const rt = now - statsRef.current.lastTapAt;
     statsRef.current.lastTapAt = now;
@@ -139,6 +147,7 @@ export function VisualSearchGame({ config, finishRequested, onWaveHit, onLiveUpd
       setWrongId(cell.id);
       setTimeout(() => setWrongId(null), 260);
       emitLive(board.cells.filter((c) => c.isTarget && !c.found).length);
+      onWaveError?.();
     }
   };
 

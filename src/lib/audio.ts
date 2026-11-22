@@ -4,15 +4,18 @@ class SoundEngine {
   private ctx: AudioContext | null = null;
   private enabled = true;
 
-  setTheme(theme: ThemeMode) {
-    this.enabled = theme === 'gamified';
+  setTheme(_theme: ThemeMode) {
+    // Feedback sonoro discreto e preciso em ambos os modos (escuro e claro)
+    this.enabled = true;
   }
 
   private ensureContext(): AudioContext | null {
     if (!this.enabled) return null;
     try {
       if (!this.ctx) {
-        const AudioCtor = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        const AudioCtor =
+          window.AudioContext ||
+          (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
         this.ctx = new AudioCtor();
       }
       if (this.ctx.state === 'suspended') {
@@ -24,7 +27,7 @@ class SoundEngine {
     }
   }
 
-  private tone(freq: number, dur = 0.08, type: OscillatorType = 'triangle', vol = 0.07, delay = 0) {
+  private tone(freq: number, dur = 0.07, type: OscillatorType = 'sine', vol = 0.05, delay = 0) {
     const ctx = this.ensureContext();
     if (!ctx) return;
     const now = ctx.currentTime + delay;
@@ -41,29 +44,28 @@ class SoundEngine {
   }
 
   tap() {
-    this.tone(420, 0.04, 'sine', 0.04);
+    this.tone(420, 0.035, 'sine', 0.03);
   }
 
   hit(combo = 1) {
-    const pitch = Math.min(980, 480 + combo * 42);
-    this.tone(pitch, 0.08, 'triangle', 0.08);
+    const pitch = Math.min(860, 480 + combo * 34);
+    this.tone(pitch, 0.07, 'sine', 0.055);
   }
 
   miss() {
-    this.tone(185, 0.14, 'sawtooth', 0.065);
-    this.tone(145, 0.14, 'sawtooth', 0.05, 0.07);
+    this.tone(190, 0.12, 'triangle', 0.05);
+    this.tone(150, 0.12, 'triangle', 0.04, 0.06);
   }
 
   stageClear() {
-    this.tone(523.25, 0.11, 'triangle', 0.08, 0);
-    this.tone(659.25, 0.11, 'triangle', 0.08, 0.09);
-    this.tone(783.99, 0.14, 'triangle', 0.09, 0.18);
-    this.tone(1046.5, 0.24, 'triangle', 0.09, 0.28);
+    this.tone(523.25, 0.1, 'sine', 0.06, 0);
+    this.tone(659.25, 0.1, 'sine', 0.06, 0.09);
+    this.tone(783.99, 0.14, 'sine', 0.065, 0.18);
   }
 
   stageFail() {
-    this.tone(330, 0.14, 'sine', 0.07, 0);
-    this.tone(262, 0.2, 'sine', 0.07, 0.13);
+    this.tone(330, 0.12, 'sine', 0.05, 0);
+    this.tone(262, 0.18, 'sine', 0.05, 0.12);
   }
 }
 

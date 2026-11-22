@@ -4,9 +4,17 @@ import type { MinigameProps } from './GameProps';
 
 const ALL_SYMBOLS = ['◆', '▲', '●', '★', '✦', '✚', '⬟', '◈', '☾'];
 
-export function SymbolDigitGame({ config, finishRequested, onWaveHit, onLiveUpdate, onFinish }: MinigameProps) {
+export function SymbolDigitGame({
+  config,
+  finishRequested,
+  paused = false,
+  onWaveHit,
+  onWaveError,
+  onLiveUpdate,
+  onFinish,
+}: MinigameProps) {
   const [shuffledPool] = useState(() => [...ALL_SYMBOLS].sort(() => Math.random() - 0.5));
-  const pairCount = config.easeBoost ? 3 : Math.min(9, 3 + config.stage);
+  const pairCount = config.easeBoost ? 3 : Math.min(9, 3 + Math.floor(config.stage * 0.6));
 
   const legend = useMemo(
     () => shuffledPool.slice(0, pairCount).map((sym, i) => ({ sym, digit: i + 1 })),
@@ -49,7 +57,7 @@ export function SymbolDigitGame({ config, finishRequested, onWaveHit, onLiveUpda
 
   const pickDigit = useCallback(
     (digit: number) => {
-      if (statsRef.current.finished) return;
+      if (paused || statsRef.current.finished) return;
       const rt = performance.now() - statsRef.current.shownAt;
       const expected = legend[safeIdx].digit;
       const ok = digit === expected;
@@ -69,6 +77,7 @@ export function SymbolDigitGame({ config, finishRequested, onWaveHit, onLiveUpda
         statsRef.current.rawPoints = Math.max(0, statsRef.current.rawPoints - 40);
         sound.miss();
         setFlash('err');
+        onWaveError?.();
       }
       setTimeout(() => setFlash(null), 150);
 
@@ -89,7 +98,7 @@ export function SymbolDigitGame({ config, finishRequested, onWaveHit, onLiveUpda
       setTargetIdx(next);
       statsRef.current.shownAt = performance.now();
     },
-    [legend, safeIdx, onWaveHit, onLiveUpdate, finishNow]
+    [legend, safeIdx, paused, onWaveHit, onWaveError, onLiveUpdate, finishNow]
   );
 
   useEffect(() => {

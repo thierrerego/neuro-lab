@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { sound } from '../lib/audio';
 import type { MinigameProps } from './GameProps';
 
@@ -11,32 +11,46 @@ const SYMBOLS = ['◆', '▲', '●', '■', '★', '✦'];
 
 function nextStimulus(history: Stimulus[], nBack: number): Stimulus {
   const canMatch = history.length >= nBack;
-  const prev = canMatch ? history[history.length - nBack] : null;
-  const forcePos = prev && Math.random() < 0.38;
-  const forceSym = prev && Math.random() < 0.38;
+  const ref = canMatch ? history[history.length - nBack] : null;
+  const forceSame = Boolean(ref && Math.random() < 0.48);
+
+  if (forceSame && ref) {
+    return { pos: ref.pos, sym: ref.sym };
+  }
+
+  let pos = Math.floor(Math.random() * 9);
+  if (ref && pos === ref.pos) {
+    pos = (pos + 1 + Math.floor(Math.random() * 8)) % 9;
+  }
   return {
-    pos: forcePos ? prev.pos : Math.floor(Math.random() * 9),
-    sym: forceSym ? prev.sym : SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)],
+    pos,
+    sym: SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)],
   };
 }
 
-export function DualNBackGame({ config, finishRequested, onWaveHit, onLiveUpdate, onFinish }: MinigameProps) {
+/**
+ * N-Back intuitivo e claro:
+ * - No início (Estágios 0..4), usa 1-Back comparando com o imediatamente anterior.
+ * - Mostra miniatura fantasma/dica visual na primeira rodada comparável ("Compare com o anterior").
+ * - Botões claros: "✕ DIFERENTE" e "✓ IGUAL AO ANTERIOR" (ou "IGUAL A N ATRÁS" nos níveis avançados).
+ */
+export function DualNBackGame({
+  config,
+  finishRequested,
+  paused = false,
+  onWaveHit,
+  onWaveError,
+  onLiveUpdate,
+  onFinish,
+}: MinigameProps) {
   const n = config.nBackLevel;
-  const dualMode = config.stage >= 4;
-  const stepMs = Math.max(1350, config.stimulusMs + 500);
-
   const [history, setHistory] = useState<Stimulus[]>(() => [nextStimulus([], n)]);
-  const [pressedPos, setPressedPos] = useState<null | 'ok' | 'err'>(null);
-  const [pressedSym, setPressedSym] = useState<null | 'ok' | 'err'>(null);
+  const [flash, setFlash] = useState<{ kind: 'same' | 'diff'; ok: boolean } | null>(null);
 
   const configRef = useRef(config);
   configRef.current = config;
-
-  const stepStateRef = useRef({
-    respondedPos: false,
-    respondedSym: false,
-    stepShownAt: performance.now(),
-  });
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
 
   const statsRef = useRef({
     correct: 0,
@@ -45,10 +59,11 @@ export function DualNBackGame({ config, finishRequested, onWaveHit, onLiveUpdate
     rts: [] as number[],
     combo: 0,
     rawPoints: 0,
+    shownAt: performance.now(),
     finished: false,
   });
 
-  const finishNow = () => {
+  const finishNow = useCallback(() => {
     if (statsRef.current.finished) return;
     statsRef.current.finished = true;
     onFinish({
@@ -58,184 +73,175 @@ export function DualNBackGame({ config, finishRequested, onWaveHit, onLiveUpdate
       reactionTimesMs: statsRef.current.rts,
       rawPoints: statsRef.current.rawPoints,
     });
-  };
+  }, [onFinish]);
 
   useEffect(() => {
     if (finishRequested) finishNow();
-  }, [finishRequested]);
-
-  const emitLive = () => {
-    const s = statsRef.current;
-    const tot = s.correct + s.commission + s.omission;
-    onLiveUpdate({
-      score: Math.round(s.rawPoints * configRef.current.scoreMultiplier),
-      accuracyPct: tot > 0 ? Math.round((s.correct / tot) * 100) : 100,
-      combo: s.combo,
-    });
-  };
+  }, [finishRequested, finishNow]);
 
   const stepIdx = history.length - 1;
   const current = history[stepIdx];
+  const canCompare = stepIdx >= n;
+  const refStimulus = canCompare ? history[stepIdx - n] : null;
+  const showGhostHint = canCompare && stepIdx <= n + 1 && config.stage < 2;
 
+  // Avança automaticamente os primeiros N quadros de memorização inicial
   useEffect(() => {
-    if (statsRef.current.finished) return;
-    stepStateRef.current = {
-      respondedPos: false,
-      respondedSym: false,
-      stepShownAt: performance.now(),
-    };
-    setPressedPos(null);
-    setPressedSym(null);
+    if (canCompare || statsRef.current.finished || paused) return;
+    const t = window.setTimeout(() => {
+      if (statsRef.current.finished || pausedRef.current) return;
+      setHistory((prev) => [...prev, nextStimulus(prev, configRef.current.nBackLevel)]);
+      statsRef.current.shownAt = performance.now();
+    }, 1250);
+    return () => window.clearTimeout(t);
+  }, [canCompare, stepIdx, paused]);
 
-    const timer = window.setTimeout(() => {
-      if (statsRef.current.finished) return;
-      const curN = configRef.current.nBackLevel;
-      if (stepIdx >= curN) {
-        const cur = history[stepIdx];
-        const prev = history[stepIdx - curN];
-        const isPosMatch = cur.pos === prev.pos;
-        const isSymMatch = cur.sym === prev.sym;
+  const answer = useCallback(
+    (userSaysSame: boolean) => {
+      if (!canCompare || !refStimulus || flash || pausedRef.current || statsRef.current.finished) return;
+      const rt = performance.now() - statsRef.current.shownAt;
+      const isMatch = current.pos === refStimulus.pos;
+      const ok = userSaysSame === isMatch;
+      let clearedAll = false;
 
-        if (isPosMatch && !stepStateRef.current.respondedPos) {
-          statsRef.current.omission++;
-          statsRef.current.combo = 0;
-        } else if (!isPosMatch && !stepStateRef.current.respondedPos) {
-          statsRef.current.correct++;
-          statsRef.current.rawPoints += 65;
-          if (onWaveHit()) {
-            emitLive();
-            finishNow();
-            return;
-          }
-        }
-
-        if (configRef.current.stage >= 4) {
-          if (isSymMatch && !stepStateRef.current.respondedSym) {
-            statsRef.current.omission++;
-            statsRef.current.combo = 0;
-          } else if (!isSymMatch && !stepStateRef.current.respondedSym) {
-            statsRef.current.correct++;
-            statsRef.current.rawPoints += 65;
-          }
-        }
-        emitLive();
+      if (ok) {
+        statsRef.current.correct++;
+        statsRef.current.combo++;
+        statsRef.current.rts.push(rt);
+        statsRef.current.rawPoints += 140 + Math.min(80, statsRef.current.combo * 14);
+        sound.hit(statsRef.current.combo);
+        clearedAll = onWaveHit();
+      } else {
+        statsRef.current.commission++;
+        statsRef.current.combo = 0;
+        statsRef.current.rawPoints = Math.max(0, statsRef.current.rawPoints - 45);
+        sound.miss();
+        onWaveError?.();
       }
 
-      setHistory((prevH) => [...prevH, nextStimulus(prevH, configRef.current.nBackLevel)]);
-    }, stepMs);
+      const tot = statsRef.current.correct + statsRef.current.commission;
+      onLiveUpdate({
+        score: Math.round(statsRef.current.rawPoints * configRef.current.scoreMultiplier),
+        accuracyPct: tot > 0 ? Math.round((statsRef.current.correct / tot) * 100) : 100,
+        combo: statsRef.current.combo,
+      });
 
-    return () => clearTimeout(timer);
-  }, [stepIdx, stepMs]);
-
-  const checkMatch = (kind: 'pos' | 'sym') => {
-    const curN = configRef.current.nBackLevel;
-    if (stepIdx < curN || statsRef.current.finished) return;
-    if (kind === 'pos' && stepStateRef.current.respondedPos) return;
-    if (kind === 'sym' && stepStateRef.current.respondedSym) return;
-
-    const rt = performance.now() - stepStateRef.current.stepShownAt;
-    const prev = history[stepIdx - curN];
-    const isMatch = kind === 'pos' ? current.pos === prev.pos : current.sym === prev.sym;
-
-    if (kind === 'pos') stepStateRef.current.respondedPos = true;
-    else stepStateRef.current.respondedSym = true;
-
-    if (isMatch) {
-      statsRef.current.correct++;
-      statsRef.current.combo++;
-      statsRef.current.rts.push(rt);
-      statsRef.current.rawPoints += 150 + statsRef.current.combo * 15;
-      sound.hit(statsRef.current.combo);
-      if (kind === 'pos') setPressedPos('ok');
-      else setPressedSym('ok');
-      if (onWaveHit()) {
-        emitLive();
+      if (clearedAll) {
         finishNow();
         return;
       }
-    } else {
-      statsRef.current.commission++;
-      statsRef.current.combo = 0;
-      statsRef.current.rawPoints = Math.max(0, statsRef.current.rawPoints - 50);
-      sound.miss();
-      if (kind === 'pos') setPressedPos('err');
-      else setPressedSym('err');
-    }
-    emitLive();
-  };
+
+      setFlash({ kind: userSaysSame ? 'same' : 'diff', ok });
+      window.setTimeout(() => {
+        if (statsRef.current.finished) return;
+        setFlash(null);
+        setHistory((prev) => [...prev, nextStimulus(prev, configRef.current.nBackLevel)]);
+        statsRef.current.shownAt = performance.now();
+      }, 220);
+    },
+    [canCompare, refStimulus, flash, current, onWaveHit, onWaveError, onLiveUpdate, finishNow]
+  );
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') answer(false);
+      else if (e.key === 'ArrowRight') answer(true);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [answer]);
 
   return (
     <div className="w-full flex flex-col items-center gap-4">
-      <div className="text-xs font-bold uppercase tracking-wider px-3.5 py-1.5 rounded-full" style={{ background: 'var(--bg-subtle)', color: 'var(--accent)' }}>
-        {n}-Back {dualMode ? '· Dual' : ''}
+      <div className="flex flex-col items-center gap-1">
+        <div
+          className="text-xs font-extrabold uppercase tracking-wider px-3.5 py-1.5 rounded-full"
+          style={{ background: 'var(--bg-subtle)', color: canCompare ? 'var(--accent)' : 'var(--warn)' }}
+        >
+          {!canCompare
+            ? 'Memorize esta posição...'
+            : n === 1
+              ? 'Compare com o anterior'
+              : `Compare com ${n} atrás`}
+        </div>
+        {showGhostHint && (
+          <span className="text-[11px] font-semibold" style={{ color: 'var(--text-soft)' }}>
+            A marca pontilhada mostra onde estava o anterior
+          </span>
+        )}
       </div>
 
       <div className="grid grid-cols-3 gap-2 w-full max-w-[235px]">
         {Array.from({ length: 9 }, (_, i) => {
           const active = current?.pos === i;
+          const isGhost = showGhostHint && refStimulus?.pos === i;
           return (
             <div
               key={`${stepIdx}-${i}`}
-              className="aspect-square rounded-2xl flex items-center justify-center text-3xl font-black transition-all"
+              className="aspect-square rounded-2xl flex items-center justify-center text-3xl font-black transition-all relative"
               style={{
-                background: active ? 'var(--accent-grad)' : 'var(--bg-card)',
-                border: active ? '2px solid #fff' : '1px solid var(--border)',
-                color: '#ffffff',
+                background: active
+                  ? 'var(--accent-grad)'
+                  : isGhost
+                    ? 'var(--accent-glow)'
+                    : 'var(--bg-card)',
+                border: active
+                  ? '2px solid #ffffff'
+                  : isGhost
+                    ? '2px dashed var(--accent)'
+                    : '1px solid var(--border)',
+                color: active ? '#ffffff' : 'var(--accent)',
                 boxShadow: active ? '0 0 22px var(--accent-glow)' : 'none',
               }}
             >
-              {active ? current.sym : ''}
+              {active ? (
+                current.sym
+              ) : isGhost ? (
+                <span className="text-[10px] font-extrabold uppercase opacity-75">Ant.</span>
+              ) : (
+                ''
+              )}
             </div>
           );
         })}
       </div>
 
-      <div className={`grid gap-2.5 w-full max-w-[300px] ${dualMode ? 'grid-cols-2' : 'grid-cols-1'}`}>
+      <div className="grid grid-cols-2 gap-2.5 w-full max-w-[330px]">
         <button
-          disabled={stepIdx < n}
-          onClick={() => checkMatch('pos')}
-          className="py-3.5 rounded-2xl font-bold text-sm transition-all cursor-pointer disabled:opacity-35"
+          disabled={!canCompare || paused}
+          onClick={() => answer(false)}
+          className="py-4 px-2 rounded-2xl font-extrabold text-xs sm:text-sm transition-all cursor-pointer disabled:opacity-35"
           style={{
             background:
-              pressedPos === 'ok'
-                ? 'rgba(52, 211, 153, 0.3)'
-                : pressedPos === 'err'
-                  ? 'rgba(251, 113, 133, 0.35)'
-                  : 'var(--bg-card)',
+              flash?.kind === 'diff'
+                ? flash.ok
+                  ? 'rgba(52, 211, 153, 0.28)'
+                  : 'rgba(251, 113, 133, 0.32)'
+                : 'var(--bg-card)',
             border:
-              pressedPos === 'ok'
-                ? '2px solid var(--ok)'
-                : pressedPos === 'err'
-                  ? '2px solid var(--err)'
-                  : '1px solid var(--border-strong)',
+              flash?.kind === 'diff'
+                ? `2px solid ${flash.ok ? 'var(--ok)' : 'var(--err)'}`
+                : '1.5px solid var(--border-strong)',
           }}
         >
-          {dualMode ? 'Posição Igual' : `Igual a ${n} atrás`}
+          ✕ DIFERENTE
         </button>
 
-        {dualMode && (
-          <button
-            disabled={stepIdx < n}
-            onClick={() => checkMatch('sym')}
-            className="py-3.5 rounded-2xl font-bold text-sm transition-all cursor-pointer disabled:opacity-35"
-            style={{
-              background:
-                pressedSym === 'ok'
-                  ? 'rgba(52, 211, 153, 0.3)'
-                  : pressedSym === 'err'
-                    ? 'rgba(251, 113, 133, 0.35)'
-                    : 'var(--bg-card)',
-              border:
-                pressedSym === 'ok'
-                  ? '2px solid var(--ok)'
-                  : pressedSym === 'err'
-                    ? '2px solid var(--err)'
-                    : '1px solid var(--border-strong)',
-            }}
-          >
-            Símbolo Igual
-          </button>
-        )}
+        <button
+          disabled={!canCompare || paused}
+          onClick={() => answer(true)}
+          className="py-4 px-2 rounded-2xl font-extrabold text-xs sm:text-sm transition-all cursor-pointer disabled:opacity-35 btn-accent"
+          style={
+            flash?.kind === 'same'
+              ? {
+                  background: flash.ok ? 'rgba(52, 211, 153, 0.35)' : 'rgba(251, 113, 133, 0.4)',
+                  border: `2px solid ${flash.ok ? 'var(--ok)' : 'var(--err)'}`,
+                }
+              : undefined
+          }
+        >
+          {n === 1 ? '✓ IGUAL AO ANTERIOR' : `✓ IGUAL A ${n} ATRÁS`}
+        </button>
       </div>
     </div>
   );

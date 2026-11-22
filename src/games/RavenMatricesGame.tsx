@@ -99,7 +99,15 @@ function GlyphSvg({ glyph }: { glyph: Glyph }) {
   );
 }
 
-export function RavenMatricesGame({ config, finishRequested, onWaveHit, onLiveUpdate, onFinish }: MinigameProps) {
+export function RavenMatricesGame({
+  config,
+  finishRequested,
+  paused = false,
+  onWaveHit,
+  onWaveError,
+  onLiveUpdate,
+  onFinish,
+}: MinigameProps) {
   const [puzzle, setPuzzle] = useState(() => makePuzzle(config.stage));
   const [feedback, setFeedback] = useState<{ idx: number; ok: boolean } | null>(null);
 
@@ -133,7 +141,7 @@ export function RavenMatricesGame({ config, finishRequested, onWaveHit, onLiveUp
   }, [finishRequested]);
 
   const handlePick = (idx: number) => {
-    if (feedback || statsRef.current.finished) return;
+    if (feedback || paused || statsRef.current.finished) return;
     const rt = performance.now() - statsRef.current.shownAt;
     const ok = idx === puzzle.answerIdx;
     let clearedAll = false;
@@ -150,6 +158,7 @@ export function RavenMatricesGame({ config, finishRequested, onWaveHit, onLiveUp
       statsRef.current.combo = 0;
       statsRef.current.rawPoints = Math.max(0, statsRef.current.rawPoints - 45);
       sound.miss();
+      onWaveError?.();
     }
 
     const tot = statsRef.current.correct + statsRef.current.commission;

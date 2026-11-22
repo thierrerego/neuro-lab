@@ -30,7 +30,15 @@ function nextCardFrom(prev: CardItem, effectiveDiff: number): { card: CardItem; 
   return { card: candidate, same: candidate.symbol === prev.symbol && candidate.color === prev.color };
 }
 
-export function SpeedMatchGame({ config, finishRequested, onWaveHit, onLiveUpdate, onFinish }: MinigameProps) {
+export function SpeedMatchGame({
+  config,
+  finishRequested,
+  paused = false,
+  onWaveHit,
+  onWaveError,
+  onLiveUpdate,
+  onFinish,
+}: MinigameProps) {
   const [prevCard, setPrevCard] = useState<CardItem>(() => randomCard(config.stage));
   const [current, setCurrent] = useState<CardItem | null>(null);
   const [isSame, setIsSame] = useState(false);
@@ -79,7 +87,7 @@ export function SpeedMatchGame({ config, finishRequested, onWaveHit, onLiveUpdat
 
   const answer = useCallback(
     (userSaysSame: boolean) => {
-      if (!current || statsRef.current.finished) return;
+      if (!current || paused || statsRef.current.finished) return;
       const rt = performance.now() - statsRef.current.shownAt;
       const ok = userSaysSame === isSame;
       let clearedAll = false;
@@ -98,6 +106,7 @@ export function SpeedMatchGame({ config, finishRequested, onWaveHit, onLiveUpdat
         statsRef.current.rawPoints = Math.max(0, statsRef.current.rawPoints - 45);
         sound.miss();
         setFlash('err');
+        onWaveError?.();
       }
       setTimeout(() => setFlash(null), 150);
 
@@ -120,7 +129,7 @@ export function SpeedMatchGame({ config, finishRequested, onWaveHit, onLiveUpdat
       setCardId((id) => id + 1);
       statsRef.current.shownAt = performance.now();
     },
-    [current, isSame, onWaveHit, onLiveUpdate, finishNow]
+    [current, isSame, paused, onWaveHit, onWaveError, onLiveUpdate, finishNow]
   );
 
   useEffect(() => {

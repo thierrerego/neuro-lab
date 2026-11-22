@@ -1,7 +1,8 @@
-export type ThemeMode = 'minimal' | 'gamified';
+export type ThemeMode = 'dark' | 'light';
 export type PlanTier = 'free' | 'pro' | 'elite';
 export type SessionMode = 'calibration' | 'guided' | 'free';
 export type TrainingFocusMode = 'weak' | 'goals';
+export type AgeBracket = '18-24' | '25-34' | '35-44' | '45-54' | '55+';
 
 export type DomainKey =
   | 'selective_attention'
@@ -94,7 +95,7 @@ export interface ComputedSessionResult {
   stagePlayed: number;       // baseStage jogado
   stageCleared: boolean;
   nextStage: number;
-  adaptiveDelta: number;     // +3, +2, +1, 0 ou -1
+  adaptiveDelta: number;     // +2, +1, 0 ou -1
   adaptiveStatus: AdaptiveStatus;
   score: number;             // 0..1000
   accuracyPct: number;       // 0..100
@@ -102,7 +103,7 @@ export interface ComputedSessionResult {
   speedPoints: number;       // 0..400 (40%)
   earlyBonusPoints: number;  // pontos extras de tempo economizado incluídos em speedPoints
   speedScore: number;        // 0..100
-  performanceIndex: number;  // 0..100
+  performanceIndex: number;  // 0..100 (%)
   percentile: number;        // 1.0..99.9
   earnedTitle: string;
   earnedSubtitle: string;
@@ -115,8 +116,7 @@ export interface ComputedSessionResult {
   omissionErrors: number;
   rtMeanMs: number;
   rtSdMs: number;
-  xpEarned: number;
-  bonusXp: boolean;
+  isPriorityDomain: boolean;
   domainDelta: number;
 }
 
@@ -126,6 +126,12 @@ export interface OnboardingProfileData {
   daily_goal_minutes: 5 | 10 | 15 | 20;
   peak_time: string;
   bottlenecks: string[];
+  bottleneck_domains: DomainKey[];
+  mental_stamina_baseline: number; // 1..5
+  application_context: string;
+  application_contexts: string[];
+  age_bracket: AgeBracket;
+  startCalibrationNow?: boolean;
 }
 
 export interface UserProfile {
@@ -137,12 +143,16 @@ export interface UserProfile {
   global_cognitive_index: number;
   current_streak: number;
   best_streak: number;
-  xp: number;
   calibrated: boolean;
   calibration_skipped?: boolean;
   selected_domains: DomainKey[];
   daily_goal_minutes: number;
   peak_time: string | null;
+  cognitive_bottlenecks: string[];
+  mental_stamina_baseline: number;
+  application_context: string | null;
+  application_contexts: string[];
+  age_bracket: AgeBracket;
   current_title: string;
   onboarding_answers: Record<string, unknown>;
   last_played_date: string | null;
@@ -198,4 +208,81 @@ export interface DailyProtocolRecord {
   protocol_date: string;
   recommended_games: { slug: GameSlug; domain: DomainKey; role: 'weak' | 'priority' | 'maintenance' }[];
   completed_games: GameSlug[];
+}
+
+export interface CognitiveSnapshotRecord {
+  id: string;
+  snapshot_date: string; // YYYY-MM-DD
+  global_index: number;
+  domain_scores_json: Record<DomainKey, number>;
+  avg_rt_ms: number;
+  avg_accuracy: number;
+  archetype_title: string;
+  created_at: string;
+}
+
+export interface BenchmarkDistribution {
+  mean: number;
+  sd: number;
+  p50: number;
+  p75: number;
+  p90: number;
+  p99: number;
+  avg_rt_ms?: number;
+  early_rate_pct?: number;
+}
+
+export interface PopulationBenchmarks {
+  source: 'population' | 'normative';
+  sample_sessions: number;
+  distinct_users: number;
+  global: BenchmarkDistribution;
+  domains: Record<DomainKey, BenchmarkDistribution>;
+  games: Record<GameSlug, BenchmarkDistribution>;
+}
+
+export interface ClinicalMetricsSummary {
+  avgRtMs: number;
+  rtDeltaMs: number | null; // negativo = ficou mais rápido
+  consistencyIndex: number; // 0..100
+  consistencyDelta: number | null;
+  avgRtSdMs: number;
+  avgAccuracyPct: number;
+  impulsivityPerSession: number;
+  earlyClearRatePct: number;
+  totalSessions: number;
+}
+
+export interface GameMasterySummary {
+  slug: GameSlug;
+  domain: DomainKey;
+  currentStage: number;
+  highestScore: number;
+  totalPlays: number;
+  bestWave: number; // 0..5
+  bestRemainingMs: number;
+  percentile: number; // 1.0..99.9
+  topPercent: number; // 1..99 (ex: Top 4%)
+  earlyClearRatePct: number;
+  avgScore: number;
+  sparkline: { idx: number; score: number; waves: number; dateLabel: string }[];
+}
+
+export interface CognitiveDossier {
+  archetypeTitle: string;
+  archetypeSubtitle: string;
+  archetypeColor: string;
+  topDomains: [DomainKey, DomainKey];
+  bottleneckDomain: DomainKey;
+  recommendedGame: GameSlug;
+  globalPercentile: number;
+  topPercent: number;
+  populationBand: 'Ápice (Top 1%)' | 'Elite (Top 10%)' | 'Acima da Média (Top 25%)' | 'Média Geral (50%)' | 'Em Evolução';
+  paragraphs: {
+    profileAndStrengths: string;
+    behaviorUnderPressure: string;
+    bottleneckAndPrescription: string;
+  };
+  clinical: ClinicalMetricsSummary;
+  shareSummaryText: string;
 }

@@ -30,7 +30,15 @@ function makeTrial(alternating: boolean): StroopTrial {
   return { word, ink, rule };
 }
 
-export function StroopConflictGame({ config, finishRequested, onWaveHit, onLiveUpdate, onFinish }: MinigameProps) {
+export function StroopConflictGame({
+  config,
+  finishRequested,
+  paused = false,
+  onWaveHit,
+  onWaveError,
+  onLiveUpdate,
+  onFinish,
+}: MinigameProps) {
   const [trial, setTrial] = useState(() => makeTrial(config.alternatingRule));
   const [tId, setTId] = useState(0);
   const [flash, setFlash] = useState<{ id: string; ok: boolean } | null>(null);
@@ -65,7 +73,7 @@ export function StroopConflictGame({ config, finishRequested, onWaveHit, onLiveU
   }, [finishRequested]);
 
   const handlePick = (colorId: string) => {
-    if (flash || statsRef.current.finished) return;
+    if (flash || paused || statsRef.current.finished) return;
     const rt = performance.now() - statsRef.current.shownAt;
     const expected = trial.rule === 'ink' ? trial.ink.id : trial.word.id;
     const ok = colorId === expected;
@@ -83,6 +91,7 @@ export function StroopConflictGame({ config, finishRequested, onWaveHit, onLiveU
       statsRef.current.combo = 0;
       statsRef.current.rawPoints = Math.max(0, statsRef.current.rawPoints - 55);
       sound.miss();
+      onWaveError?.();
     }
 
     const tot = statsRef.current.correct + statsRef.current.commission;

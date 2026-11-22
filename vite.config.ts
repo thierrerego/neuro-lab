@@ -11,11 +11,11 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icon.svg'],
       manifest: {
-        name: 'NeuroLab — Treino Cognitivo',
+        name: 'NeuroLab — Treinamento Cognitivo',
         short_name: 'NeuroLab',
-        description: 'Treinamento cognitivo adaptativo em 6 domínios e 12 minigames',
-        theme_color: '#0f0a21',
-        background_color: '#0f0a21',
+        description: 'Treinamento cognitivo científico adaptativo em 6 domínios e 12 exercícios',
+        theme_color: '#09090b',
+        background_color: '#09090b',
         display: 'standalone',
         orientation: 'portrait',
         start_url: '/',
@@ -31,6 +31,25 @@ export default defineConfig({
     })
   ],
   server: {
-    port: 5173
-  }
+    host: true,
+    port: 5173,
+    proxy: {
+      '/sb': {
+        target: 'http://127.0.0.1:54321',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/sb/, ''),
+      },
+    },
+  },
+  preview: {
+    host: true,
+    port: 4173,
+    proxy: {
+      '/sb': {
+        target: 'http://127.0.0.1:54321',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/sb/, ''),
+      },
+    },
+  },
 });

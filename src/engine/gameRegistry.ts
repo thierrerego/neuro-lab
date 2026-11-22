@@ -12,35 +12,35 @@ export const DOMAIN_LIST: DomainMeta[] = [
     key: 'working_memory',
     shortName: 'Memória',
     name: 'Memória de Trabalho',
-    color: '#a855f7',
+    color: '#818cf8',
     calibrationGame: 'spatial-span',
   },
   {
     key: 'fluid_reasoning',
     shortName: 'Raciocínio',
     name: 'Raciocínio Fluido',
-    color: '#f472b6',
+    color: '#a78bfa',
     calibrationGame: 'raven-matrices',
   },
   {
     key: 'processing_speed',
     shortName: 'Velocidade',
-    name: 'Velocidade',
-    color: '#fbbf24',
+    name: 'Velocidade de Processamento',
+    color: '#f59e0b',
     calibrationGame: 'speed-match',
   },
   {
     key: 'numerical_cognition',
-    shortName: 'Numérica',
-    name: 'Cognição Numérica',
-    color: '#34d399',
+    shortName: 'Cálculo',
+    name: 'Cálculo Mental',
+    color: '#10b981',
     calibrationGame: 'chain-arithmetic',
   },
   {
     key: 'inhibitory_control',
     shortName: 'Inibitório',
     name: 'Controle Inibitório',
-    color: '#fb7185',
+    color: '#f43f5e',
     calibrationGame: 'stroop-conflict',
   },
 ];
@@ -51,11 +51,10 @@ export const DOMAIN_MAP: Record<DomainKey, DomainMeta> = DOMAIN_LIST.reduce(
 );
 
 /**
- * Catálogo modular de minigames (12 jogos jogáveis — 2 por domínio).
- * Para adicionar novos minigames no futuro, basta registrar aqui e mapear o componente.
+ * Catálogo modular de 12 exercícios cognitivos (2 por domínio).
  */
 export const GAME_REGISTRY: GameMeta[] = [
-  // 1. Atenção Seletiva & Sustentada
+  // 1. Atenção Seletiva
   {
     slug: 'visual-search',
     domain: 'selective_attention',
@@ -66,7 +65,7 @@ export const GAME_REGISTRY: GameMeta[] = [
   {
     slug: 'sustained-tracking',
     domain: 'selective_attention',
-    name: 'Rastreamento',
+    name: 'Rastreamento Sustentado',
     shortTip: 'Siga os alvos',
     durationSec: 42,
   },
@@ -81,7 +80,7 @@ export const GAME_REGISTRY: GameMeta[] = [
   {
     slug: 'dual-n-back',
     domain: 'working_memory',
-    name: 'N-Back',
+    name: 'Dual N-Back',
     shortTip: 'Igual a N atrás?',
     durationSec: 40,
   },
@@ -89,7 +88,7 @@ export const GAME_REGISTRY: GameMeta[] = [
   {
     slug: 'raven-matrices',
     domain: 'fluid_reasoning',
-    name: 'Matrizes Lógicas',
+    name: 'Matrizes de Raven',
     shortTip: 'Complete o padrão',
     durationSec: 45,
   },
@@ -104,29 +103,29 @@ export const GAME_REGISTRY: GameMeta[] = [
   {
     slug: 'speed-match',
     domain: 'processing_speed',
-    name: 'Comparação',
+    name: 'Comparação Rápida',
     shortTip: 'Igual ou diferente',
     durationSec: 35,
   },
   {
     slug: 'symbol-digit',
     domain: 'processing_speed',
-    name: 'Decodificador',
+    name: 'Decodificador Símbolo-Dígito',
     shortTip: 'Símbolo → número',
     durationSec: 35,
   },
-  // 5. Cognição Numérica
+  // 5. Cálculo Mental
   {
     slug: 'chain-arithmetic',
     domain: 'numerical_cognition',
-    name: 'Aritmética',
+    name: 'Aritmética Encadeada',
     shortTip: 'Cálculo rápido',
     durationSec: 38,
   },
   {
     slug: 'number-comparison',
     domain: 'numerical_cognition',
-    name: 'Balança',
+    name: 'Magnitude Numérica',
     shortTip: 'Toque no maior',
     durationSec: 35,
   },
@@ -134,14 +133,14 @@ export const GAME_REGISTRY: GameMeta[] = [
   {
     slug: 'stroop-conflict',
     domain: 'inhibitory_control',
-    name: 'Stroop',
+    name: 'Conflito de Stroop',
     shortTip: 'Cor da tinta',
     durationSec: 35,
   },
   {
     slug: 'go-nogo-reflex',
     domain: 'inhibitory_control',
-    name: 'Go / No-Go',
+    name: 'Reflexo Go / No-Go',
     shortTip: 'Toque só no verde',
     durationSec: 35,
   },

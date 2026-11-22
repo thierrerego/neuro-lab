@@ -1,6 +1,6 @@
 import { Check, Play, ShieldCheck } from 'lucide-react';
 import { DOMAIN_MAP, GAME_MAP } from '../engine/gameRegistry';
-import { getCalibrationDomains } from '../engine/psychometricEngine';
+import { getCalibrationDomains, scoreToPercent } from '../engine/psychometricEngine';
 import type { DomainKey, DomainScoresRecord, GameSlug } from '../types/cognitive';
 import { GameIcon } from '../components/DomainIcon';
 
@@ -37,32 +37,30 @@ export function CalibrationScreen({
 
   return (
     <div className="flex flex-col gap-5 py-2 animate-pop">
-      {/* Tela limpa de transição para o Teste de Rastreio */}
       <div className="surface-card p-5 text-center flex flex-col items-center gap-3">
         <div
-          className="w-14 h-14 rounded-2xl flex items-center justify-center"
+          className="w-12 h-12 rounded-xl flex items-center justify-center"
           style={{ background: 'var(--accent-glow)', border: '1px solid var(--border-strong)', color: 'var(--accent)' }}
         >
-          <ShieldCheck size={28} />
+          <ShieldCheck size={24} />
         </div>
 
-        <h2 className="text-xl font-black tracking-tight">Iniciar Teste de Rastreio Cognitivo</h2>
+        <h2 className="text-lg font-extrabold tracking-tight">Avaliação de Linha de Base</h2>
         <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-          Bateria rápida com <strong>{totalCount} jogos curtos</strong> (1 por área escolhida) para medir seu nível atual, tempo de reação e alertar seus pontos mais fracos.
+          Bateria objetiva com <strong>{totalCount} exercícios curtos</strong> (1 por domínio) para medir seu estado inicial, tempo de reação e definir as prioridades do protocolo diário.
         </p>
 
-        <div className="w-full h-1.5 rounded-full overflow-hidden mt-1" style={{ background: 'var(--bg)' }}>
+        <div className="w-full h-1.5 rounded-full overflow-hidden mt-1" style={{ background: 'var(--bg-subtle)' }}>
           <div
             className="h-full rounded-full transition-all duration-300"
-            style={{ width: `${(doneCount / totalCount) * 100}%`, background: 'var(--accent-grad)' }}
+            style={{ width: `${(doneCount / totalCount) * 100}%`, background: 'var(--accent)' }}
           />
         </div>
-        <div className="text-[11px] font-extrabold tabular" style={{ color: 'var(--accent)' }}>
+        <div className="text-[11px] font-semibold tabular" style={{ color: 'var(--accent)' }}>
           {doneCount} de {totalCount} concluídos
         </div>
       </div>
 
-      {/* Lista enxuta das áreas da bateria */}
       <div className="grid grid-cols-2 gap-2">
         {activeDomains.map((domKey, i) => {
           const dom = DOMAIN_MAP[domKey];
@@ -73,51 +71,52 @@ export function CalibrationScreen({
           return (
             <button
               key={domKey}
+              type="button"
               onClick={() => onStartGame(game.slug, i + 1, totalCount, dom.shortName)}
-              className="surface-card surface-card-click p-3.5 flex items-center gap-2.5 text-left cursor-pointer"
-              style={{ borderColor: done ? 'var(--ok)' : undefined }}
+              className="surface-card surface-card-click p-3 flex items-center gap-2.5 text-left cursor-pointer"
+              style={{ borderColor: done ? 'rgba(16, 185, 129, 0.45)' : undefined }}
             >
               <div
-                className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-                style={{ background: `${dom.color}20`, color: dom.color }}
+                className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                style={{ background: `${dom.color}1a`, color: dom.color }}
               >
-                <GameIcon slug={game.slug} size={18} />
+                <GameIcon slug={game.slug} size={17} />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-xs font-extrabold truncate">{dom.shortName}</div>
-                <div className="text-[10px] font-semibold truncate" style={{ color: done ? 'var(--ok)' : 'var(--text-soft)' }}>
-                  {done ? `Score ${doneScore}` : game.name}
+                <div className="text-xs font-bold truncate">{dom.shortName}</div>
+                <div className="text-[10px] font-medium truncate" style={{ color: done ? 'var(--ok)' : 'var(--text-soft)' }}>
+                  {done && doneScore ? `Base ${scoreToPercent(doneScore)}%` : game.name}
                 </div>
               </div>
-              {done && <Check size={14} strokeWidth={3} style={{ color: 'var(--ok)' }} />}
+              {done && <Check size={14} strokeWidth={2.5} style={{ color: 'var(--ok)' }} />}
             </button>
           );
         })}
       </div>
 
-      {/* Botão principal em destaque */}
       <button
+        type="button"
         onClick={launchNext}
-        className="w-full py-4 rounded-2xl font-extrabold text-sm btn-accent flex items-center justify-center gap-2 cursor-pointer"
+        className="w-full py-3.5 rounded-xl font-bold text-sm btn-accent flex items-center justify-center gap-2 cursor-pointer"
       >
-        <Play size={16} fill="currentColor" />
+        <Play size={15} fill="currentColor" />
         <span>
           {allDone
-            ? 'Ver Perfil Inicial'
+            ? 'Abrir Dossiê Cognitivo'
             : doneCount === 0
-              ? 'Começar Rastreio Agora'
+              ? 'Iniciar Avaliação Inicial'
               : `Continuar (${doneCount + 1}/${totalCount})`}
         </span>
       </button>
 
-      {/* Botão bem sutil para pular (começa nos níveis mais baixos) */}
       {!allDone && (
         <button
+          type="button"
           onClick={onSkipCalibration}
-          className="mx-auto py-1.5 px-3 text-[11px] font-semibold cursor-pointer opacity-60 hover:opacity-100 transition-opacity"
+          className="mx-auto py-1.5 px-3 text-[11px] font-medium cursor-pointer opacity-70 hover:opacity-100 transition-opacity"
           style={{ color: 'var(--text-soft)' }}
         >
-          Pular rastreio (começar do nível mais baixo)
+          Pular por agora (iniciar no Nível 0)
         </button>
       )}
     </div>

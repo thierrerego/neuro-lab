@@ -1,5 +1,7 @@
 import type {
+  AgeBracket,
   CognitiveSessionRecord,
+  CognitiveSnapshotRecord,
   ComputedSessionResult,
   DailyProtocolRecord,
   DomainKey,
@@ -7,6 +9,7 @@ import type {
   GameProgressRecord,
   GameSlug,
   PlanTier,
+  PopulationBenchmarks,
   ThemeMode,
   UserProfile,
 } from '../types/cognitive';
@@ -16,6 +19,7 @@ import {
   getCalibrationDomains,
   getCognitiveTier,
 } from '../engine/psychometricEngine';
+import { NORMATIVE_BENCHMARKS, resolveArchetype } from '../engine/cognitiveProfiler';
 import { DOMAIN_LIST, GAME_REGISTRY } from '../engine/gameRegistry';
 import { supabase } from './supabase';
 
@@ -26,6 +30,7 @@ export interface AppDataState {
   scores: DomainScoresRecord;
   progress: Record<GameSlug, GameProgressRecord>;
   sessions: CognitiveSessionRecord[];
+  snapshots: CognitiveSnapshotRecord[];
   dailyProtocol: DailyProtocolRecord;
 }
 
@@ -37,13 +42,18 @@ export function todayIso(): string {
   return `${y}-${m}-${d}`;
 }
 
+export function normalizeTheme(raw: unknown): ThemeMode {
+  if (raw === 'light') return 'light';
+  return 'dark';
+}
+
 export function createInitialProgress(easeMode = false): Record<GameSlug, GameProgressRecord> {
   const now = new Date().toISOString();
   return GAME_REGISTRY.reduce((acc, g) => {
     acc[g.slug] = {
       game_slug: g.slug,
       domain: g.domain,
-      current_stage: 1,
+      current_stage: 0,
       highest_score: 0,
       total_plays: 0,
       ease_mode: easeMode,
@@ -55,7 +65,7 @@ export function createInitialProgress(easeMode = false): Record<GameSlug, GamePr
 
 export function createDefaultState(
   userId: string,
-  name = 'Jogador',
+  name = 'Participante',
   isLocalGuest = true,
   email?: string
 ): AppDataState {
@@ -76,17 +86,21 @@ export function createDefaultState(
       id: userId,
       name,
       email,
-      theme_preference: 'gamified',
+      theme_preference: 'dark',
       plan_tier: 'free',
       global_cognitive_index: 500,
       current_streak: 0,
       best_streak: 0,
-      xp: 0,
       calibrated: false,
       calibration_skipped: false,
       selected_domains: [],
       daily_goal_minutes: 10,
       peak_time: null,
+      cognitive_bottlenecks: [],
+      mental_stamina_baseline: 3,
+      application_context: null,
+      application_contexts: [],
+      age_bracket: '25-34',
       current_title: 'Observador',
       onboarding_answers: {},
       last_played_date: null,
@@ -95,6 +109,7 @@ export function createDefaultState(
     scores,
     progress: createInitialProgress(false),
     sessions: [],
+    snapshots: [],
     dailyProtocol: generateDailyProtocol(scores, todayIso(), [], 10),
   };
 }
@@ -103,27 +118,64 @@ export function loadLocalState(): AppDataState | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as AppDataState;
+    const parsed = JSON.parse(raw) as AppDataState & {
+      profile: UserProfile & Record<string, unknown>;
+      battleLogs?: unknown;
+    };
     if (!parsed?.profile?.id) return null;
 
-    parsed.profile.selected_domains = parsed.profile.selected_domains ?? [];
-    parsed.profile.daily_goal_minutes = parsed.profile.daily_goal_minutes ?? 10;
-    parsed.profile.peak_time = parsed.profile.peak_time ?? null;
-    parsed.profile.current_title =
-      parsed.profile.current_title ?? getCognitiveTier(parsed.profile.global_cognitive_index).title;
+    const cleanProfile: UserProfile = {
+      id: parsed.profile.id,
+      name: parsed.profile.name || 'Participante',
+      email: parsed.profile.email,
+      theme_preference: normalizeTheme(parsed.profile.theme_preference),
+      plan_tier: parsed.profile.plan_tier ?? 'free',
+      global_cognitive_index: parsed.profile.global_cognitive_index ?? 500,
+      current_streak: parsed.profile.current_streak ?? 0,
+      best_streak: parsed.profile.best_streak ?? 0,
+      calibrated: Boolean(parsed.profile.calibrated),
+      calibration_skipped: Boolean(parsed.profile.calibration_skipped),
+      selected_domains: Array.isArray(parsed.profile.selected_domains) ? parsed.profile.selected_domains : [],
+      daily_goal_minutes: parsed.profile.daily_goal_minutes ?? 10,
+      peak_time: parsed.profile.peak_time ?? null,
+      cognitive_bottlenecks: Array.isArray(parsed.profile.cognitive_bottlenecks)
+        ? parsed.profile.cognitive_bottlenecks
+        : [],
+      mental_stamina_baseline: parsed.profile.mental_stamina_baseline ?? 3,
+      application_context: parsed.profile.application_context ?? null,
+      application_contexts: Array.isArray(parsed.profile.application_contexts)
+        ? parsed.profile.application_contexts
+        : parsed.profile.application_context
+          ? parsed.profile.application_context.split(' • ').map((s) => s.trim()).filter(Boolean)
+          : [],
+      age_bracket: (parsed.profile.age_bracket as AgeBracket) || '25-34',
+      current_title:
+        parsed.profile.current_title ?? getCognitiveTier(parsed.profile.global_cognitive_index ?? 500).title,
+      onboarding_answers: parsed.profile.onboarding_answers ?? {},
+      last_played_date: parsed.profile.last_played_date ?? null,
+      isLocalGuest: parsed.profile.isLocalGuest,
+    };
 
     const today = todayIso();
-    if (!parsed.dailyProtocol || parsed.dailyProtocol.protocol_date !== today) {
-      parsed.dailyProtocol = generateDailyProtocol(
-        parsed.scores,
-        today,
-        parsed.profile.selected_domains,
-        parsed.profile.daily_goal_minutes
-      );
-    }
+    const dailyProtocol =
+      !parsed.dailyProtocol || parsed.dailyProtocol.protocol_date !== today
+        ? generateDailyProtocol(
+            parsed.scores,
+            today,
+            cleanProfile.selected_domains,
+            cleanProfile.daily_goal_minutes
+          )
+        : parsed.dailyProtocol;
+
     const defaults = createInitialProgress();
-    parsed.progress = { ...defaults, ...parsed.progress };
-    return parsed;
+    return {
+      profile: cleanProfile,
+      scores: parsed.scores,
+      progress: { ...defaults, ...parsed.progress },
+      sessions: Array.isArray(parsed.sessions) ? parsed.sessions : [],
+      snapshots: Array.isArray(parsed.snapshots) ? parsed.snapshots : [],
+      dailyProtocol,
+    };
   } catch {
     return null;
   }
@@ -133,7 +185,7 @@ export function saveLocalState(state: AppDataState) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch {
-    // ignora quota
+    // ignora limite de armazenamento
   }
 }
 
@@ -141,8 +193,12 @@ export function clearLocalState() {
   localStorage.removeItem(STORAGE_KEY);
 }
 
-export async function loadRemoteState(userId: string, email?: string): Promise<AppDataState> {
-  const fallbackName = email ? email.split('@')[0] : 'Jogador';
+export async function loadRemoteState(
+  userId: string,
+  email?: string,
+  displayName?: string
+): Promise<AppDataState> {
+  const fallbackName = displayName?.trim() || (email ? email.split('@')[0] : 'Participante');
   const base = createDefaultState(userId, fallbackName, false, email);
 
   const { data: prof } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
@@ -155,22 +211,44 @@ export async function loadRemoteState(userId: string, email?: string): Promise<A
       global_cognitive_index: 500,
       current_streak: 0,
       best_streak: 0,
-      xp: 0,
       calibrated: false,
       selected_domains: [],
       daily_goal_minutes: 10,
       peak_time: null,
+      cognitive_bottlenecks: [],
+      mental_stamina_baseline: 3,
+      application_context: null,
+      application_contexts: [],
+      age_bracket: '25-34',
       current_title: 'Observador',
       onboarding_answers: {},
     });
   } else {
     base.profile = {
       ...base.profile,
-      ...prof,
+      id: prof.id,
+      name: prof.name || fallbackName,
+      theme_preference: normalizeTheme(prof.theme_preference),
+      plan_tier: (prof.plan_tier as PlanTier) ?? 'free',
+      global_cognitive_index: prof.global_cognitive_index ?? 500,
+      current_streak: prof.current_streak ?? 0,
+      best_streak: prof.best_streak ?? 0,
+      calibrated: Boolean(prof.calibrated),
       selected_domains: Array.isArray(prof.selected_domains) ? prof.selected_domains : [],
       daily_goal_minutes: prof.daily_goal_minutes ?? 10,
       peak_time: prof.peak_time ?? null,
+      cognitive_bottlenecks: Array.isArray(prof.cognitive_bottlenecks) ? prof.cognitive_bottlenecks : [],
+      mental_stamina_baseline: prof.mental_stamina_baseline ?? 3,
+      application_context: prof.application_context ?? null,
+      application_contexts: Array.isArray(prof.application_contexts)
+        ? prof.application_contexts
+        : typeof prof.application_context === 'string' && prof.application_context
+          ? prof.application_context.split(' • ').map((s: string) => s.trim()).filter(Boolean)
+          : [],
+      age_bracket: (prof.age_bracket as AgeBracket) || '25-34',
       current_title: prof.current_title ?? 'Observador',
+      onboarding_answers: prof.onboarding_answers ?? {},
+      last_played_date: prof.last_played_date ?? null,
       email,
       isLocalGuest: false,
     };
@@ -214,9 +292,19 @@ export async function loadRemoteState(userId: string, email?: string): Promise<A
     .select('*')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
-    .limit(40);
+    .limit(150);
   if (sessRows) {
     base.sessions = sessRows as CognitiveSessionRecord[];
+  }
+
+  const { data: snapRows } = await supabase
+    .from('cognitive_snapshots')
+    .select('*')
+    .eq('user_id', userId)
+    .order('snapshot_date', { ascending: true })
+    .limit(90);
+  if (snapRows) {
+    base.snapshots = snapRows as CognitiveSnapshotRecord[];
   }
 
   const today = todayIso();
@@ -253,8 +341,8 @@ export async function loadRemoteState(userId: string, email?: string): Promise<A
 }
 
 /**
- * Se o usuário optar por pular o Teste de Rastreio, inicia tudo nos níveis mais baixos
- * (Fase 1 · Ritmo leve) e scores iniciais conservadores (420), com alerta discreto no perfil.
+ * Se o usuário optar por pular o Teste de Rastreio, inicia tudo nos níveis iniciais
+ * com linha de base conservadora (420), permitindo calibrar depois.
  */
 export async function skipCalibrationToLowestLevel(state: AppDataState): Promise<AppDataState> {
   const now = new Date().toISOString();
@@ -342,12 +430,12 @@ export async function recordSessionResult(
   };
 
   if (result.mode === 'calibration') {
-    const calScore = Math.max(200, Math.min(999, result.score));
+    const calScore = Math.max(50, Math.min(999, result.score));
     nextScores[result.domain] = calScore;
     nextScores.baseline_scores[result.domain] = calScore;
   } else {
     const curVal = nextScores[result.domain] ?? 500;
-    nextScores[result.domain] = Math.max(200, Math.min(999, curVal + result.domainDelta));
+    nextScores[result.domain] = Math.max(80, Math.min(999, curVal + result.domainDelta));
     if (!nextScores.baseline_scores[result.domain]) {
       nextScores.baseline_scores[result.domain] = curVal;
     }
@@ -381,7 +469,7 @@ export async function recordSessionResult(
   const bestStreak = Math.max(state.profile.best_streak, currentStreak);
 
   const completedSet = new Set<GameSlug>(state.dailyProtocol.completed_games);
-  if (result.mode === 'guided') {
+  if (result.mode === 'guided' || state.dailyProtocol.recommended_games.some((g) => g.slug === result.gameSlug)) {
     completedSet.add(result.gameSlug);
   }
   const nextDaily: DailyProtocolRecord =
@@ -420,6 +508,50 @@ export async function recordSessionResult(
     created_at: now,
   };
 
+  const updatedSessions = [newSession, ...state.sessions].slice(0, 150);
+
+  const todaySessions = updatedSessions.filter((s) => (s.created_at || '').slice(0, 10) === today);
+  const todayValidRt = todaySessions.filter((s) => s.rt_mean_ms > 0);
+  const todayAvgRt = todayValidRt.length
+    ? Math.round(todayValidRt.reduce((acc, s) => acc + s.rt_mean_ms, 0) / todayValidRt.length)
+    : newSession.rt_mean_ms;
+  const todayAvgAcc = todaySessions.length
+    ? Number(
+        (
+          todaySessions.reduce((acc, s) => acc + Number(s.accuracy_pct || 0), 0) /
+          todaySessions.length
+        ).toFixed(2)
+      )
+    : newSession.accuracy_pct;
+  const archetypeTitle = resolveArchetype(nextScores).def.title;
+  const domainScoresJson: Record<DomainKey, number> = {
+    selective_attention: nextScores.selective_attention,
+    working_memory: nextScores.working_memory,
+    fluid_reasoning: nextScores.fluid_reasoning,
+    processing_speed: nextScores.processing_speed,
+    numerical_cognition: nextScores.numerical_cognition,
+    inhibitory_control: nextScores.inhibitory_control,
+  };
+
+  const todaySnapshot: CognitiveSnapshotRecord = {
+    id: `snap-${today}`,
+    snapshot_date: today,
+    global_index: icg,
+    domain_scores_json: domainScoresJson,
+    avg_rt_ms: todayAvgRt,
+    avg_accuracy: todayAvgAcc,
+    archetype_title: archetypeTitle,
+    created_at: now,
+  };
+
+  const prevSnaps = Array.isArray(state.snapshots) ? state.snapshots : [];
+  const nextSnapshots = [
+    ...prevSnaps.filter((s) => s.snapshot_date !== today),
+    todaySnapshot,
+  ]
+    .sort((a, b) => a.snapshot_date.localeCompare(b.snapshot_date))
+    .slice(-90);
+
   const nextState: AppDataState = {
     profile: {
       ...state.profile,
@@ -427,7 +559,6 @@ export async function recordSessionResult(
       current_title: currentTitle,
       current_streak: currentStreak,
       best_streak: bestStreak,
-      xp: state.profile.xp + result.xpEarned,
       calibrated,
       calibration_skipped:
         result.mode === 'calibration' && allCalibratedNow ? false : state.profile.calibration_skipped,
@@ -438,7 +569,8 @@ export async function recordSessionResult(
       ...state.progress,
       [result.gameSlug]: updatedProg,
     },
-    sessions: [newSession, ...state.sessions].slice(0, 60),
+    sessions: updatedSessions,
+    snapshots: nextSnapshots,
     dailyProtocol: nextDaily,
   };
 
@@ -446,7 +578,7 @@ export async function recordSessionResult(
 
   if (!state.profile.isLocalGuest) {
     const uid = state.profile.id;
-    void Promise.allSettled([
+    await Promise.allSettled([
       supabase
         .from('profiles')
         .update({
@@ -454,7 +586,6 @@ export async function recordSessionResult(
           current_title: currentTitle,
           current_streak: currentStreak,
           best_streak: bestStreak,
-          xp: nextState.profile.xp,
           calibrated,
           last_played_date: today,
         })
@@ -503,6 +634,18 @@ export async function recordSessionResult(
         rt_mean_ms: newSession.rt_mean_ms,
         rt_sd_ms: newSession.rt_sd_ms,
       }),
+      supabase.from('cognitive_snapshots').upsert(
+        {
+          user_id: uid,
+          snapshot_date: today,
+          global_index: icg,
+          domain_scores_json: domainScoresJson,
+          avg_rt_ms: todayAvgRt,
+          avg_accuracy: todayAvgAcc,
+          archetype_title: archetypeTitle,
+        },
+        { onConflict: 'user_id,snapshot_date' }
+      ),
       supabase.from('daily_protocols').upsert(
         {
           user_id: uid,
@@ -518,6 +661,31 @@ export async function recordSessionResult(
   return nextState;
 }
 
+/**
+ * Busca benchmarks globais na RPC do Supabase (`get_global_benchmarks()`).
+ * Faz fallback automático para parâmetros normativos calibrados no modo offline.
+ */
+export async function fetchPopulationBenchmarks(backendOnline: boolean): Promise<PopulationBenchmarks> {
+  if (!backendOnline) return NORMATIVE_BENCHMARKS;
+  try {
+    const { data, error } = await supabase.rpc('get_global_benchmarks');
+    if (error || !data || typeof data !== 'object') {
+      return NORMATIVE_BENCHMARKS;
+    }
+    const raw = data as Partial<PopulationBenchmarks>;
+    return {
+      source: raw.source === 'population' ? 'population' : 'normative',
+      sample_sessions: Number(raw.sample_sessions ?? 0),
+      distinct_users: Number(raw.distinct_users ?? 0),
+      global: raw.global ?? NORMATIVE_BENCHMARKS.global,
+      domains: { ...NORMATIVE_BENCHMARKS.domains, ...(raw.domains ?? {}) },
+      games: { ...NORMATIVE_BENCHMARKS.games, ...(raw.games ?? {}) },
+    };
+  } catch {
+    return NORMATIVE_BENCHMARKS;
+  }
+}
+
 export async function updateProfilePreferences(
   state: AppDataState,
   patch: Partial<{
@@ -528,17 +696,25 @@ export async function updateProfilePreferences(
     selected_domains: DomainKey[];
     daily_goal_minutes: number;
     peak_time: string | null;
+    cognitive_bottlenecks: string[];
+    mental_stamina_baseline: number;
+    application_context: string | null;
+    application_contexts: string[];
+    age_bracket: AgeBracket;
     current_title: string;
     onboarding_answers: Record<string, unknown>;
     name: string;
   }>
 ): Promise<AppDataState> {
   const nextProfile = { ...state.profile, ...patch };
+  const nextScores = state.scores;
+  const nextProgress = state.progress;
+
   let nextDaily = state.dailyProtocol;
 
   if (patch.selected_domains || patch.daily_goal_minutes || patch.onboarding_answers) {
     const regenerated = generateDailyProtocol(
-      state.scores,
+      nextScores,
       todayIso(),
       nextProfile.selected_domains,
       nextProfile.daily_goal_minutes
@@ -552,14 +728,33 @@ export async function updateProfilePreferences(
   const nextState: AppDataState = {
     ...state,
     profile: nextProfile,
+    scores: nextScores,
+    progress: nextProgress,
     dailyProtocol: nextDaily,
   };
   saveLocalState(nextState);
 
   if (!state.profile.isLocalGuest) {
+    const uid = state.profile.id;
     const remotePatch = { ...patch };
     delete remotePatch.calibration_skipped;
-    void supabase.from('profiles').update(remotePatch).eq('id', state.profile.id);
+    const ops: PromiseLike<unknown>[] = [
+      supabase.from('profiles').update(remotePatch).eq('id', uid),
+    ];
+    if (nextDaily !== state.dailyProtocol) {
+      ops.push(
+        supabase.from('daily_protocols').upsert(
+          {
+            user_id: uid,
+            protocol_date: nextDaily.protocol_date,
+            recommended_games: nextDaily.recommended_games,
+            completed_games: nextDaily.completed_games,
+          },
+          { onConflict: 'user_id,protocol_date' }
+        )
+      );
+    }
+    await Promise.allSettled(ops);
   }
 
   return nextState;

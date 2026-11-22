@@ -16,6 +16,11 @@ services:
       - ./supabase/migrations/20261121000000_initial_schema.sql:/docker-entrypoint-initdb.d/02-schema.sql:ro
       - ./supabase/migrations/20261122000000_onboarding_percentile_titles.sql:/docker-entrypoint-initdb.d/03-onboarding-percentile.sql:ro
       - ./supabase/migrations/20261122010000_wave_engine_sessions.sql:/docker-entrypoint-initdb.d/04-wave-engine.sql:ro
+      - ./supabase/migrations/20261122020000_evolution_dossier_benchmarks.sql:/docker-entrypoint-initdb.d/05-evolution-dossier.sql:ro
+      - ./supabase/migrations/20261122030000_anamnese_neuropsicologica.sql:/docker-entrypoint-initdb.d/06-anamnese-neuro.sql:ro
+      - ./supabase/migrations/20261122040000_balanceamento_faixa_etaria_tema.sql:/docker-entrypoint-initdb.d/07-balanceamento-faixa-etaria.sql:ro
+      - ./supabase/migrations/20261122050000_avatar_rpg_jornada_batalhas.sql:/docker-entrypoint-initdb.d/08-avatar-rpg-batalhas.sql:ro
+      - ./supabase/migrations/20261122060000_remover_camada_rpg_minimalista.sql:/docker-entrypoint-initdb.d/09-remover-rpg-minimalista.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s

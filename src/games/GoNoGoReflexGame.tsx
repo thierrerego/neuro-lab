@@ -7,7 +7,15 @@ interface GoTrial {
   isGo: boolean;
 }
 
-export function GoNoGoReflexGame({ config, finishRequested, onWaveHit, onLiveUpdate, onFinish }: MinigameProps) {
+export function GoNoGoReflexGame({
+  config,
+  finishRequested,
+  paused = false,
+  onWaveHit,
+  onWaveError,
+  onLiveUpdate,
+  onFinish,
+}: MinigameProps) {
   const [trial, setTrial] = useState<GoTrial | null>(null);
   const [feedback, setFeedback] = useState<'ok' | 'impulsive' | 'missed' | null>(null);
 
@@ -57,6 +65,7 @@ export function GoNoGoReflexGame({ config, finishRequested, onWaveHit, onLiveUpd
   }, [finishRequested, finishNow]);
 
   useEffect(() => {
+    if (paused) return;
     let cancelled = false;
     let seq = 0;
     let t1 = 0;
@@ -85,8 +94,8 @@ export function GoNoGoReflexGame({ config, finishRequested, onWaveHit, onLiveUpd
               statsRef.current.combo = 0;
               setFeedback('missed');
               sound.miss();
+              onWaveError?.();
             } else {
-              // Inibição bem-sucedida conta para a onda!
               statsRef.current.correct++;
               statsRef.current.combo++;
               statsRef.current.rawPoints += 110;
@@ -110,11 +119,11 @@ export function GoNoGoReflexGame({ config, finishRequested, onWaveHit, onLiveUpd
       clearTimeout(t1);
       clearTimeout(t2);
     };
-  }, [emitLive, onWaveHit, finishNow]);
+  }, [paused, emitLive, onWaveHit, onWaveError, finishNow]);
 
   const handleTap = useCallback(() => {
     const cur = trialRef.current.current;
-    if (!cur || trialRef.current.responded || statsRef.current.finished) return;
+    if (!cur || paused || trialRef.current.responded || statsRef.current.finished) return;
     trialRef.current.responded = true;
     const rt = performance.now() - trialRef.current.shownAt;
 
@@ -137,8 +146,9 @@ export function GoNoGoReflexGame({ config, finishRequested, onWaveHit, onLiveUpd
       sound.miss();
       setFeedback('impulsive');
       emitLive();
+      onWaveError?.();
     }
-  }, [emitLive, onWaveHit, finishNow]);
+  }, [paused, emitLive, onWaveHit, onWaveError, finishNow]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

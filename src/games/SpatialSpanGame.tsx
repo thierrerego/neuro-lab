@@ -14,7 +14,16 @@ function makeSequence(cells: number, length: number): number[] {
   return seq;
 }
 
-export function SpatialSpanGame({ config, wave, finishRequested, onWaveHit, onLiveUpdate, onFinish }: MinigameProps) {
+export function SpatialSpanGame({
+  config,
+  wave,
+  finishRequested,
+  paused = false,
+  onWaveHit,
+  onWaveError,
+  onLiveUpdate,
+  onFinish,
+}: MinigameProps) {
   const getGrid = (g: number) => Math.min(4, Math.max(3, g));
   const [grid, setGrid] = useState(() => getGrid(config.gridSize));
   const [reverseRound, setReverseRound] = useState(() => config.reverseOrder);
@@ -58,7 +67,7 @@ export function SpatialSpanGame({ config, wave, finishRequested, onWaveHit, onLi
   }, [finishRequested]);
 
   useEffect(() => {
-    if (phase !== 'show') return;
+    if (phase !== 'show' || paused) return;
     const stepMs = Math.max(360, Math.round(configRef.current.stimulusMs * 0.44));
     const timers: number[] = [];
 
@@ -86,7 +95,7 @@ export function SpatialSpanGame({ config, wave, finishRequested, onWaveHit, onLi
     );
 
     return () => timers.forEach((t) => clearTimeout(t));
-  }, [phase, sequence]);
+  }, [phase, sequence, paused]);
 
   const emitLive = () => {
     const s = statsRef.current;
@@ -113,7 +122,7 @@ export function SpatialSpanGame({ config, wave, finishRequested, onWaveHit, onLi
   const expectedOrder = reverseRound ? [...sequence].reverse() : sequence;
 
   const handleTap = (cellId: number) => {
-    if (phase !== 'input' || statsRef.current.finished) return;
+    if (phase !== 'input' || paused || statsRef.current.finished) return;
     const now = performance.now();
     const rt = now - statsRef.current.stepStart;
     statsRef.current.stepStart = now;
@@ -147,6 +156,7 @@ export function SpatialSpanGame({ config, wave, finishRequested, onWaveHit, onLi
       setFlashCell({ id: cellId, ok: false });
       setTimeout(() => setFlashCell(null), 260);
       emitLive();
+      onWaveError?.();
       spawnNextRound();
     }
   };

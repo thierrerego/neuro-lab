@@ -75,7 +75,15 @@ function buildQuestion(complexity: 1 | 2 | 3 | 4, easeBoost: boolean): MathQuest
   };
 }
 
-export function ChainArithmeticGame({ config, finishRequested, onWaveHit, onLiveUpdate, onFinish }: MinigameProps) {
+export function ChainArithmeticGame({
+  config,
+  finishRequested,
+  paused = false,
+  onWaveHit,
+  onWaveError,
+  onLiveUpdate,
+  onFinish,
+}: MinigameProps) {
   const [q, setQ] = useState(() => buildQuestion(config.mathComplexity, config.easeBoost));
   const [qId, setQId] = useState(0);
   const [flash, setFlash] = useState<{ val: number; ok: boolean } | null>(null);
@@ -110,7 +118,7 @@ export function ChainArithmeticGame({ config, finishRequested, onWaveHit, onLive
   }, [finishRequested]);
 
   const handlePick = (val: number) => {
-    if (flash || statsRef.current.finished) return;
+    if (flash || paused || statsRef.current.finished) return;
     const rt = performance.now() - statsRef.current.shownAt;
     const ok = val === q.answer;
     let clearedAll = false;
@@ -127,6 +135,7 @@ export function ChainArithmeticGame({ config, finishRequested, onWaveHit, onLive
       statsRef.current.combo = 0;
       statsRef.current.rawPoints = Math.max(0, statsRef.current.rawPoints - 45);
       sound.miss();
+      onWaveError?.();
     }
 
     const tot = statsRef.current.correct + statsRef.current.commission;

@@ -38,9 +38,17 @@ function buildTrail(count: number, alternating: boolean): TrailNode[] {
   return nodes;
 }
 
-export function PathLogicGame({ config, finishRequested, onWaveHit, onLiveUpdate, onFinish }: MinigameProps) {
-  const [alternating, setAlternating] = useState(() => config.stage >= 2);
-  const [nodes, setNodes] = useState<TrailNode[]>(() => buildTrail(Math.min(10, 5 + config.stage), config.stage >= 2));
+export function PathLogicGame({
+  config,
+  finishRequested,
+  paused = false,
+  onWaveHit,
+  onWaveError,
+  onLiveUpdate,
+  onFinish,
+}: MinigameProps) {
+  const [alternating, setAlternating] = useState(() => config.stage >= 3);
+  const [nodes, setNodes] = useState<TrailNode[]>(() => buildTrail(Math.min(10, 4 + Math.floor(config.stage)), config.stage >= 3));
   const [nextOrder, setNextOrder] = useState(0);
   const [wrongOrder, setWrongOrder] = useState<number | null>(null);
 
@@ -84,7 +92,7 @@ export function PathLogicGame({ config, finishRequested, onWaveHit, onLiveUpdate
   };
 
   const handleNode = (node: TrailNode) => {
-    if (node.order < nextOrder || statsRef.current.finished) return;
+    if (node.order < nextOrder || paused || statsRef.current.finished) return;
     const now = performance.now();
     const rt = now - statsRef.current.lastTapAt;
     statsRef.current.lastTapAt = now;
@@ -104,8 +112,8 @@ export function PathLogicGame({ config, finishRequested, onWaveHit, onLiveUpdate
       }
 
       if (nextOrder + 1 >= nodes.length) {
-        const nextAlt = configRef.current.stage >= 2;
-        const nextCount = Math.min(12, 5 + configRef.current.stage);
+        const nextAlt = configRef.current.stage >= 3;
+        const nextCount = Math.min(12, 4 + Math.floor(configRef.current.stage));
         setAlternating(nextAlt);
         setNodes(buildTrail(nextCount, nextAlt));
         setNextOrder(0);
@@ -120,6 +128,7 @@ export function PathLogicGame({ config, finishRequested, onWaveHit, onLiveUpdate
       setWrongOrder(node.order);
       setTimeout(() => setWrongOrder(null), 260);
       emitLive();
+      onWaveError?.();
     }
   };
 

@@ -11,7 +11,9 @@ export interface MinigameProps {
   config: StageConfig;
   wave: WaveState;
   finishRequested: boolean;
+  paused?: boolean;
   onWaveHit: () => boolean;
+  onWaveError?: () => void;
   onLiveUpdate: (live: LiveMetrics) => void;
   onFinish: (perf: RawGamePerformance) => void;
 }
