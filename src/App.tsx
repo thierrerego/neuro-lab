@@ -1,5 +1,12 @@
 import { useEffect, useState } from 'react';
-import type { ComputedSessionResult, GameSlug, PlanTier, SessionMode, ThemeMode } from './types/cognitive';
+import type {
+  ComputedSessionResult,
+  GameSlug,
+  OnboardingProfileData,
+  PlanTier,
+  SessionMode,
+  ThemeMode,
+} from './types/cognitive';
 import {
   clearLocalState,
   createDefaultState,
@@ -11,7 +18,8 @@ import {
   type AppDataState,
 } from './lib/dataService';
 import { checkBackendOnline, supabase } from './lib/supabase';
-import { getWeakestDomains } from './engine/psychometricEngine';
+import { getCalibrationDomains, getWeakestDomains } from './engine/psychometricEngine';
+import { DOMAIN_MAP } from './engine/gameRegistry';
 import { sound } from './lib/audio';
 import { Layout, type TabKey } from './components/Layout';
 import { GameShell } from './components/GameShell';
@@ -26,7 +34,7 @@ import { ProfileScreen } from './screens/ProfileScreen';
 type FlowView = 'auth' | 'onboarding' | 'calibration' | 'app' | 'playing';
 
 function resolveNextView(state: AppDataState): FlowView {
-  const hasOnboarding = Object.keys(state.profile.onboarding_answers || {}).length >= 6;
+  const hasOnboarding = (state.profile.selected_domains?.length ?? 0) > 0;
   if (!hasOnboarding) return 'onboarding';
   if (!state.profile.calibrated) return 'calibration';
   return 'app';
@@ -84,7 +92,6 @@ export default function App() {
     void handleThemeChange(theme === 'gamified' ? 'minimal' : 'gamified');
   };
 
-  // Fluxo da 1ª vez: Login -> 6 Perguntas (hábitos/foco) -> Calibração (6 áreas) -> Painel
   const handleGuestLogin = () => {
     const existing = loadLocalState();
     const state = existing ?? createDefaultState('local-guest', 'Jogador Local', true);
@@ -101,9 +108,17 @@ export default function App() {
     setView(resolveNextView(remote));
   };
 
-  const handleOnboardingComplete = async (answers: Record<string, string>) => {
+  const handleOnboardingComplete = async (ob: OnboardingProfileData) => {
     if (!data) return;
-    const updated = await updateProfilePreferences(data, { onboarding_answers: answers });
+    const updated = await updateProfilePreferences(data, {
+      selected_domains: ob.selected_domains,
+      daily_goal_minutes: ob.daily_goal_minutes,
+      peak_time: ob.peak_time,
+      onboarding_answers: {
+        goals: ob.goals,
+        bottlenecks: ob.bottlenecks,
+      },
+    });
     setData(updated);
     setView(updated.profile.calibrated ? 'app' : 'calibration');
   };
@@ -146,6 +161,34 @@ export default function App() {
 
   if (view === 'playing' && activePlay) {
     const weakest2 = getWeakestDomains(data.scores, 2);
+
+    // Determina próximo desafio automático para Calibração ou Modo Guiado
+    let nextChallengeLabel: string | undefined;
+    let onNextChallenge: (() => void) | undefined;
+
+    if (activePlay.mode === 'calibration') {
+      const calDomains = getCalibrationDomains(data.profile.selected_domains);
+      const pending = calDomains.find((d) => !data.scores.baseline_scores?.[d]);
+      if (pending) {
+        const nextSlug = DOMAIN_MAP[pending].calibrationGame;
+        nextChallengeLabel = 'Próximo Desafio';
+        onNextChallenge = () => startGame(nextSlug, 'calibration', 'calibration');
+      } else {
+        nextChallengeLabel = 'Ir para o Painel';
+        onNextChallenge = () => {
+          setActivePlay(null);
+          setView('app');
+        };
+      }
+    } else if (activePlay.mode === 'guided') {
+      const done = new Set(data.dailyProtocol.completed_games);
+      const nextDaily = data.dailyProtocol.recommended_games.find((g) => !done.has(g.slug));
+      if (nextDaily && nextDaily.slug !== activePlay.slug) {
+        nextChallengeLabel = 'Próximo Desafio';
+        onNextChallenge = () => startGame(nextDaily.slug, 'guided', 'app');
+      }
+    }
+
     return (
       <GameShell
         slug={activePlay.slug}
@@ -154,12 +197,14 @@ export default function App() {
         mode={activePlay.mode}
         theme={theme}
         weakestTwo={weakest2}
+        nextChallengeLabel={nextChallengeLabel}
+        onNextChallenge={onNextChallenge}
         onComplete={handleSessionComplete}
         onPlayNext={(nextStage, nextEase) =>
           setActivePlay((prev) => (prev ? { ...prev, stage: nextStage, easeBoost: nextEase } : null))
         }
         onExit={() => {
-          const target = activePlay.returnView;
+          const target = activePlay.mode === 'calibration' && data.profile.calibrated ? 'app' : activePlay.returnView;
           setActivePlay(null);
           setView(target);
         }}
@@ -168,6 +213,7 @@ export default function App() {
   }
 
   if (view === 'onboarding') {
+    const prevAnswers = data.profile.onboarding_answers as { goals?: string[]; bottlenecks?: string[] } | undefined;
     return (
       <Layout
         activeTab={tab}
@@ -178,8 +224,11 @@ export default function App() {
         showNav={false}
       >
         <OnboardingScreen
-          initialAnswers={data.profile.onboarding_answers}
-          onComplete={(ans) => void handleOnboardingComplete(ans)}
+          initialGoals={prevAnswers?.goals ?? []}
+          initialMinutes={data.profile.daily_goal_minutes}
+          initialPeak={data.profile.peak_time}
+          initialBottlenecks={prevAnswers?.bottlenecks ?? []}
+          onComplete={(ob) => void handleOnboardingComplete(ob)}
         />
       </Layout>
     );
@@ -196,6 +245,7 @@ export default function App() {
         showNav={false}
       >
         <CalibrationScreen
+          selectedDomains={data.profile.selected_domains}
           scores={data.scores}
           onStartGame={(slug) => startGame(slug, 'calibration', 'calibration')}
           onFinishCalibration={async () => {

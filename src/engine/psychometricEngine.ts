@@ -1,5 +1,6 @@
 import type {
   AdaptiveStatus,
+  CognitiveTier,
   ComputedSessionResult,
   DailyProtocolRecord,
   DomainKey,
@@ -11,8 +12,117 @@ import type {
 } from '../types/cognitive';
 import { DOMAIN_LIST, GAMES_BY_DOMAIN } from './gameRegistry';
 
+/** As 7 faixas de Alcunhas / Patentes Cognitivas (0 a 1000 pontos) */
+export const COGNITIVE_TIERS: CognitiveTier[] = [
+  {
+    tierIndex: 1,
+    title: 'Em Aquecimento',
+    subtitle: 'Sinapses em fase de ativação',
+    minScore: 0,
+    accentColor: '#94a3b8',
+  },
+  {
+    tierIndex: 2,
+    title: 'Observador',
+    subtitle: 'Construindo base de foco e ritmo',
+    minScore: 380,
+    accentColor: '#60a5fa',
+  },
+  {
+    tierIndex: 3,
+    title: 'Analista',
+    subtitle: 'Desempenho dentro da média populacional',
+    minScore: 480,
+    accentColor: '#38bdf8',
+  },
+  {
+    tierIndex: 4,
+    title: 'Estrategista',
+    subtitle: 'Processamento acima da média',
+    minScore: 570,
+    accentColor: '#34d399',
+  },
+  {
+    tierIndex: 5,
+    title: 'Tático',
+    subtitle: 'Alta precisão e baixo tempo de latência',
+    minScore: 640,
+    accentColor: '#a855f7',
+  },
+  {
+    tierIndex: 6,
+    title: 'Mestre Cognitivo',
+    subtitle: 'Performance de elite — Top 10%',
+    minScore: 735,
+    accentColor: '#f472b6',
+  },
+  {
+    tierIndex: 7,
+    title: 'Ápice Neural',
+    subtitle: 'Superou 99% dos jogadores — Precisão cirúrgica',
+    minScore: 860,
+    accentColor: '#fbbf24',
+  },
+];
+
+export function getCognitiveTier(score: number): CognitiveTier {
+  for (let i = COGNITIVE_TIERS.length - 1; i >= 0; i--) {
+    if (score >= COGNITIVE_TIERS[i].minScore) return COGNITIVE_TIERS[i];
+  }
+  return COGNITIVE_TIERS[0];
+}
+
+/**
+ * Distribuição Normal Acumulada (CDF) — aproximação Abramowitz & Stegun (erro < 1.5e-7)
+ * Referência populacional: média μ = 520, desvio padrão σ = 165.
+ */
+export function normalCDF(x: number, mean = 520, sd = 165): number {
+  const z = (x - mean) / (sd * Math.SQRT2);
+  const sign = z < 0 ? -1 : 1;
+  const absZ = Math.abs(z);
+  const t = 1 / (1 + 0.3275911 * absZ);
+  const a1 = 0.254829592;
+  const a2 = -0.284496736;
+  const a3 = 1.421413741;
+  const a4 = -1.453152027;
+  const a5 = 1.061405429;
+  const poly = ((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t;
+  const erf = 1 - poly * Math.exp(-absZ * absZ);
+  return 0.5 * (1 + sign * erf);
+}
+
+/** Converte Score (0..1000) em Percentil formatado de 1.0% a 99.9% */
+export function scoreToPercentile(score: number, stage = 1): number {
+  // Referência populacional: μ = 520, σ = 165 (com ajuste sutil de fase)
+  const adjustedMean = Math.max(495, 520 - (stage - 1) * 3);
+  const rawPct = normalCDF(score, adjustedMean, 165) * 100;
+  const clamped = Math.max(1.0, Math.min(99.9, rawPct));
+  return Number(clamped.toFixed(1));
+}
+
+/** Tempo-alvo de referência (ms) por minigame e fase */
+export function getTargetRtMs(slug: GameSlug, stage: number): number {
+  const baseByGame: Record<GameSlug, number> = {
+    'go-nogo-reflex': 560,
+    'speed-match': 720,
+    'stroop-conflict': 880,
+    'symbol-digit': 1050,
+    'visual-search': 1150,
+    'dual-n-back': 1150,
+    'number-comparison': 1350,
+    'spatial-span': 1250,
+    'sustained-tracking': 1350,
+    'path-logic': 1300,
+    'chain-arithmetic': 1650,
+    'raven-matrices': 3200,
+  };
+  const base = baseByGame[slug] ?? 1100;
+  // Fases mais altas esperam respostas ligeiramente mais rápidas (ou mais complexas compensadas pelo bônus de fase)
+  return Math.max(420, Math.round(base * (1 - Math.min(0.22, (stage - 1) * 0.035))));
+}
+
 export function computeReactionStats(times: number[]): { mean: number; sd: number } {
-  const valid = times.filter((t) => Number.isFinite(t) && t > 60 && t < 15000);
+  const valid = times.filter((t) => Number.isFinite(t) && t > 60 && t < 20000);
   if (valid.length === 0) return { mean: 0, sd: 0 };
   const mean = valid.reduce((a, b) => a + b, 0) / valid.length;
   const variance = valid.reduce((acc, v) => acc + (v - mean) ** 2, 0) / valid.length;
@@ -23,43 +133,12 @@ export function computeReactionStats(times: number[]): { mean: number; sd: numbe
 }
 
 /**
- * Calcula a Nota de Velocidade (0..100) combinando:
- * - Tempo médio de reação (RT_mean em ms) frente à janela esperada da fase
- * - Cadência de respostas corretas no tempo disponível
- */
-export function computeSpeedScore(
-  rtMeanMs: number,
-  correctCount: number,
-  config: StageConfig
-): number {
-  if (correctCount <= 0) return 0;
-
-  // Referência de rapidez: 420ms = nota 100, cai suavemente até 2600ms = nota 15
-  let rtScore = 60;
-  if (rtMeanMs > 0) {
-    const fastRef = Math.max(360, Math.min(540, config.stimulusMs * 0.34));
-    const slowRef = Math.max(2100, config.stimulusMs * 1.55);
-    const ratio = (slowRef - rtMeanMs) / (slowRef - fastRef);
-    rtScore = Math.max(12, Math.min(100, Math.round(12 + ratio * 88)));
-  }
-
-  // Bônus/ajuste de volume (acertos por minuto)
-  const pacePerMin = (correctCount / Math.max(15, config.durationSec)) * 60;
-  const paceScore = Math.max(20, Math.min(100, Math.round((pacePerMin / 28) * 100)));
-
-  return Math.max(0, Math.min(100, Math.round(rtScore * 0.72 + paceScore * 0.28)));
-}
-
-/**
- * Motor Psicométrico & Auto-Adaptação (60% Assertividade + 40% Velocidade):
- * - Índice da partida = 0.60 * Assertividade + 0.40 * Velocidade
- * - Pontuação final reflete acertos × índice 60/40 × multiplicador da fase
- * - Avanço adaptativo:
- *   • Excepcional (≥95% precisão e índice ≥93, 10+ jogadas): +3 fases
- *   • Muito bom (≥90% precisão e índice ≥84, 5+ jogadas): +2 fases
- *   • Bom (≥80% precisão e índice ≥68): +1 fase
- *   • Regular (60%–79% ou acertou bem mas bem lento): mantém fase
- *   • Fraco (<60%): desce 1 fase (ou ativa modo mais leve na Fase 1)
+ * Motor Psicométrico (0 a 1000 pts) — 60% Assertividade / 40% Velocidade + Percentil + Alcunha + Auto-Adaptação:
+ * 1. Assertividade (60% = máx. 600 pts): accuracy_pct líquida descontando erros impulsivos (commission).
+ * 2. Velocidade (40% = máx. 400 pts): rt_mean_ms comparado ao target_rt_ms da fase/jogo.
+ * 3. Bônus sutil de fase (reflete dificuldade) dentro do teto de 1000 pts.
+ * 4. Curva normal (μ=520, σ=165) -> percentil (1% a 99.9%) + 7 Alcunhas Cognitivas.
+ * 5. Auto-Adaptação de fase: +2/+3 (excepcional), +1 (bom), 0 (regular), -1 ou ritmo leve (<60%).
  */
 export function evaluateSession(params: {
   domain: DomainKey;
@@ -75,39 +154,64 @@ export function evaluateSession(params: {
     totalAttempts > 0 ? Number(((perf.correct / totalAttempts) * 100).toFixed(1)) : 0;
 
   const { mean: rtMeanMs, sd: rtSdMs } = computeReactionStats(perf.reactionTimesMs);
-  const speedScore = computeSpeedScore(rtMeanMs, perf.correct, config);
 
-  // Nota composta: 60% assertividade + 40% velocidade
-  const performanceIndex =
-    totalAttempts > 0 ? Math.round(accuracyPct * 0.6 + speedScore * 0.4) : 0;
+  // --- 1. Componente de Assertividade (60% = máx. 600 pts) ---
+  // Desconta erros de comissão (impulsividade) com peso extra (0.25) sobre a precisão líquida
+  const netAccuracyRatio =
+    totalAttempts > 0
+      ? Math.max(0, (perf.correct - perf.commissionErrors * 0.25) / totalAttempts)
+      : 0;
+  // Proteção contra tentar só 1-2 vezes e parar
+  const volumeGate = Math.min(1, totalAttempts / 4);
+  const accuracyPoints = Math.round(netAccuracyRatio * 600 * (totalAttempts > 0 ? (0.45 + 0.55 * volumeGate) : 0));
 
-  // Pontuação final diretamente ligada a assertividade + velocidade + fase
-  const rawVolume =
-    perf.rawPoints ??
-    Math.max(0, perf.correct * 100 - perf.commissionErrors * 45 - perf.omissionErrors * 25);
-  const indexFactor = 0.45 + (performanceIndex / 100) * 1.1; // 0.45x até 1.55x
-  const speedBonus = Math.round(speedScore * 2.4);
-  const accuracyBonus = Math.round(accuracyPct * 3.0);
+  // --- 2. Componente de Velocidade (40% = máx. 400 pts) ---
+  const targetRt = getTargetRtMs(gameSlug, config.stage);
+  let speedRatio = 0;
+  if (perf.correct > 0) {
+    if (rtMeanMs > 0) {
+      // RT <= 0.65 * alvo -> 1.0 (400 pts); RT == alvo -> ~0.78; RT >= 2.6 * alvo -> 0.12
+      const fastBound = targetRt * 0.62;
+      const slowBound = targetRt * 2.55;
+      const norm = (slowBound - rtMeanMs) / (slowBound - fastBound);
+      speedRatio = Math.max(0.12, Math.min(1, 0.12 + norm * 0.88));
+    } else {
+      speedRatio = 0.62;
+    }
+    // Pondera levemente por volume mínimo de acertos
+    speedRatio *= 0.55 + 0.45 * Math.min(1, perf.correct / 5);
+  }
+  const speedPoints = Math.round(speedRatio * 400);
+  const speedScore = Math.round((speedPoints / 400) * 100);
 
+  // --- 3. Pontuação Final (0 a 1000) com multiplicador sutil de fase ---
+  const rawTotal = accuracyPoints + speedPoints; // 0..1000
+  const stageBonusMultiplier = 1 + Math.min(0.16, (config.stage - 1) * 0.028);
   const finalScore =
     totalAttempts > 0
-      ? Math.max(0, Math.round((rawVolume * indexFactor + accuracyBonus + speedBonus) * config.scoreMultiplier))
+      ? Math.max(0, Math.min(1000, Math.round(rawTotal * stageBonusMultiplier)))
       : 0;
 
-  // --- Auto-Adaptação de Fase (Staircase com piso de assertividade) ---
+  const performanceIndex = Math.round(finalScore / 10);
+
+  // --- 4. Percentil & Alcunha Cognitiva ---
+  const percentile = scoreToPercentile(finalScore, config.stage);
+  const tier = getCognitiveTier(finalScore);
+
+  // --- 5. Auto-Adaptação de Fase (Staircase dinâmico com piso de assertividade) ---
   let adaptiveDelta = 0;
   let adaptiveStatus: AdaptiveStatus = 'hold';
   let stageCleared = false;
 
-  if (totalAttempts >= 10 && accuracyPct >= 95 && performanceIndex >= 93) {
+  if (totalAttempts >= 8 && accuracyPct >= 95 && finalScore >= 860) {
     adaptiveDelta = 3;
     adaptiveStatus = 'fast_track';
     stageCleared = true;
-  } else if (totalAttempts >= 5 && accuracyPct >= 90 && performanceIndex >= 84) {
+  } else if (totalAttempts >= 5 && accuracyPct >= 90 && finalScore >= 735) {
     adaptiveDelta = 2;
     adaptiveStatus = 'fast_track';
     stageCleared = true;
-  } else if (totalAttempts >= 3 && accuracyPct >= config.minAccuracyPct && performanceIndex >= 68) {
+  } else if (totalAttempts >= 3 && accuracyPct >= config.minAccuracyPct && finalScore >= 540) {
     adaptiveDelta = 1;
     adaptiveStatus = 'level_up';
     stageCleared = true;
@@ -130,18 +234,18 @@ export function evaluateSession(params: {
 
   // XP (+20% nos 2 domínios mais fracos)
   const bonusXp = weakestTwoDomains.includes(domain);
-  const rawXp = (stageCleared ? 130 + (adaptiveDelta - 1) * 45 : 45) + Math.round(finalScore / 30);
+  const rawXp = (stageCleared ? 120 + (adaptiveDelta - 1) * 45 : 45) + Math.round(finalScore / 8);
   const xpEarned = Math.round(bonusXp ? rawXp * 1.2 : rawXp);
 
-  // Evolução do domínio (escala 200..999) guiada pelo índice 60/40
+  // Delta no score do domínio (escala 200..999)
   const domainDelta =
     adaptiveStatus === 'fast_track'
-      ? Math.min(36, 18 + adaptiveDelta * 5)
+      ? Math.min(40, 20 + adaptiveDelta * 6)
       : stageCleared
-        ? Math.min(24, 9 + Math.round((performanceIndex - 65) * 0.4))
+        ? Math.min(26, 10 + Math.round((finalScore - 520) / 28))
         : adaptiveStatus === 'hold'
           ? 2
-          : -10;
+          : -12;
 
   return {
     domain,
@@ -154,8 +258,14 @@ export function evaluateSession(params: {
     adaptiveStatus,
     score: finalScore,
     accuracyPct,
+    accuracyPoints,
+    speedPoints,
     speedScore,
     performanceIndex,
+    percentile,
+    earnedTitle: tier.title,
+    earnedSubtitle: tier.subtitle,
+    tierAccent: tier.accentColor,
     commissionErrors: perf.commissionErrors,
     omissionErrors: perf.omissionErrors,
     rtMeanMs,
@@ -181,86 +291,80 @@ export function getWeakestDomains(scores: DomainScoresRecord, count = 2): Domain
 }
 
 /**
- * Converte as respostas do questionário de hábitos/foco em pesos de prioridade por domínio
- * (nunca altera dificuldade — apenas influencia quais áreas entram com foco no Treino Diário).
+ * Resolve a lista dinâmica de domínios da Calibração Inicial (mín. 2, máx. 6).
+ * Se o usuário escolheu apenas 1 domínio, completa com Velocidade (ou Atenção).
  */
-export function getOnboardingDomainWeights(
-  answers?: Record<string, string>
-): Partial<Record<DomainKey, number>> {
-  if (!answers) return {};
-  const w: Partial<Record<DomainKey, number>> = {};
-  const add = (d: DomainKey, v: number) => {
-    w[d] = (w[d] ?? 0) + v;
-  };
-
-  if (answers.goal === 'attention') add('selective_attention', 2);
-  if (answers.goal === 'memory') add('working_memory', 2);
-  if (answers.goal === 'reasoning') add('fluid_reasoning', 2);
-  if (answers.goal === 'speed_math') {
-    add('processing_speed', 1.5);
-    add('numerical_cognition', 1.5);
+export function getCalibrationDomains(selectedDomains?: DomainKey[]): DomainKey[] {
+  const valid = Array.from(
+    new Set((selectedDomains ?? []).filter((d) => DOMAIN_LIST.some((m) => m.key === d)))
+  );
+  if (valid.length === 0) return DOMAIN_LIST.map((d) => d.key);
+  if (valid.length === 1) {
+    const complement: DomainKey =
+      valid[0] === 'processing_speed' ? 'selective_attention' : 'processing_speed';
+    return [...valid, complement];
   }
+  return valid.slice(0, 6);
+}
 
-  if (answers.pain === 'distraction') add('selective_attention', 1.5);
-  if (answers.pain === 'forgetting') add('working_memory', 1.5);
-  if (answers.pain === 'slowness') add('processing_speed', 1.5);
-  if (answers.pain === 'impulse') add('inhibitory_control', 2);
-
-  if (answers.pressure === 'decisions') add('fluid_reasoning', 1.2);
-  if (answers.pressure === 'math') add('numerical_cognition', 1.5);
-  if (answers.pressure === 'sustained') add('selective_attention', 1.2);
-  if (answers.pressure === 'sequence') add('working_memory', 1.2);
-
-  return w;
+/** Converte meta diária em minutos para quantidade de minigames no Treino Diário */
+export function getDailyGamesCount(dailyGoalMinutes?: number): number {
+  const mins = dailyGoalMinutes ?? 10;
+  if (mins <= 5) return 2;
+  if (mins <= 10) return 3;
+  if (mins <= 15) return 4;
+  return 5;
 }
 
 /**
  * Gera o Protocolo Diário Adaptativo:
- * 3 minigames combinando domínios mais fracos + prioridades do questionário, + 1 de manutenção.
+ * - Quantidade dinâmica (2, 3, 4 ou 5 minigames) conforme `daily_goal_minutes`.
+ * - Prioriza domínios escolhidos no Onboarding (`selected_domains`) + domínios mais fracos.
+ * - Reserva 1 jogo de manutenção quando a sessão tiver 3+ jogos.
  */
 export function generateDailyProtocol(
   scores: DomainScoresRecord,
   dateStr: string,
-  onboardingAnswers?: Record<string, string>
+  selectedDomains?: DomainKey[],
+  dailyGoalMinutes = 10
 ): DailyProtocolRecord {
-  const weights = getOnboardingDomainWeights(onboardingAnswers);
+  const totalGames = getDailyGamesCount(dailyGoalMinutes);
+  const selectedSet = new Set<DomainKey>(selectedDomains ?? []);
+  const daySeed = Number(dateStr.replace(/-/g, '')) || 1;
 
-  // Score efetivo: domínios fracos e domínios priorizados no questionário sobem pro topo
+  // Score efetivo: domínios escolhidos no onboarding ganham prioridade (-55 no ranking)
   const ranked = [...DOMAIN_LIST].sort((a, b) => {
-    const effA = (scores[a.key] ?? 500) - (weights[a.key] ?? 0) * 42;
-    const effB = (scores[b.key] ?? 500) - (weights[b.key] ?? 0) * 42;
+    const effA = (scores[a.key] ?? 500) - (selectedSet.has(a.key) ? 55 : 0);
+    const effB = (scores[b.key] ?? 500) - (selectedSet.has(b.key) ? 55 : 0);
     return effA - effB;
   });
 
-  const daySeed = Number(dateStr.replace(/-/g, '')) || 1;
   const pickGame = (domain: DomainKey, offset: number): GameSlug => {
     const games = GAMES_BY_DOMAIN[domain];
     return games[(daySeed + offset) % games.length].slug;
   };
 
-  const focus3 = ranked.slice(0, 3).map((d, idx) => ({
+  const hasMaintenance = totalGames >= 3;
+  const focusCount = hasMaintenance ? totalGames - 1 : totalGames;
+
+  const focusGames: DailyProtocolRecord['recommended_games'] = ranked.slice(0, focusCount).map((d, idx) => ({
     slug: pickGame(d.key, idx),
     domain: d.key,
-    role: (weights[d.key] ?? 0) > 0 ? ('priority' as const) : ('weak' as const),
+    role: selectedSet.has(d.key) ? 'priority' : 'weak',
   }));
 
-  const strongest = ranked[ranked.length - 1];
-  const maintenance = {
-    slug: pickGame(strongest.key, 1),
-    domain: strongest.key,
-    role: 'maintenance' as const,
-  };
+  if (hasMaintenance) {
+    const strongest = ranked[ranked.length - 1];
+    focusGames.push({
+      slug: pickGame(strongest.key, 1),
+      domain: strongest.key,
+      role: 'maintenance' as const,
+    });
+  }
 
   return {
     protocol_date: dateStr,
-    recommended_games: [...focus3, maintenance],
+    recommended_games: focusGames,
     completed_games: [],
   };
-}
-
-/** Converte resultado da calibração (60% assertividade + 40% velocidade) em pontuação inicial (350..750) */
-export function calibrationScoreToDomainValue(accuracyPct: number, rtMeanMs: number): number {
-  const speedPart = rtMeanMs > 0 ? Math.max(15, Math.min(100, ((2200 - rtMeanMs) / 1780) * 100)) : 50;
-  const composite = accuracyPct * 0.6 + speedPart * 0.4;
-  return Math.round(Math.max(350, Math.min(750, 350 + composite * 4)));
 }

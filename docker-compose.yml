@@ -14,6 +14,7 @@ services:
       - neurolab_pgdata:/var/lib/postgresql/data
       - ./docker/init/01-roles.sql:/docker-entrypoint-initdb.d/01-roles.sql:ro
       - ./supabase/migrations/20261121000000_initial_schema.sql:/docker-entrypoint-initdb.d/02-schema.sql:ro
+      - ./supabase/migrations/20261122000000_onboarding_percentile_titles.sql:/docker-entrypoint-initdb.d/03-onboarding-percentile.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s

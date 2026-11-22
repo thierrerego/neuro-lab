@@ -44,7 +44,7 @@ export interface StageConfig {
   stage: number;
   durationSec: number;
   gridSize: number;          // 3 -> 4 -> 5 -> 6
-  stimulusMs: number;        // 1500 -> 1100 -> 800 -> 600
+  stimulusMs: number;        // 1800 -> 1400 -> 1000 -> 600
   targetCount: number;       // alvos simultâneos / comprimento da sequência
   nBackLevel: number;        // 1 -> 2 -> 3
   reverseOrder: boolean;     // Matriz Espacial Reversa a partir da fase 3
@@ -57,6 +57,14 @@ export interface StageConfig {
 }
 
 export type AdaptiveStatus = 'fast_track' | 'level_up' | 'hold' | 'step_down' | 'ease_mode';
+
+export interface CognitiveTier {
+  tierIndex: number;   // 1..7
+  title: string;
+  subtitle: string;
+  minScore: number;
+  accentColor: string;
+}
 
 export interface RawGamePerformance {
   correct: number;
@@ -75,10 +83,16 @@ export interface ComputedSessionResult {
   nextStage: number;
   adaptiveDelta: number;     // +3, +2, +1, 0 ou -1
   adaptiveStatus: AdaptiveStatus;
-  score: number;
-  accuracyPct: number;
-  speedScore: number;        // 0..100 baseado em RT_mean e cadência
-  performanceIndex: number;  // 0..100 (60% assertividade + 40% velocidade)
+  score: number;             // 0..1000
+  accuracyPct: number;       // 0..100
+  accuracyPoints: number;    // 0..600 (60%)
+  speedPoints: number;       // 0..400 (40%)
+  speedScore: number;        // 0..100
+  performanceIndex: number;  // 0..100
+  percentile: number;        // 1.0..99.9
+  earnedTitle: string;
+  earnedSubtitle: string;
+  tierAccent: string;
   commissionErrors: number;
   omissionErrors: number;
   rtMeanMs: number;
@@ -86,6 +100,14 @@ export interface ComputedSessionResult {
   xpEarned: number;
   bonusXp: boolean;
   domainDelta: number;
+}
+
+export interface OnboardingProfileData {
+  goals: string[];
+  selected_domains: DomainKey[];
+  daily_goal_minutes: 5 | 10 | 15 | 20;
+  peak_time: string;
+  bottlenecks: string[];
 }
 
 export interface UserProfile {
@@ -99,7 +121,11 @@ export interface UserProfile {
   best_streak: number;
   xp: number;
   calibrated: boolean;
-  onboarding_answers: Record<string, string>;
+  selected_domains: DomainKey[];
+  daily_goal_minutes: number;
+  peak_time: string | null;
+  current_title: string;
+  onboarding_answers: Record<string, unknown>;
   last_played_date: string | null;
   isLocalGuest?: boolean;
 }
@@ -135,6 +161,10 @@ export interface CognitiveSessionRecord {
   stage_cleared: boolean;
   score: number;
   accuracy_pct: number;
+  accuracy_points: number;
+  speed_points: number;
+  percentile: number;
+  earned_title: string;
   commission_errors: number;
   omission_errors: number;
   rt_mean_ms: number;

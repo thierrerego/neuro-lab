@@ -1,6 +1,7 @@
-import { Check, Play, Zap } from 'lucide-react';
+import { Award, Check, Play, Zap } from 'lucide-react';
 import type { AppDataState } from '../lib/dataService';
 import { DOMAIN_MAP, GAME_MAP } from '../engine/gameRegistry';
+import { getCognitiveTier } from '../engine/psychometricEngine';
 import type { GameSlug, SessionMode } from '../types/cognitive';
 import { GameIcon } from '../components/DomainIcon';
 
@@ -12,12 +13,14 @@ interface HomeScreenProps {
 
 export function HomeScreen({ data, onStartGame, onGoStats }: HomeScreenProps) {
   const { profile, dailyProtocol, progress } = data;
+  const totalToday = dailyProtocol.recommended_games.length;
   const completedSet = new Set(dailyProtocol.completed_games);
   const completedCount = dailyProtocol.recommended_games.filter((g) => completedSet.has(g.slug)).length;
   const nextGame =
     dailyProtocol.recommended_games.find((g) => !completedSet.has(g.slug)) ??
     dailyProtocol.recommended_games[0];
 
+  const tier = getCognitiveTier(profile.global_cognitive_index);
   const level = Math.floor(profile.xp / 600) + 1;
   const xpInLevel = profile.xp % 600;
   const xpPct = Math.min(100, Math.round((xpInLevel / 600) * 100));
@@ -51,15 +54,16 @@ export function HomeScreen({ data, onStartGame, onGoStats }: HomeScreenProps) {
         </div>
       )}
 
-      {/* Hero ICG + Botão 1 toque */}
+      {/* Hero ICG + Alcunha Atual + Botão 1 toque */}
       <div className="surface-card p-5 flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-              ICG
+            <div className="inline-flex items-center gap-1.5 text-xs font-extrabold" style={{ color: tier.accentColor }}>
+              <Award size={14} />
+              <span>{profile.current_title || tier.title}</span>
             </div>
             <div
-              className="text-5xl font-black tabular leading-none mt-1"
+              className="text-5xl font-black tabular leading-none mt-1.5"
               style={{
                 background: 'var(--accent-grad)',
                 WebkitBackgroundClip: 'text',
@@ -83,17 +87,17 @@ export function HomeScreen({ data, onStartGame, onGoStats }: HomeScreenProps) {
           className="w-full py-4 rounded-2xl font-extrabold text-base btn-accent flex items-center justify-center gap-2 cursor-pointer"
         >
           <Play size={18} fill="currentColor" />
-          <span>{completedCount >= 4 ? 'Treinar de novo' : 'Treinar agora'}</span>
+          <span>{completedCount >= totalToday ? 'Treinar de novo' : 'Treinar agora'}</span>
         </button>
       </div>
 
-      {/* Treino Diário (4 jogos) */}
+      {/* Treino Diário dinâmico (2 a 5 jogos conforme meta diária) */}
       <div className="flex items-center justify-between px-1 mt-1">
         <span className="text-xs font-extrabold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-          Hoje
+          Hoje · {profile.daily_goal_minutes} min
         </span>
         <span className="text-xs font-extrabold tabular" style={{ color: 'var(--accent)' }}>
-          {completedCount}/4
+          {completedCount}/{totalToday}
         </span>
       </div>
 
@@ -123,7 +127,7 @@ export function HomeScreen({ data, onStartGame, onGoStats }: HomeScreenProps) {
                 <div className="flex items-center gap-2 mt-0.5 text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>
                   <span>{dom.shortName}</span>
                   {item.role === 'priority' && !done && (
-                    <span style={{ color: 'var(--accent)' }}>Prioridade</span>
+                    <span style={{ color: 'var(--accent)' }}>Meta</span>
                   )}
                   {item.role === 'weak' && !done && (
                     <span style={{ color: 'var(--warn)' }}>+20% XP</span>
