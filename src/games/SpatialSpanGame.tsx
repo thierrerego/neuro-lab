@@ -14,9 +14,26 @@ function makeSequence(cells: number, length: number): number[] {
   return seq;
 }
 
+function getGrid(gridSize: number, stage: number): number {
+  if (stage < 2) return 3;
+  return Math.min(4, Math.max(3, gridSize));
+}
+
+function getSequenceLength(stage: number, roundsCleared: number): number {
+  if (stage < 2) {
+    // Nível 1 ultrabásico: começa com 2 quadrados e nunca passa de 3
+    const startLen = 2;
+    return Math.min(3, startLen + (roundsCleared >= 3 ? 1 : 0));
+  }
+  // Progressão suave nos Níveis 2+
+  const lvl = Math.floor(stage);
+  const startLen = lvl <= 3 ? 3 : lvl <= 6 ? 4 : 5;
+  const maxLen = lvl <= 2 ? 4 : lvl <= 5 ? 5 : 6;
+  return Math.min(maxLen, startLen + (roundsCleared >= 2 ? 1 : 0));
+}
+
 export function SpatialSpanGame({
   config,
-  wave,
   finishRequested,
   paused = false,
   onWaveHit,
@@ -24,11 +41,10 @@ export function SpatialSpanGame({
   onLiveUpdate,
   onFinish,
 }: MinigameProps) {
-  const getGrid = (g: number) => Math.min(4, Math.max(3, g));
-  const [grid, setGrid] = useState(() => getGrid(config.gridSize));
-  const [reverseRound, setReverseRound] = useState(() => config.reverseOrder);
+  const [grid, setGrid] = useState(() => getGrid(config.gridSize, config.stage));
+  const [reverseRound, setReverseRound] = useState(() => (config.stage < 2 ? false : config.reverseOrder));
   const [sequence, setSequence] = useState<number[]>(() =>
-    makeSequence(getGrid(config.gridSize) ** 2, Math.max(2, wave.waveQuota))
+    makeSequence(getGrid(config.gridSize, config.stage) ** 2, getSequenceLength(config.stage, 0))
   );
   const [phase, setPhase] = useState<'show' | 'input'>('show');
   const [litCell, setLitCell] = useState<number | null>(null);
@@ -37,8 +53,6 @@ export function SpatialSpanGame({
 
   const configRef = useRef(config);
   configRef.current = config;
-  const waveRef = useRef(wave);
-  waveRef.current = wave;
 
   const statsRef = useRef({
     correct: 0,
@@ -46,6 +60,7 @@ export function SpatialSpanGame({
     rts: [] as number[],
     combo: 0,
     rawPoints: 0,
+    roundsCleared: 0,
     stepStart: performance.now(),
     finished: false,
   });
@@ -110,10 +125,10 @@ export function SpatialSpanGame({
   const spawnNextRound = () => {
     setTimeout(() => {
       if (statsRef.current.finished) return;
-      const nextGrid = getGrid(configRef.current.gridSize);
-      const nextLen = Math.min(6, Math.max(2, waveRef.current.waveQuota));
+      const nextGrid = getGrid(configRef.current.gridSize, configRef.current.stage);
+      const nextLen = getSequenceLength(configRef.current.stage, statsRef.current.roundsCleared);
       setGrid(nextGrid);
-      setReverseRound(configRef.current.reverseOrder);
+      setReverseRound(configRef.current.stage < 2 ? false : configRef.current.reverseOrder);
       setSequence(makeSequence(nextGrid * nextGrid, nextLen));
       setPhase('show');
     }, 340);
@@ -136,14 +151,16 @@ export function SpatialSpanGame({
       setFlashCell({ id: cellId, ok: true });
       setTimeout(() => setFlashCell(null), 200);
 
-      const clearedAll = onWaveHit();
       emitLive();
-      if (clearedAll) {
-        setTimeout(() => finishNow(), 180);
-        return;
-      }
 
+      // Progresso só avança quando completa a etapa (sequência inteira), não a cada clique!
       if (inputStep + 1 >= expectedOrder.length) {
+        statsRef.current.roundsCleared++;
+        const clearedAll = onWaveHit();
+        if (clearedAll) {
+          setTimeout(() => finishNow(), 180);
+          return;
+        }
         spawnNextRound();
       } else {
         setInputStep(inputStep + 1);

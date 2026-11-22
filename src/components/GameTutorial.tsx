@@ -6,6 +6,7 @@ import { DOMAIN_MAP, GAME_MAP } from '../engine/gameRegistry';
 interface GameTutorialProps {
   slug: GameSlug;
   config: StageConfig;
+  confirmLabel?: string;
   onConfirm: () => void;
 }
 
@@ -58,11 +59,11 @@ function TapCursor({
         className="w-7 h-7 rounded-full flex items-center justify-center shadow-lg"
         style={{
           background: pressing ? 'var(--ok)' : 'var(--accent)',
-          color: '#0b0a14',
+          color: '#FFFFFF',
           border: '2px solid #ffffff',
           boxShadow: pressing
-            ? '0 0 18px rgba(52, 211, 153, 0.7)'
-            : '0 4px 14px rgba(0, 0, 0, 0.45)',
+            ? '0 0 18px rgba(16, 185, 129, 0.55)'
+            : '0 4px 14px rgba(15, 23, 42, 0.25)',
         }}
       >
         <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor" aria-hidden="true">
@@ -219,9 +220,9 @@ function SustainedTrackingDemo() {
                 left: `${pos.x}%`,
                 top: `${pos.y}%`,
                 transform: 'translate(-50%, -50%)',
-                background: isPicked ? '#34d399' : showGold ? '#f59e0b' : '#334155',
-                border: showGold || isPicked ? '2.5px solid #fde68a' : '1.5px solid rgba(255,255,255,0.22)',
-                boxShadow: showGold ? '0 0 14px rgba(245, 158, 11, 0.55)' : 'none',
+                background: isPicked ? '#10B981' : showGold ? '#F59E0B' : '#64748B',
+                border: showGold || isPicked ? '2.5px solid #FEF3C7' : '1.5px solid rgba(255,255,255,0.45)',
+                boxShadow: showGold ? '0 0 14px rgba(245, 158, 11, 0.45)' : 'none',
               }}
             >
               {(showGold || isPicked) && (
@@ -549,8 +550,8 @@ function PathLogicDemo({ alternating }: { alternating: boolean }) {
                   cx={p.x}
                   cy={p.y}
                   r={17}
-                  fill={done ? '#10b981' : isStart ? '#a855f7' : '#1e293b'}
-                  stroke={done ? '#a7f3d0' : isStart ? '#ffffff' : 'rgba(255,255,255,0.28)'}
+                  fill={done ? '#10B981' : isStart ? '#6366F1' : '#475569'}
+                  stroke={done ? '#A7F3D0' : isStart ? '#FFFFFF' : 'rgba(255,255,255,0.4)'}
                   strokeWidth="2"
                 />
                 <text x={p.x} y={p.y + 5} textAnchor="middle" fill="#ffffff" fontSize="13" fontWeight="800">
@@ -963,7 +964,7 @@ function GoNoGoDemo() {
         {isGo ? (
           <div
             className="w-16 h-16 rounded-full flex items-center justify-center text-2xl font-black animate-pop"
-            style={{ background: '#10b981', color: '#052e16', boxShadow: '0 0 22px rgba(16,185,129,0.5)' }}
+            style={{ background: '#10B981', color: '#FFFFFF', boxShadow: '0 6px 20px rgba(16,185,129,0.4)' }}
           >
             GO
           </div>
@@ -1002,6 +1003,733 @@ function GoNoGoDemo() {
 }
 
 /* ============================================================================
+   13. DIFERENÇA OCULTA (ODD ONE OUT)
+   ============================================================================ */
+function OddOneOutDemo() {
+  const step = useLoopStep(5, 740);
+  const cells = ['●', '●', '●', '●', '●', '▲', '●', '●', '●'];
+  const found = step >= 2;
+
+  return (
+    <div className="relative w-full h-full flex flex-col items-center justify-center gap-2.5 px-4">
+      <div
+        className="text-[11px] font-extrabold uppercase tracking-wider px-3 py-0.5 rounded-full"
+        style={{ background: 'var(--bg-subtle)', color: found ? 'var(--ok)' : 'var(--accent)' }}
+      >
+        {found ? '✓ Diferente encontrado!' : 'Toque no símbolo diferente'}
+      </div>
+
+      <div className="relative w-[148px]">
+        <div className="grid grid-cols-3 gap-1.5">
+          {cells.map((char, i) => {
+            const isOdd = i === 5;
+            const isHit = isOdd && found;
+            return (
+              <div
+                key={i}
+                className="aspect-square rounded-lg flex items-center justify-center text-base font-black transition-all duration-200"
+                style={{
+                  background: isHit ? 'rgba(52, 211, 153, 0.28)' : 'var(--bg-card)',
+                  border: isHit ? '2px solid var(--ok)' : '1px solid var(--border)',
+                  color: isHit ? 'var(--ok)' : isOdd ? 'var(--accent)' : 'var(--text)',
+                }}
+              >
+                {char}
+              </div>
+            );
+          })}
+        </div>
+        <TapCursor xPct={83} yPct={50} pressing={step === 2} visible={step === 1 || step === 2} />
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================================
+   14. FILTRO DIRECIONAL (FLANKER)
+   ============================================================================ */
+function FlankerFocusDemo() {
+  const step = useLoopStep(5, 780);
+  const arrows = ['←', '←', '→', '←', '←'];
+  const highlightCenter = step >= 1;
+  const pressing = step === 2;
+  const solved = step >= 2;
+
+  return (
+    <div className="relative w-full h-full flex flex-col items-center justify-center gap-3 px-4">
+      <div
+        className="text-[11px] font-extrabold uppercase tracking-wider px-3 py-0.5 rounded-full"
+        style={{ background: 'var(--bg-subtle)', color: solved ? 'var(--ok)' : 'var(--accent)' }}
+      >
+        {solved ? '✓ Seta do meio → Direita' : 'Olhe só a seta do meio'}
+      </div>
+
+      <div
+        className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-2xl"
+        style={{ background: 'var(--bg-card)', border: '1px solid var(--border-strong)' }}
+      >
+        {arrows.map((arr, i) => {
+          const isCenter = i === 2;
+          return (
+            <div
+              key={i}
+              className="w-8 h-9 rounded-lg flex items-center justify-center text-lg font-black transition-all"
+              style={{
+                background: isCenter && highlightCenter ? 'var(--accent-glow)' : 'transparent',
+                border: isCenter && highlightCenter ? '1.5px solid var(--accent)' : '1px solid transparent',
+                color: isCenter ? 'var(--accent)' : 'var(--text-soft)',
+                opacity: isCenter ? 1 : 0.6,
+              }}
+            >
+              {arr}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="relative w-[224px]">
+        <div className="grid grid-cols-2 gap-2">
+          <div
+            className="py-2 rounded-xl text-center text-xs font-extrabold"
+            style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text)' }}
+          >
+            ← Esquerda
+          </div>
+          <div
+            className="py-2 rounded-xl text-center text-xs font-extrabold transition-all"
+            style={{
+              background: solved ? 'rgba(52, 211, 153, 0.28)' : 'var(--bg-subtle)',
+              border: solved ? '2px solid var(--ok)' : '1px solid var(--border)',
+              color: solved ? 'var(--ok)' : 'var(--text)',
+            }}
+          >
+            Direita →
+          </div>
+        </div>
+        <TapCursor xPct={75} yPct={55} pressing={pressing} visible={step === 1 || step === 2} />
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================================
+   15. JOGO DA MEMÓRIA (MEMORY PAIRS)
+   ============================================================================ */
+function MemoryPairsDemo() {
+  const step = useLoopStep(7, 700);
+  const firstOpen = step >= 2;
+  const secondOpen = step >= 4;
+  const matched = step >= 4;
+
+  const cursor =
+    step === 1
+      ? { x: 50, y: 25, press: false, vis: true }
+      : step === 2
+        ? { x: 50, y: 25, press: true, vis: true }
+        : step === 3
+          ? { x: 17, y: 75, press: false, vis: true }
+          : step === 4
+            ? { x: 17, y: 75, press: true, vis: true }
+            : { x: 17, y: 75, press: false, vis: false };
+
+  return (
+    <div className="relative w-full h-full flex flex-col items-center justify-center gap-2.5 px-4">
+      <div
+        className="text-[11px] font-extrabold uppercase tracking-wider px-3 py-0.5 rounded-full"
+        style={{ background: 'var(--bg-subtle)', color: matched ? 'var(--ok)' : 'var(--accent)' }}
+      >
+        {matched ? '✓ Par formado!' : 'Vire 2 cartas iguais'}
+      </div>
+
+      <div className="relative w-[186px]">
+        <div className="grid grid-cols-3 gap-2">
+          {Array.from({ length: 6 }, (_, i) => {
+            const isOpen = (i === 1 && firstOpen) || (i === 3 && secondOpen);
+            const isMatch = matched && (i === 1 || i === 3);
+            return (
+              <div
+                key={i}
+                className="h-14 rounded-xl flex items-center justify-center text-xl font-black transition-all duration-200"
+                style={{
+                  background: isMatch
+                    ? 'rgba(52, 211, 153, 0.28)'
+                    : isOpen
+                      ? 'var(--accent-glow)'
+                      : 'var(--bg-card)',
+                  border: isMatch
+                    ? '2px solid var(--ok)'
+                    : isOpen
+                      ? '2px solid var(--accent)'
+                      : '1px solid var(--border-strong)',
+                  color: isMatch ? 'var(--ok)' : isOpen ? 'var(--accent)' : 'var(--text-soft)',
+                }}
+              >
+                {isOpen ? '★' : '?'}
+              </div>
+            );
+          })}
+        </div>
+        <TapCursor xPct={cursor.x} yPct={cursor.y} pressing={cursor.press} visible={cursor.vis} />
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================================
+   16. MEMÓRIA FOTOGRÁFICA (PHOTO RECALL)
+   ============================================================================ */
+function PhotoRecallDemo() {
+  const step = useLoopStep(7, 760);
+  const memorize = step <= 1;
+  const solved = step >= 4;
+
+  return (
+    <div className="relative w-full h-full flex flex-col items-center justify-center gap-2.5 px-4">
+      <div
+        className="text-[11px] font-extrabold uppercase tracking-wider px-3 py-0.5 rounded-full"
+        style={{
+          background: 'var(--bg-subtle)',
+          color: solved ? 'var(--ok)' : memorize ? 'var(--warn)' : 'var(--accent)',
+        }}
+      >
+        {memorize ? '1. Memorize os ícones' : solved ? '✓ Posição certa!' : 'Onde estava ★?'}
+      </div>
+
+      <div className="relative w-[144px]">
+        <div className="grid grid-cols-3 gap-1.5">
+          {Array.from({ length: 9 }, (_, i) => {
+            const showStar = (memorize || solved) && i === 2;
+            const showDiamond = memorize && i === 6;
+            const isHit = solved && i === 2;
+            return (
+              <div
+                key={i}
+                className="aspect-square rounded-lg flex items-center justify-center text-base font-black transition-all duration-200"
+                style={{
+                  background: isHit
+                    ? 'rgba(52, 211, 153, 0.28)'
+                    : showStar || showDiamond
+                      ? 'var(--accent-glow)'
+                      : 'var(--bg-card)',
+                  border: isHit
+                    ? '2px solid var(--ok)'
+                    : showStar || showDiamond
+                      ? '1.5px solid var(--accent)'
+                      : '1px solid var(--border)',
+                  color: isHit ? 'var(--ok)' : showStar ? '#fbbf24' : '#38bdf8',
+                }}
+              >
+                {showStar ? '★' : showDiamond ? '◆' : ''}
+              </div>
+            );
+          })}
+        </div>
+        <TapCursor xPct={83} yPct={17} pressing={step === 4} visible={step === 3 || step === 4} />
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================================
+   17. SEQUÊNCIA NUMÉRICA (NUMBER SEQUENCE)
+   ============================================================================ */
+function NumberSequenceDemo() {
+  const step = useLoopStep(6, 780);
+  const seq = [2, 4, 6, 8];
+  const options = [9, 10, 12, 14];
+  const solved = step >= 3;
+
+  return (
+    <div className="relative w-full h-full flex flex-col items-center justify-center gap-3 px-4">
+      <div
+        className="text-[11px] font-extrabold uppercase tracking-wider px-3 py-0.5 rounded-full"
+        style={{ background: 'var(--bg-subtle)', color: solved ? 'var(--ok)' : 'var(--accent)' }}
+      >
+        {step === 0 ? 'Descubra a regra' : solved ? '✓ 8 + 2 = 10' : 'Regra: +2 a cada passo'}
+      </div>
+
+      <div className="flex items-center gap-1.5">
+        {seq.map((n, idx) => (
+          <div key={n} className="flex items-center gap-1.5">
+            <div
+              className="w-9 h-10 rounded-xl flex items-center justify-center text-sm font-black tabular"
+              style={{ background: 'var(--bg-card)', border: '1px solid var(--border-strong)' }}
+            >
+              {n}
+            </div>
+            {idx < seq.length - 1 && (
+              <span className="text-xs font-black" style={{ color: 'var(--text-soft)' }}>·</span>
+            )}
+          </div>
+        ))}
+        <span className="text-xs font-black" style={{ color: 'var(--text-soft)' }}>·</span>
+        <div
+          className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-black tabular transition-all"
+          style={{
+            background: solved ? 'rgba(52, 211, 153, 0.28)' : 'var(--accent-glow)',
+            border: solved ? '2px solid var(--ok)' : '1.5px dashed var(--accent)',
+            color: solved ? 'var(--ok)' : 'var(--accent)',
+          }}
+        >
+          {solved ? 10 : '?'}
+        </div>
+      </div>
+
+      <div className="relative w-[224px]">
+        <div className="grid grid-cols-4 gap-1.5">
+          {options.map((opt) => {
+            const isPicked = solved && opt === 10;
+            return (
+              <div
+                key={opt}
+                className="py-2 rounded-xl text-center text-sm font-black tabular transition-all"
+                style={{
+                  background: isPicked ? 'rgba(52, 211, 153, 0.28)' : 'var(--bg-subtle)',
+                  border: isPicked ? '2px solid var(--ok)' : '1px solid var(--border)',
+                  color: isPicked ? 'var(--ok)' : 'var(--text)',
+                }}
+              >
+                {opt}
+              </div>
+            );
+          })}
+        </div>
+        <TapCursor xPct={37.5} yPct={55} pressing={step === 3} visible={step === 2 || step === 3} />
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================================
+   18. INTRUSO LÓGICO (LOGIC INTRUDER)
+   ============================================================================ */
+function LogicIntruderDemo() {
+  const step = useLoopStep(5, 780);
+  const cards: Array<{ shape: 'circle' | 'triangle'; isIntruder: boolean }> = [
+    { shape: 'circle', isIntruder: false },
+    { shape: 'circle', isIntruder: false },
+    { shape: 'triangle', isIntruder: true },
+    { shape: 'circle', isIntruder: false },
+  ];
+  const solved = step >= 2;
+
+  return (
+    <div className="relative w-full h-full flex flex-col items-center justify-center gap-2.5 px-4">
+      <div
+        className="text-[11px] font-extrabold uppercase tracking-wider px-3 py-0.5 rounded-full"
+        style={{ background: 'var(--bg-subtle)', color: solved ? 'var(--ok)' : 'var(--accent)' }}
+      >
+        {solved ? '✓ Único triângulo!' : 'Toque no item fora da regra'}
+      </div>
+
+      <div className="relative w-[164px]">
+        <div className="grid grid-cols-2 gap-2">
+          {cards.map((c, idx) => {
+            const picked = solved && c.isIntruder;
+            return (
+              <div
+                key={idx}
+                className="h-16 rounded-2xl flex items-center justify-center transition-all"
+                style={{
+                  background: picked ? 'rgba(52, 211, 153, 0.28)' : 'var(--bg-card)',
+                  border: picked ? '2px solid var(--ok)' : '1px solid var(--border-strong)',
+                }}
+              >
+                <MiniShape shape={c.shape} color={picked ? '#34d399' : '#38bdf8'} />
+              </div>
+            );
+          })}
+        </div>
+        <TapCursor xPct={25} yPct={75} pressing={step === 2} visible={step === 1 || step === 2} />
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================================
+   19. ORDEM CRESCENTE (SCHULTE ORDER)
+   ============================================================================ */
+function SchulteOrderDemo() {
+  const step = useLoopStep(7, 650);
+  const cells = [3, 1, 4, 2];
+  const tappedCount = Math.min(4, step);
+  const posByNumber: Record<number, { x: number; y: number }> = {
+    1: { x: 75, y: 25 },
+    2: { x: 75, y: 75 },
+    3: { x: 25, y: 25 },
+    4: { x: 25, y: 75 },
+  };
+  const activeNum = step >= 1 && step <= 4 ? step : null;
+  const cursorPos = activeNum ? posByNumber[activeNum] : { x: 75, y: 25 };
+
+  return (
+    <div className="relative w-full h-full flex flex-col items-center justify-center gap-2.5 px-4">
+      <div
+        className="text-[11px] font-extrabold uppercase tracking-wider px-3 py-0.5 rounded-full"
+        style={{ background: 'var(--bg-subtle)', color: tappedCount === 4 ? 'var(--ok)' : 'var(--accent)' }}
+      >
+        {tappedCount === 4 ? '✓ 1 → 2 → 3 → 4' : `Próximo: ${tappedCount + 1}`}
+      </div>
+
+      <div className="relative w-[136px]">
+        <div className="grid grid-cols-2 gap-2">
+          {cells.map((num) => {
+            const done = num <= tappedCount;
+            return (
+              <div
+                key={num}
+                className="aspect-square rounded-2xl flex items-center justify-center text-xl font-black tabular transition-all duration-180"
+                style={{
+                  background: done ? 'rgba(52, 211, 153, 0.28)' : 'var(--bg-card)',
+                  border: done ? '2px solid var(--ok)' : '1px solid var(--border-strong)',
+                  color: done ? 'var(--ok)' : 'var(--text)',
+                }}
+              >
+                {num}
+              </div>
+            );
+          })}
+        </div>
+        <TapCursor
+          xPct={cursorPos.x}
+          yPct={cursorPos.y}
+          pressing={activeNum !== null}
+          visible={activeNum !== null}
+        />
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================================
+   20. PARES RELÂMPAGO (FLASH MATCH)
+   ============================================================================ */
+function FlashMatchDemo() {
+  const step = useLoopStep(7, 680);
+  const cards = [
+    { sym: '◆', color: '#38bdf8' },
+    { sym: '▲', color: '#f472b6' },
+    { sym: '◆', color: '#38bdf8' },
+    { sym: '●', color: '#fbbf24' },
+  ];
+  const firstPicked = step >= 2;
+  const bothMatched = step >= 4;
+
+  const cursor =
+    step === 1
+      ? { x: 12.5, y: 55, press: false, vis: true }
+      : step === 2
+        ? { x: 12.5, y: 55, press: true, vis: true }
+        : step === 3
+          ? { x: 62.5, y: 55, press: false, vis: true }
+          : step === 4
+            ? { x: 62.5, y: 55, press: true, vis: true }
+            : { x: 62.5, y: 55, press: false, vis: false };
+
+  return (
+    <div className="relative w-full h-full flex flex-col items-center justify-center gap-3 px-4">
+      <div
+        className="text-[11px] font-extrabold uppercase tracking-wider px-3 py-0.5 rounded-full"
+        style={{ background: 'var(--bg-subtle)', color: bothMatched ? 'var(--ok)' : 'var(--accent)' }}
+      >
+        {bothMatched ? '✓ Dois ◆ encontrados!' : 'Toque nos 2 iguais'}
+      </div>
+
+      <div className="relative w-[228px]">
+        <div className="grid grid-cols-4 gap-2">
+          {cards.map((c, idx) => {
+            const isMatched = bothMatched && (idx === 0 || idx === 2);
+            const isSelected = !bothMatched && firstPicked && idx === 0;
+            return (
+              <div
+                key={idx}
+                className="h-16 rounded-2xl flex items-center justify-center text-2xl font-black transition-all"
+                style={{
+                  background: isMatched
+                    ? 'rgba(52, 211, 153, 0.28)'
+                    : isSelected
+                      ? 'var(--accent-glow)'
+                      : 'var(--bg-card)',
+                  border: isMatched
+                    ? '2px solid var(--ok)'
+                    : isSelected
+                      ? '2px solid var(--accent)'
+                      : '1px solid var(--border-strong)',
+                  color: isMatched ? 'var(--ok)' : c.color,
+                }}
+              >
+                {c.sym}
+              </div>
+            );
+          })}
+        </div>
+        <TapCursor xPct={cursor.x} yPct={cursor.y} pressing={cursor.press} visible={cursor.vis} />
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================================
+   21. SOMA ALVO (TARGET SUM)
+   ============================================================================ */
+function TargetSumDemo() {
+  const step = useLoopStep(7, 700);
+  const nums = [2, 4, 3, 1];
+  const firstPicked = step >= 2;
+  const solved = step >= 4;
+
+  const cursor =
+    step === 1
+      ? { x: 12.5, y: 55, press: false, vis: true }
+      : step === 2
+        ? { x: 12.5, y: 55, press: true, vis: true }
+        : step === 3
+          ? { x: 62.5, y: 55, press: false, vis: true }
+          : step === 4
+            ? { x: 62.5, y: 55, press: true, vis: true }
+            : { x: 62.5, y: 55, press: false, vis: false };
+
+  return (
+    <div className="relative w-full h-full flex flex-col items-center justify-center gap-3 px-4">
+      <div
+        className="flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-extrabold"
+        style={{
+          background: solved ? 'rgba(52, 211, 153, 0.22)' : 'var(--bg-subtle)',
+          border: `1px solid ${solved ? 'var(--ok)' : 'var(--border)'}`,
+          color: solved ? 'var(--ok)' : 'var(--accent)',
+        }}
+      >
+        <span>{solved ? '2 + 3 = 5 ✓' : 'Alvo: 5'}</span>
+      </div>
+
+      <div className="relative w-[224px]">
+        <div className="grid grid-cols-4 gap-2">
+          {nums.map((n, idx) => {
+            const isMatched = solved && (idx === 0 || idx === 2);
+            const isSelected = !solved && firstPicked && idx === 0;
+            return (
+              <div
+                key={n}
+                className="h-14 rounded-2xl flex items-center justify-center text-xl font-black tabular transition-all"
+                style={{
+                  background: isMatched
+                    ? 'rgba(52, 211, 153, 0.28)'
+                    : isSelected
+                      ? 'var(--accent-glow)'
+                      : 'var(--bg-card)',
+                  border: isMatched
+                    ? '2px solid var(--ok)'
+                    : isSelected
+                      ? '2px solid var(--accent)'
+                      : '1px solid var(--border-strong)',
+                  color: isMatched ? 'var(--ok)' : isSelected ? 'var(--accent)' : 'var(--text)',
+                }}
+              >
+                {n}
+              </div>
+            );
+          })}
+        </div>
+        <TapCursor xPct={cursor.x} yPct={cursor.y} pressing={cursor.press} visible={cursor.vis} />
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================================
+   22. OPERADOR OCULTO (MISSING OPERATOR)
+   ============================================================================ */
+function MissingOperatorDemo() {
+  const step = useLoopStep(5, 780);
+  const solved = step >= 2;
+
+  return (
+    <div className="relative w-full h-full flex flex-col items-center justify-center gap-3.5 px-4">
+      <div
+        className="flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-2xl font-black tabular"
+        style={{ background: 'var(--bg-card)', border: '1.5px solid var(--border-strong)' }}
+      >
+        <span>6</span>
+        <span
+          className="w-9 h-9 rounded-xl flex items-center justify-center text-xl transition-all"
+          style={{
+            background: solved ? 'rgba(52, 211, 153, 0.28)' : 'var(--accent-glow)',
+            border: solved ? '2px solid var(--ok)' : '1.5px dashed var(--accent)',
+            color: solved ? 'var(--ok)' : 'var(--accent)',
+          }}
+        >
+          {solved ? '+' : '?'}
+        </span>
+        <span>2 = 8</span>
+      </div>
+
+      <div className="relative w-[184px]">
+        <div className="grid grid-cols-2 gap-2.5">
+          {['+', '−'].map((op) => {
+            const isPicked = solved && op === '+';
+            return (
+              <div
+                key={op}
+                className="py-2.5 rounded-xl text-center text-xl font-black transition-all"
+                style={{
+                  background: isPicked ? 'rgba(52, 211, 153, 0.28)' : 'var(--bg-subtle)',
+                  border: isPicked ? '2px solid var(--ok)' : '1px solid var(--border)',
+                  color: isPicked ? 'var(--ok)' : 'var(--text)',
+                }}
+              >
+                {op}
+              </div>
+            );
+          })}
+        </div>
+        <TapCursor xPct={25} yPct={55} pressing={step === 2} visible={step === 1 || step === 2} />
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================================
+   23. COMANDO OPOSTO (OPPOSITE ARROW)
+   ============================================================================ */
+function OppositeArrowDemo() {
+  const step = useLoopStep(6, 860);
+  const isOrange = step >= 3;
+  const pressing = step === 2 || step === 5;
+  const showCursor = step === 1 || step === 2 || step === 4 || step === 5;
+  const expectedSide: 'left' | 'right' = isOrange ? 'left' : 'right';
+
+  return (
+    <div className="relative w-full h-full flex flex-col items-center justify-center gap-2.5 px-4">
+      <div
+        className="text-[11px] font-extrabold uppercase tracking-wider px-3 py-0.5 rounded-full"
+        style={{
+          background: isOrange ? 'rgba(249, 115, 22, 0.18)' : 'rgba(56, 189, 248, 0.18)',
+          color: isOrange ? '#f97316' : '#38bdf8',
+          border: `1px solid ${isOrange ? '#f97316' : '#38bdf8'}`,
+        }}
+      >
+        {isOrange ? 'Laranja → Inverta!' : 'Azul → Siga a seta'}
+      </div>
+
+      <div
+        className="w-24 h-16 rounded-2xl flex items-center justify-center text-4xl font-black transition-all"
+        style={{
+          background: 'var(--bg-card)',
+          border: `2px solid ${isOrange ? '#f97316' : '#38bdf8'}`,
+          color: isOrange ? '#f97316' : '#38bdf8',
+        }}
+      >
+        →
+      </div>
+
+      <div className="relative w-[196px]">
+        <div className="grid grid-cols-2 gap-2.5">
+          {(['left', 'right'] as const).map((side) => {
+            const isPicked = pressing && side === expectedSide;
+            return (
+              <div
+                key={side}
+                className="py-2 rounded-xl text-center text-lg font-black transition-all"
+                style={{
+                  background: isPicked ? 'rgba(52, 211, 153, 0.28)' : 'var(--bg-subtle)',
+                  border: isPicked ? '2px solid var(--ok)' : '1px solid var(--border)',
+                  color: isPicked ? 'var(--ok)' : 'var(--text)',
+                }}
+              >
+                {side === 'left' ? '←' : '→'}
+              </div>
+            );
+          })}
+        </div>
+        <TapCursor
+          xPct={expectedSide === 'left' ? 25 : 75}
+          yPct={55}
+          pressing={pressing}
+          visible={showCursor}
+        />
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================================
+   24. CLASSIFICAÇÃO POR REGRA (RULE SWITCH)
+   ============================================================================ */
+function RuleSwitchDemo() {
+  const step = useLoopStep(6, 900);
+  const colorRule = step >= 3;
+  const pressing = step === 2 || step === 5;
+  const showCursor = step === 1 || step === 2 || step === 4 || step === 5;
+
+  const cardNum = colorRule ? 7 : 4;
+  const cardHex = colorRule ? '#34d399' : '#38bdf8';
+  const buttons = colorRule
+    ? [
+        { id: 'blue', label: 'AZUL', dot: '#38bdf8' },
+        { id: 'green', label: 'VERDE', dot: '#34d399' },
+      ]
+    : [
+        { id: 'even', label: 'PAR', dot: null },
+        { id: 'odd', label: 'ÍMPAR', dot: null },
+      ];
+  const expectedId = colorRule ? 'green' : 'even';
+
+  return (
+    <div className="relative w-full h-full flex flex-col items-center justify-center gap-2.5 px-4">
+      <div
+        className="text-[11px] font-extrabold uppercase tracking-wider px-3 py-0.5 rounded-full"
+        style={{
+          background: colorRule ? 'rgba(251, 191, 36, 0.2)' : 'var(--accent-glow)',
+          color: colorRule ? 'var(--warn)' : 'var(--accent)',
+          border: `1px solid ${colorRule ? 'var(--warn)' : 'var(--border-strong)'}`,
+        }}
+      >
+        {colorRule ? 'AZUL ou VERDE' : 'PAR ou ÍMPAR'}
+      </div>
+
+      <div
+        className="w-20 h-16 rounded-2xl flex items-center justify-center text-3xl font-black tabular transition-all"
+        style={{
+          background: `${cardHex}22`,
+          border: `2px solid ${cardHex}`,
+          color: cardHex,
+        }}
+      >
+        {cardNum}
+      </div>
+
+      <div className="relative w-[216px]">
+        <div className="grid grid-cols-2 gap-2">
+          {buttons.map((b) => {
+            const isPicked = pressing && b.id === expectedId;
+            return (
+              <div
+                key={b.id}
+                className="py-2 rounded-xl text-center text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all"
+                style={{
+                  background: isPicked ? 'rgba(52, 211, 153, 0.28)' : 'var(--bg-subtle)',
+                  border: isPicked ? '2px solid var(--ok)' : '1px solid var(--border)',
+                  color: isPicked ? 'var(--ok)' : 'var(--text)',
+                }}
+              >
+                {b.dot && <span className="w-2.5 h-2.5 rounded-full" style={{ background: b.dot }} />}
+                <span>{b.label}</span>
+              </div>
+            );
+          })}
+        </div>
+        <TapCursor
+          xPct={colorRule ? 75 : 25}
+          yPct={55}
+          pressing={pressing}
+          visible={showCursor}
+        />
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================================
    TEXTO CURTO E RENDERIZAÇÃO DO TUTORIAL POR MINIGAME
    ============================================================================ */
 function getTutorialInstruction(slug: GameSlug, config: StageConfig): string {
@@ -1010,6 +1738,10 @@ function getTutorialInstruction(slug: GameSlug, config: StageConfig): string {
       return 'Encontre e toque em todos os símbolos iguais ao alvo mostrado no topo.';
     case 'sustained-tracking':
       return 'Memorize as bolinhas amarelas, acompanhe enquanto se mexem e toque nelas no final.';
+    case 'odd-one-out':
+      return 'Encontre e toque no único símbolo diferente dos demais na grade.';
+    case 'flanker-focus':
+      return 'Toque na direção da seta do meio e ignore as setas laterais.';
     case 'spatial-span':
       return config.reverseOrder
         ? 'Observe os blocos acenderem e toque neles na ORDEM INVERSA (de trás pra frente).'
@@ -1018,26 +1750,46 @@ function getTutorialInstruction(slug: GameSlug, config: StageConfig): string {
       return config.nBackLevel === 1
         ? 'Compare o bloco atual com a posição imediatamente anterior e toque em IGUAL ou DIFERENTE.'
         : `Compare o bloco atual com a posição de ${config.nBackLevel} passos atrás e toque em IGUAL ou DIFERENTE.`;
+    case 'memory-pairs':
+      return 'Memorize as cartas e toque em dois cartões iguais para formar pares.';
+    case 'photo-recall':
+      return 'Memorize onde cada ícone aparece e toque na posição correta quando esconder.';
     case 'raven-matrices':
       return 'Descubra o padrão das linhas e colunas e toque na peça que completa o "?".';
     case 'path-logic':
-      return config.stage >= 3
+      return config.stage >= 5
         ? 'Ligue os círculos alternando números e letras na ordem: 1 → A → 2 → B.'
         : 'Toque nos círculos em ordem crescente: 1 → 2 → 3 → 4.';
+    case 'number-sequence':
+      return 'Descubra a regra da sequência e toque no número que completa o \'?\'.';
+    case 'logic-intruder':
+      return 'Compare os cartões e toque no único item que foge da regra do grupo.';
     case 'speed-match':
       return 'Memorize a carta anterior e diga se a nova carta é Igual ou Diferente.';
     case 'symbol-digit':
       return 'Veja na tabela do topo qual número corresponde ao símbolo e toque nele.';
+    case 'schulte-order':
+      return 'Toque nos números em ordem crescente (1, 2, 3...) o mais rápido que puder.';
+    case 'flash-match':
+      return 'Encontre e toque rapidamente nos dois cartões idênticos visíveis na tela.';
     case 'chain-arithmetic':
       return 'Resolva a conta mentalmente e toque no resultado certo o mais rápido possível.';
     case 'number-comparison':
       return 'Compare os dois cartões e toque naquele que tiver o maior valor.';
+    case 'target-sum':
+      return 'Toque nos dois números que, somados, dão exatamente o valor alvo.';
+    case 'missing-operator':
+      return 'Escolha o sinal matemático que torna a conta verdadeira.';
     case 'stroop-conflict':
       return config.alternatingRule
         ? 'Fique atento ao selo do topo: ora toque na COR DA TINTA, ora na PALAVRA escrita.'
         : 'Toque na COR DA TINTA da palavra — ignore o que está escrito.';
     case 'go-nogo-reflex':
       return 'Toque rápido quando aparecer o verde (GO) e segure o dedo no vermelho (✕).';
+    case 'opposite-arrow':
+      return 'Seta azul: siga a direção. Seta laranja: toque na direção oposta.';
+    case 'rule-switch':
+      return 'Observe a regra ativa no topo e classifique o cartão corretamente.';
   }
 }
 
@@ -1047,68 +1799,114 @@ function TutorialStageVisual({ slug, config }: { slug: GameSlug; config: StageCo
       return <VisualSearchDemo />;
     case 'sustained-tracking':
       return <SustainedTrackingDemo />;
+    case 'odd-one-out':
+      return <OddOneOutDemo />;
+    case 'flanker-focus':
+      return <FlankerFocusDemo />;
     case 'spatial-span':
       return <SpatialSpanDemo reverseOrder={config.reverseOrder} />;
     case 'dual-n-back':
       return <DualNBackDemo nBackLevel={config.nBackLevel} />;
+    case 'memory-pairs':
+      return <MemoryPairsDemo />;
+    case 'photo-recall':
+      return <PhotoRecallDemo />;
     case 'raven-matrices':
       return <RavenMatricesDemo />;
     case 'path-logic':
-      return <PathLogicDemo alternating={config.stage >= 3} />;
+      return <PathLogicDemo alternating={config.stage >= 5} />;
+    case 'number-sequence':
+      return <NumberSequenceDemo />;
+    case 'logic-intruder':
+      return <LogicIntruderDemo />;
     case 'speed-match':
       return <SpeedMatchDemo />;
     case 'symbol-digit':
       return <SymbolDigitDemo />;
+    case 'schulte-order':
+      return <SchulteOrderDemo />;
+    case 'flash-match':
+      return <FlashMatchDemo />;
     case 'chain-arithmetic':
       return <ChainArithmeticDemo />;
     case 'number-comparison':
       return <NumberComparisonDemo />;
+    case 'target-sum':
+      return <TargetSumDemo />;
+    case 'missing-operator':
+      return <MissingOperatorDemo />;
     case 'stroop-conflict':
       return <StroopDemo alternatingRule={config.alternatingRule} />;
     case 'go-nogo-reflex':
       return <GoNoGoDemo />;
+    case 'opposite-arrow':
+      return <OppositeArrowDemo />;
+    case 'rule-switch':
+      return <RuleSwitchDemo />;
   }
 }
 
-export function GameTutorial({ slug, config, onConfirm }: GameTutorialProps) {
+const DOMAIN_MIND_AREA: Record<string, string> = {
+  selective_attention: 'Trabalha sua Atenção Seletiva — focar no alvo ignorando distrações.',
+  working_memory: 'Trabalha sua Memória — guardar e recuperar informações com agilidade.',
+  fluid_reasoning: 'Trabalha seu Raciocínio Lógico — detectar padrões e resolver problemas novos.',
+  processing_speed: 'Trabalha sua Velocidade Mental — perceber estímulos e reagir com rapidez.',
+  numerical_cognition: 'Trabalha seu Cálculo Mental — lidar com números e contas de cabeça.',
+  inhibitory_control: 'Trabalha seu Controle Inibitório — segurar impulsos e seguir a regra certa.',
+};
+
+export function GameTutorial({
+  slug,
+  config,
+  confirmLabel = 'Entendi',
+  onConfirm,
+}: GameTutorialProps) {
   const game = GAME_MAP[slug];
   const domain = DOMAIN_MAP[game.domain];
   const instruction = getTutorialInstruction(slug, config);
+  const mindAreaText = DOMAIN_MIND_AREA[game.domain] ?? '';
 
   return (
-    <div className="w-full max-w-[385px] surface-card p-5 flex flex-col gap-4 animate-pop">
+    <div className="w-full max-w-[420px] surface-card p-6 flex flex-col gap-4 animate-pop">
       <div className="flex items-center justify-between gap-2">
         <span
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider"
+          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold"
           style={{
-            background: `${domain.color}22`,
+            background: `${domain.color}18`,
             color: domain.color,
-            border: `1px solid ${domain.color}55`,
           }}
         >
-          <Play size={11} />
+          <Play size={12} fill="currentColor" />
           Como jogar
         </span>
-        <span className="text-[11px] font-bold" style={{ color: 'var(--text-soft)' }}>
-          {domain.shortName}
+        <span className="text-xs font-semibold" style={{ color: 'var(--text-soft)' }}>
+          {domain.name}
         </span>
       </div>
 
       <div>
-        <h2 className="text-xl font-black tracking-tight leading-tight">{game.name}</h2>
-        <p className="text-xs font-medium mt-1 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+        <h2 className="text-2xl font-extrabold tracking-tight leading-tight">{game.name}</h2>
+        {mindAreaText && (
+          <p
+            className="text-xs font-semibold mt-1.5 px-3 py-2 rounded-xl leading-snug"
+            style={{ background: `${domain.color}12`, color: domain.color }}
+          >
+            {mindAreaText}
+          </p>
+        )}
+        <p className="text-sm font-medium mt-2 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
           {instruction}
         </p>
       </div>
 
       {/* Palco da demonstração visual em loop */}
       <div
-        className="w-full h-[218px] rounded-2xl relative overflow-hidden"
-        style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
+        className="w-full h-[228px] rounded-[20px] relative overflow-hidden"
+        style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)' }}
       >
         <span
-          className="absolute top-2 right-2.5 z-10 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
-          style={{ background: 'var(--bg-subtle)', color: 'var(--text-soft)' }}
+          className="absolute top-2.5 right-3 z-10 text-xs font-semibold px-2.5 py-0.5 rounded-full"
+          style={{ background: 'var(--bg-card)', color: 'var(--text-soft)', border: '1px solid var(--border)' }}
         >
           Exemplo
         </span>
@@ -1118,10 +1916,10 @@ export function GameTutorial({ slug, config, onConfirm }: GameTutorialProps) {
       <button
         type="button"
         onClick={onConfirm}
-        className="w-full py-3.5 rounded-2xl font-extrabold text-base btn-accent cursor-pointer flex items-center justify-center gap-2"
+        className="w-full min-h-[54px] py-4 rounded-2xl font-bold text-[16px] btn-accent cursor-pointer flex items-center justify-center gap-2"
       >
-        <Check size={18} strokeWidth={3} />
-        <span>Entendi</span>
+        <Check size={19} strokeWidth={3} />
+        <span>{confirmLabel}</span>
       </button>
     </div>
   );

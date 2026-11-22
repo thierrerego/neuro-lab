@@ -38,6 +38,20 @@ function buildTrail(count: number, alternating: boolean): TrailNode[] {
   return nodes;
 }
 
+function getTrailParams(stage: number): { count: number; alternating: boolean } {
+  // Nível 1 ultrabásico: apenas 4 círculos (1 → 2 → 3 → 4)
+  if (stage < 2) {
+    return { count: 4, alternating: false };
+  }
+  const lvl = Math.floor(stage);
+  // Só alterna 1→A→2→B a partir do Nível 5
+  const alternating = stage >= 5;
+  const count = alternating
+    ? Math.min(12, 6 + (lvl - 5))
+    : Math.min(8, 3 + lvl);
+  return { count, alternating };
+}
+
 export function PathLogicGame({
   config,
   finishRequested,
@@ -47,8 +61,9 @@ export function PathLogicGame({
   onLiveUpdate,
   onFinish,
 }: MinigameProps) {
-  const [alternating, setAlternating] = useState(() => config.stage >= 3);
-  const [nodes, setNodes] = useState<TrailNode[]>(() => buildTrail(Math.min(10, 4 + Math.floor(config.stage)), config.stage >= 3));
+  const initialParams = getTrailParams(config.stage);
+  const [alternating, setAlternating] = useState(() => initialParams.alternating);
+  const [nodes, setNodes] = useState<TrailNode[]>(() => buildTrail(initialParams.count, initialParams.alternating));
   const [nextOrder, setNextOrder] = useState(0);
   const [wrongOrder, setWrongOrder] = useState<number | null>(null);
 
@@ -112,8 +127,7 @@ export function PathLogicGame({
       }
 
       if (nextOrder + 1 >= nodes.length) {
-        const nextAlt = configRef.current.stage >= 3;
-        const nextCount = Math.min(12, 4 + Math.floor(configRef.current.stage));
+        const { count: nextCount, alternating: nextAlt } = getTrailParams(configRef.current.stage);
         setAlternating(nextAlt);
         setNodes(buildTrail(nextCount, nextAlt));
         setNextOrder(0);
@@ -142,8 +156,8 @@ export function PathLogicGame({
 
       <svg
         viewBox={`0 0 ${SIZE} ${SIZE}`}
-        className="w-full max-w-[305px] aspect-square rounded-2xl touch-none"
-        style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
+        className="w-full max-w-[320px] aspect-square rounded-3xl touch-none"
+        style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)' }}
       >
         {connected.map((n, i) => {
           if (i === 0) return null;
@@ -155,10 +169,10 @@ export function PathLogicGame({
               y1={prev.y}
               x2={n.x}
               y2={n.y}
-              stroke="#34d399"
+              stroke="#10B981"
               strokeWidth="3.5"
               strokeLinecap="round"
-              opacity="0.75"
+              opacity="0.8"
             />
           );
         })}
@@ -167,6 +181,7 @@ export function PathLogicGame({
           const done = n.order < nextOrder;
           const isWrong = wrongOrder === n.order;
           const isHint = n.order === 0 && nextOrder === 0;
+          const highlighted = done || isWrong || isHint;
           return (
             <g key={n.order} onClick={() => handleNode(n)} style={{ cursor: done ? 'default' : 'pointer' }}>
               <circle
@@ -175,21 +190,21 @@ export function PathLogicGame({
                 r={NODE_R}
                 fill={
                   done
-                    ? '#10b981'
+                    ? '#10B981'
                     : isWrong
-                      ? '#f43f5e'
+                      ? '#EF4444'
                       : isHint
-                        ? '#a855f7'
-                        : '#1e293b'
+                        ? 'var(--accent)'
+                        : 'var(--bg-card)'
                 }
-                stroke={done ? '#a7f3d0' : isHint ? '#ffffff' : 'rgba(255,255,255,0.25)'}
+                stroke={done ? '#A7F3D0' : isHint ? 'var(--accent)' : 'var(--border-strong)'}
                 strokeWidth="2"
               />
               <text
                 x={n.x}
                 y={n.y + 5}
                 textAnchor="middle"
-                fill="#ffffff"
+                fill={highlighted ? '#FFFFFF' : 'var(--text)'}
                 fontSize="14"
                 fontWeight="800"
               >

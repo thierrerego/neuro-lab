@@ -42,10 +42,14 @@ function createBalls(total: number, targets: number, speed: number): Ball[] {
 }
 
 function getTrackingParams(stage: number) {
-  // Nível Zero (0): exatamente 2 alvos entre 5 bolinhas, velocidade bem calma (0.78)
-  const targets = stage < 2.5 ? 2 : stage < 5.5 ? 3 : stage < 8.5 ? 4 : 5;
-  const total = stage < 2.5 ? 5 : Math.min(10, targets + 3 + (stage >= 6 ? 1 : 0));
-  const speed = Math.min(2.8, 0.78 + stage * 0.14);
+  const lvl = Math.max(1, Math.min(20, Math.floor(stage)));
+  // Curva calibrada para 20 níveis:
+  // Nv.1-2: 1 alvo entre 4 bolinhas calmas | Nv.3-6: 2 alvos (5-6 bolas)
+  // Nv.7-12: 3 alvos (7-8 bolas) | Nv.13-17: 4 alvos (9-10 bolas) | Nv.18-20: 5 alvos (11 bolas)
+  const targets = lvl <= 2 ? 1 : lvl <= 6 ? 2 : lvl <= 12 ? 3 : lvl <= 17 ? 4 : 5;
+  const total =
+    lvl <= 2 ? 4 : lvl <= 4 ? 5 : lvl <= 7 ? 6 : lvl <= 10 ? 7 : lvl <= 13 ? 8 : lvl <= 16 ? 9 : lvl <= 18 ? 10 : 11;
+  const speed = Number(Math.min(2.35, 0.7 + (lvl - 1) * 0.085).toFixed(2));
   return { targets, total, speed };
 }
 
@@ -229,8 +233,8 @@ export function SustainedTrackingGame({
 
       <svg
         viewBox={`0 0 ${ARENA} ${ARENA}`}
-        className="w-full max-w-[305px] aspect-square rounded-2xl touch-none"
-        style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
+        className="w-full max-w-[320px] aspect-square rounded-3xl touch-none"
+        style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', boxShadow: 'var(--card-shadow)' }}
       >
         {balls.map((b) => {
           const highlight = (phase === 'memorize' && b.isTarget) || b.picked;
@@ -247,17 +251,17 @@ export function SustainedTrackingGame({
                 r={RADIUS}
                 fill={
                   b.picked
-                    ? '#34d399'
+                    ? '#10B981'
                     : isWrong
-                      ? '#fb7185'
+                      ? '#EF4444'
                       : highlight
-                        ? '#f59e0b'
-                        : '#475569'
+                        ? '#F59E0B'
+                        : '#64748B'
                 }
-                stroke={highlight ? '#fde68a' : 'rgba(255,255,255,0.22)'}
+                stroke={highlight ? '#FEF3C7' : 'rgba(148,163,184,0.4)'}
                 strokeWidth={highlight ? 3 : 1.5}
               />
-              {highlight && <circle cx={b.x} cy={b.y} r={6} fill="#ffffff" opacity={0.85} />}
+              {highlight && <circle cx={b.x} cy={b.y} r={6} fill="#ffffff" opacity={0.9} />}
             </g>
           );
         })}

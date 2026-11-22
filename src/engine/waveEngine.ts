@@ -1,37 +1,87 @@
 import type { GameSlug, StageConfig, WaveState } from '../types/cognitive';
 import { getStageConfig } from './stageEngine';
 
-/** Cotas oficiais das 5 ondas por partida: 2 + 3 + 3 + 4 + 4 = 16 acertos */
-export const WAVE_QUOTAS = [2, 3, 3, 4, 4] as const;
-export const TOTAL_WAVES = WAVE_QUOTAS.length;
-export const TOTAL_WAVE_HITS = WAVE_QUOTAS.reduce((a, b) => a + b, 0); // 16
+/** Meta padrão de referência (mantida para compatibilidade) */
+export const TOTAL_WAVES = 5;
+export const TOTAL_WAVE_HITS = 10;
 
-/** Incremento sutil por onda dentro da mesma partida (+0.25 por micro-nível) */
-const INTRA_WAVE_STEP = 0.25;
-
-function calcEffectiveDiff(baseStage: number, waveNum: number): number {
-  return Number((Math.max(0, baseStage) + Math.max(0, waveNum - 1) * INTRA_WAVE_STEP).toFixed(2));
+/**
+ * Meta de acertos/etapas calibrada com testes reais para cada exercício durar ~20–30 segundos:
+ * - Etapas longas (spatial-span por sequência completa): 4 etapas
+ * - Cadenciados (rastreamento, matrizes, soma alvo, sequências, foto): 6
+ * - Médios (memória, n-back, cálculos): 8
+ * - Ágeis (busca visual, stroop, regras, símbolos): 10–12
+ * - Rápidos / reflexo (go/no-go, schulte, path-logic, setas, comparação): 14–16
+ */
+export function getTargetHitsForGame(slug?: GameSlug): number {
+  switch (slug) {
+    case 'spatial-span':
+      return 4;
+    case 'sustained-tracking':
+    case 'raven-matrices':
+    case 'photo-recall':
+    case 'target-sum':
+    case 'number-sequence':
+      return 6;
+    case 'dual-n-back':
+    case 'memory-pairs':
+    case 'chain-arithmetic':
+    case 'missing-operator':
+    case 'number-comparison':
+      return 8;
+    case 'visual-search':
+    case 'odd-one-out':
+    case 'flash-match':
+    case 'symbol-digit':
+    case 'rule-switch':
+    case 'stroop-conflict':
+      return 10;
+    case 'logic-intruder':
+      return 12;
+    case 'opposite-arrow':
+    case 'speed-match':
+    case 'flanker-focus':
+      return 14;
+    case 'go-nogo-reflex':
+    case 'path-logic':
+    case 'schulte-order':
+      return 16;
+    default:
+      return 10;
+  }
 }
 
-/** Inicializa o estado da sessão progressiva a partir do baseStage permanente (piso 0 = Nível Zero) */
-export function createWaveState(baseStage: number): WaveState {
-  const safeBase = Math.max(0, Math.floor(baseStage));
+/** Rampa de dificuldade intra-sessão bem suave (+0.4 do início ao fim para manter Flow) */
+function calcContinuousDiff(baseStage: number, totalHits: number, targetHits: number): number {
+  const safeBase = Math.max(1, baseStage);
+  const ratio = Math.min(1, Math.max(0, totalHits) / Math.max(1, targetHits));
+  return Number((safeBase + ratio * 0.4).toFixed(2));
+}
+
+function hitsToCompletedQuintiles(totalHits: number, targetHits: number, isCleared: boolean): number {
+  if (isCleared || totalHits >= targetHits) return TOTAL_WAVES;
+  return Math.min(TOTAL_WAVES - 1, Math.floor((totalHits / Math.max(1, targetHits)) * TOTAL_WAVES));
+}
+
+/** Inicializa o progresso contínuo da sessão (~30s) a partir do nível base (piso = Nível 1) */
+export function createWaveState(baseStage: number, slug?: GameSlug): WaveState {
+  const safeBase = Math.max(1, Math.floor(baseStage));
+  const targetHits = getTargetHitsForGame(slug);
   return {
     baseStage: safeBase,
     currentWave: 1,
     waveHits: 0,
-    waveQuota: WAVE_QUOTAS[0],
+    waveQuota: targetHits,
     wavesCompleted: 0,
     totalHits: 0,
-    totalTargetHits: TOTAL_WAVE_HITS,
-    effectiveDifficulty: calcEffectiveDiff(safeBase, 1),
+    totalTargetHits: targetHits,
+    effectiveDifficulty: calcContinuousDiff(safeBase, 0, targetHits),
     isCleared: false,
   };
 }
 
 /**
- * Registra 1 acerto/estímulo concluído e avança suavemente os micro-níveis (Ondas 1 -> 5).
- * Ao completar a Onda 5, sinaliza `matchCleared = true` para conclusão antecipada.
+ * Registra 1 acerto de forma 100% contínua (0 -> targetHits), sem pausas nem divisões em blocos.
  */
 export function advanceWaveHit(state: WaveState): {
   next: WaveState;
@@ -39,101 +89,62 @@ export function advanceWaveHit(state: WaveState): {
   matchCleared: boolean;
   clearedWaveNum: number;
 } {
+  const targetHits = Math.max(1, state.totalTargetHits || TOTAL_WAVE_HITS);
   if (state.isCleared) {
     return { next: state, waveJustCleared: false, matchCleared: true, clearedWaveNum: TOTAL_WAVES };
   }
 
-  const nextTotalHits = Math.min(TOTAL_WAVE_HITS, state.totalHits + 1);
-  const nextWaveHits = state.waveHits + 1;
-
-  if (nextWaveHits >= state.waveQuota) {
-    const clearedWaveNum = state.currentWave;
-    const matchCleared = clearedWaveNum >= TOTAL_WAVES;
-    const nextWave = matchCleared ? TOTAL_WAVES : clearedWaveNum + 1;
-    const nextQuota = WAVE_QUOTAS[nextWave - 1];
-
-    return {
-      next: {
-        ...state,
-        currentWave: nextWave,
-        waveHits: matchCleared ? nextQuota : 0,
-        waveQuota: nextQuota,
-        wavesCompleted: matchCleared ? TOTAL_WAVES : Math.max(state.wavesCompleted, clearedWaveNum),
-        totalHits: nextTotalHits,
-        effectiveDifficulty: calcEffectiveDiff(state.baseStage, nextWave),
-        isCleared: matchCleared,
-      },
-      waveJustCleared: true,
-      matchCleared,
-      clearedWaveNum,
-    };
-  }
+  const nextTotalHits = Math.min(targetHits, state.totalHits + 1);
+  const matchCleared = nextTotalHits >= targetHits;
+  const completedQ = hitsToCompletedQuintiles(nextTotalHits, targetHits, matchCleared);
 
   return {
     next: {
       ...state,
-      waveHits: nextWaveHits,
+      currentWave: Math.min(TOTAL_WAVES, completedQ + 1),
+      waveHits: nextTotalHits,
+      waveQuota: targetHits,
+      wavesCompleted: completedQ,
       totalHits: nextTotalHits,
+      totalTargetHits: targetHits,
+      effectiveDifficulty: calcContinuousDiff(state.baseStage, nextTotalHits, targetHits),
+      isCleared: matchCleared,
     },
     waveJustCleared: false,
-    matchCleared: false,
-    clearedWaveNum: 0,
+    matchCleared,
+    clearedWaveNum: matchCleared ? TOTAL_WAVES : 0,
   };
 }
 
-/**
- * Sistema de Retrocesso Intra-Partida:
- * - Se o jogador errar na Onda 2..5, retrocede 1 onda (mínimo Onda 1) e reinicia os acertos da onda.
- * - Se errar na Onda 1, reinicia o progresso da Onda 1 mantendo o piso na Onda 1.
- */
 export function regressWaveError(state: WaveState): {
   next: WaveState;
   regressed: boolean;
   fromWave: number;
   toWave: number;
 } {
-  if (state.isCleared) {
-    return { next: state, regressed: false, fromWave: state.currentWave, toWave: state.currentWave };
-  }
-
-  const fromWave = state.currentWave;
-  const toWave = Math.max(1, fromWave - 1);
-  const regressed = toWave < fromWave;
-  const nextQuota = WAVE_QUOTAS[toWave - 1];
-  const baseHitsOfPrevWaves = WAVE_QUOTAS.slice(0, toWave - 1).reduce((a, b) => a + b, 0);
-
   return {
-    next: {
-      ...state,
-      currentWave: toWave,
-      waveHits: 0,
-      waveQuota: nextQuota,
-      wavesCompleted: Math.max(0, toWave - 1),
-      totalHits: baseHitsOfPrevWaves,
-      effectiveDifficulty: calcEffectiveDiff(state.baseStage, toWave),
-      isCleared: false,
-    },
-    regressed,
-    fromWave,
-    toWave,
+    next: state,
+    regressed: false,
+    fromWave: state.currentWave,
+    toWave: state.currentWave,
   };
 }
 
-/** Calcula a configuração técnica efetiva suave para a onda atual */
 export function getWaveEffectiveConfig(
   slug: GameSlug,
   wave: WaveState,
   easeBoost = false
 ): StageConfig {
   const baseDuration = getStageConfig(slug, wave.baseStage, easeBoost).durationSec;
-  const cfg = getStageConfig(slug, wave.effectiveDifficulty, easeBoost && wave.currentWave === 1);
+  const cfg = getStageConfig(slug, wave.effectiveDifficulty, easeBoost && wave.totalHits < 3);
   return {
     ...cfg,
     durationSec: baseDuration,
+    roundsTarget: wave.totalTargetHits,
   };
 }
 
 export function getWaveBarPct(wave: WaveState): number {
   if (wave.isCleared) return 100;
-  return Math.min(100, Math.round((wave.waveHits / wave.waveQuota) * 100));
+  return Math.min(100, Math.round((wave.totalHits / Math.max(1, wave.totalTargetHits)) * 100));
 }

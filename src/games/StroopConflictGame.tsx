@@ -9,10 +9,10 @@ interface ColorDef {
 }
 
 const PALETTE: ColorDef[] = [
-  { id: 'blue',   label: 'AZUL',     hex: '#38bdf8' },
-  { id: 'green',  label: 'VERDE',    hex: '#34d399' },
-  { id: 'red',    label: 'VERMELHO', hex: '#fb7185' },
-  { id: 'yellow', label: 'AMARELO',  hex: '#fbbf24' },
+  { id: 'blue',   label: 'AZUL',     hex: '#2563EB' },
+  { id: 'green',  label: 'VERDE',    hex: '#10B981' },
+  { id: 'red',    label: 'VERMELHO', hex: '#EF4444' },
+  { id: 'yellow', label: 'AMARELO',  hex: '#D97706' },
 ];
 
 interface StroopTrial {

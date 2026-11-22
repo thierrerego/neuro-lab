@@ -7,6 +7,17 @@ interface SymbolSet {
   distractors: string[];
 }
 
+/** Pares de alto contraste visual para o Nível 1 ultrabásico */
+const EASY_SETS: SymbolSet[] = [
+  { target: '★', distractors: ['●'] },
+  { target: '▲', distractors: ['■'] },
+  { target: '◆', distractors: ['○'] },
+  { target: '●', distractors: ['✕'] },
+  { target: '■', distractors: ['●'] },
+  { target: '✚', distractors: ['●'] },
+];
+
+/** Pares com similaridade visual para Níveis 2..10 */
 const SETS: SymbolSet[] = [
   { target: 'b', distractors: ['d', 'p', 'q'] },
   { target: 'O', distractors: ['Q', 'C', '0'] },
@@ -17,6 +28,18 @@ const SETS: SymbolSet[] = [
   { target: '◆', distractors: ['◇', '■', '●'] },
 ];
 
+/** Pares de altíssima similaridade (justos e legíveis) para Níveis 13..20 */
+const HARD_SETS: SymbolSet[] = [
+  { target: 'b', distractors: ['d', 'p', 'q', '6'] },
+  { target: 'O', distractors: ['0', 'Q', 'D', 'C'] },
+  { target: 'n', distractors: ['m', 'h', 'u', 'r'] },
+  { target: 'E', distractors: ['F', 'B', '3', '8'] },
+  { target: '6', distractors: ['9', '8', '0', 'b'] },
+  { target: 'c', distractors: ['e', 'o', 'a', 's'] },
+  { target: '◀', distractors: ['▶', '▲', '▼', '◁'] },
+  { target: 'M', distractors: ['W', 'N', 'H', 'V'] },
+];
+
 interface Cell {
   id: number;
   char: string;
@@ -24,10 +47,25 @@ interface Cell {
   found: boolean;
 }
 
-function buildBoard(gridSize: number, targetCount: number, boardNum: number): { target: string; gridSize: number; cells: Cell[] } {
-  const total = gridSize * gridSize;
-  const count = Math.min(Math.max(2, targetCount), Math.floor(total / 2));
-  const set = SETS[(boardNum + Math.floor(Math.random() * SETS.length)) % SETS.length];
+function buildBoard(
+  stage: number,
+  gridSize: number,
+  targetCount: number,
+  boardNum: number,
+  prevTarget?: string
+): { target: string; gridSize: number; cells: Cell[] } {
+  const lvl = Math.max(1, Math.floor(stage));
+  const isEasy = lvl <= 2;
+  const effectiveGrid = lvl <= 2 ? 3 : lvl <= 6 ? 4 : lvl <= 12 ? 5 : lvl <= 16 ? 6 : Math.max(gridSize, 7);
+  const total = effectiveGrid * effectiveGrid;
+  // Nv.1: apenas 1 alvo em grade 3×3 (ultrabásico e prazeroso) | Nv.18-20: 5 alvos em 7×7
+  const count =
+    lvl <= 1 ? 1 : lvl <= 3 ? 2 : lvl <= 10 ? 3 : lvl <= 16 ? 4 : Math.min(5, Math.max(4, targetCount));
+
+  const pool = isEasy ? EASY_SETS : lvl <= 12 ? SETS : HARD_SETS;
+  const candidates = pool.filter((s) => s.target !== prevTarget);
+  const pickFrom = candidates.length > 0 ? candidates : pool;
+  const set = pickFrom[(boardNum + Math.floor(Math.random() * pickFrom.length)) % pickFrom.length];
 
   const indices = Array.from({ length: total }, (_, i) => i);
   for (let i = indices.length - 1; i > 0; i--) {
@@ -48,7 +86,7 @@ function buildBoard(gridSize: number, targetCount: number, boardNum: number): { 
     };
   });
 
-  return { target: set.target, gridSize, cells };
+  return { target: set.target, gridSize: effectiveGrid, cells };
 }
 
 export function VisualSearchGame({
@@ -61,7 +99,7 @@ export function VisualSearchGame({
   onFinish,
 }: MinigameProps) {
   const [boardNum, setBoardNum] = useState(0);
-  const [board, setBoard] = useState(() => buildBoard(config.gridSize, config.targetCount, 0));
+  const [board, setBoard] = useState(() => buildBoard(config.stage, config.gridSize, config.targetCount, 0));
   const [wrongId, setWrongId] = useState<number | null>(null);
 
   const configRef = useRef(config);
@@ -132,7 +170,13 @@ export function VisualSearchGame({
         const nextNum = boardNum + 1;
         setBoardNum(nextNum);
         // Usa a grade/alvos da onda atual (escala intra-partida!)
-        const nb = buildBoard(configRef.current.gridSize, configRef.current.targetCount, nextNum);
+        const nb = buildBoard(
+          configRef.current.stage,
+          configRef.current.gridSize,
+          configRef.current.targetCount,
+          nextNum,
+          board.target
+        );
         setBoard(nb);
         emitLive(nb.cells.filter((c) => c.isTarget).length);
       } else {
@@ -172,7 +216,7 @@ export function VisualSearchGame({
               key={`${boardNum}-${cell.id}`}
               onClick={() => handleTap(cell)}
               className={`aspect-square rounded-xl font-bold flex items-center justify-center transition-all cursor-pointer ${
-                board.gridSize >= 6 ? 'text-lg' : board.gridSize === 5 ? 'text-xl' : 'text-2xl'
+                board.gridSize >= 7 ? 'text-base' : board.gridSize === 6 ? 'text-lg' : board.gridSize === 5 ? 'text-xl' : 'text-2xl'
               } ${isWrong ? 'animate-shake' : ''}`}
               style={{
                 background: cell.found

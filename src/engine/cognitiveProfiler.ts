@@ -4,6 +4,7 @@ import type {
   ClinicalMetricsSummary,
   CognitiveDossier,
   CognitiveSessionRecord,
+  CognitiveSnapshotRecord,
   DomainKey,
   DomainScoresRecord,
   GameMasterySummary,
@@ -14,6 +15,54 @@ import type {
 } from '../types/cognitive';
 import { DOMAIN_LIST, DOMAIN_MAP, GAME_REGISTRY, GAMES_BY_DOMAIN } from './gameRegistry';
 import { getAgeBracketMeta, normalCDF, scoreToPercent } from './psychometricEngine';
+import { getAppNow } from '../lib/appClock';
+
+export interface WeeklyDayItem {
+  dateIso: string;
+  shortLabel: string;
+  isToday: boolean;
+  isFuture: boolean;
+  sessionsCount: number;
+  trained: boolean;
+}
+
+export interface WeeklyEvolutionSummary {
+  days: WeeklyDayItem[];
+  activeDaysThisWeek: number;
+  sessionsThisWeek: number;
+  sessionsPrevWeek: number;
+  sessionsDelta: number;
+  avgAccuracyThisWeek: number;
+  accuracyDeltaVsPrevWeek: number | null;
+  avgRtThisWeek: number;
+  rtDeltaVsPrevWeek: number | null;
+  indexDelta7dPct: number | null;
+  bestDomainThisWeek: DomainKey | null;
+}
+
+export interface ExerciseHistoryEntry {
+  id: string;
+  dateIso: string;
+  dayLabel: string;
+  timeLabel: string;
+  slug: GameSlug;
+  domain: DomainKey;
+  stagePlayed: number;
+  indexPct: number;
+  accuracyPct: number;
+  rtMeanMs: number;
+  deltaVsPrevPct: number | null;
+  rtDeltaVsPrevMs: number | null;
+  isRecord: boolean;
+}
+
+export interface PreviousExerciseReference {
+  previousIndexPct: number | null;
+  previousRtMs: number | null;
+  bestIndexPct: number;
+  totalPlaysBefore: number;
+  domainScoreBeforePct: number;
+}
 
 /**
  * Parâmetros normativos recalibrados (mediana real = 500, σ = 235):
@@ -35,16 +84,28 @@ export const NORMATIVE_BENCHMARKS: PopulationBenchmarks = {
   games: {
     'visual-search': { mean: 508, sd: 230, p50: 508, p75: 663, p90: 803, p99: 960, avg_rt_ms: 1150, early_rate_pct: 34 },
     'sustained-tracking': { mean: 496, sd: 235, p50: 496, p75: 654, p90: 797, p99: 955, avg_rt_ms: 1350, early_rate_pct: 28 },
+    'odd-one-out': { mean: 512, sd: 228, p50: 512, p75: 666, p90: 804, p99: 960, avg_rt_ms: 1080, early_rate_pct: 38 },
+    'flanker-focus': { mean: 510, sd: 230, p50: 510, p75: 665, p90: 803, p99: 960, avg_rt_ms: 780, early_rate_pct: 38 },
+    'memory-pairs': { mean: 505, sd: 232, p50: 505, p75: 661, p90: 801, p99: 958, avg_rt_ms: 1650, early_rate_pct: 35 },
+    'photo-recall': { mean: 500, sd: 234, p50: 500, p75: 658, p90: 800, p99: 958, avg_rt_ms: 1420, early_rate_pct: 32 },
     'spatial-span': { mean: 498, sd: 235, p50: 498, p75: 656, p90: 799, p99: 958, avg_rt_ms: 1260, early_rate_pct: 30 },
     'dual-n-back': { mean: 490, sd: 238, p50: 490, p75: 650, p90: 795, p99: 955, avg_rt_ms: 1220, early_rate_pct: 26 },
+    'number-sequence': { mean: 502, sd: 234, p50: 502, p75: 659, p90: 800, p99: 958, avg_rt_ms: 1750, early_rate_pct: 32 },
+    'logic-intruder': { mean: 504, sd: 232, p50: 504, p75: 660, p90: 801, p99: 958, avg_rt_ms: 1580, early_rate_pct: 34 },
     'raven-matrices': { mean: 488, sd: 240, p50: 488, p75: 650, p90: 796, p99: 956, avg_rt_ms: 2380, early_rate_pct: 24 },
     'path-logic': { mean: 502, sd: 232, p50: 502, p75: 658, p90: 799, p99: 958, avg_rt_ms: 1300, early_rate_pct: 34 },
     'speed-match': { mean: 515, sd: 225, p50: 515, p75: 667, p90: 803, p99: 960, avg_rt_ms: 770, early_rate_pct: 40 },
     'symbol-digit': { mean: 506, sd: 230, p50: 506, p75: 661, p90: 801, p99: 958, avg_rt_ms: 1060, early_rate_pct: 36 },
+    'schulte-order': { mean: 512, sd: 228, p50: 512, p75: 666, p90: 804, p99: 960, avg_rt_ms: 1050, early_rate_pct: 38 },
+    'flash-match': { mean: 510, sd: 229, p50: 510, p75: 664, p90: 802, p99: 960, avg_rt_ms: 1120, early_rate_pct: 37 },
     'chain-arithmetic': { mean: 496, sd: 236, p50: 496, p75: 655, p90: 798, p99: 958, avg_rt_ms: 1620, early_rate_pct: 30 },
     'number-comparison': { mean: 504, sd: 232, p50: 504, p75: 660, p90: 801, p99: 958, avg_rt_ms: 1360, early_rate_pct: 36 },
+    'target-sum': { mean: 500, sd: 234, p50: 500, p75: 658, p90: 800, p99: 958, avg_rt_ms: 1480, early_rate_pct: 33 },
+    'missing-operator': { mean: 506, sd: 231, p50: 506, p75: 662, p90: 801, p99: 958, avg_rt_ms: 1240, early_rate_pct: 36 },
     'stroop-conflict': { mean: 504, sd: 232, p50: 504, p75: 660, p90: 801, p99: 958, avg_rt_ms: 910, early_rate_pct: 34 },
     'go-nogo-reflex': { mean: 500, sd: 234, p50: 500, p75: 658, p90: 800, p99: 958, avg_rt_ms: 630, early_rate_pct: 32 },
+    'opposite-arrow': { mean: 508, sd: 230, p50: 508, p75: 663, p90: 802, p99: 960, avg_rt_ms: 820, early_rate_pct: 36 },
+    'rule-switch': { mean: 502, sd: 232, p50: 502, p75: 659, p90: 800, p99: 958, avg_rt_ms: 960, early_rate_pct: 33 },
   },
 };
 
@@ -171,6 +232,20 @@ const BALANCED_ARCHETYPE: ArchetypeDef = {
   trait: 'mantém desempenho simétrico entre atenção, memória, lógica, velocidade, cálculo e inibição',
 };
 
+const UNMEASURED_ARCHETYPE: ArchetypeDef = {
+  title: 'Perfil em Formação',
+  subtitle: 'Aguardando primeiras sessões de 30s para traçar métricas reais',
+  color: '#64748b',
+  trait: 'está iniciando o mapeamento da sua linha de base cognitiva',
+};
+
+const PARTIAL_ARCHETYPE: ArchetypeDef = {
+  title: 'Mapeamento em Andamento',
+  subtitle: 'Primeiras medições registradas — avalie mais domínios para consolidar o perfil',
+  color: '#4F6EF7',
+  trait: 'já iniciou sua curva pessoal e está ampliando a leitura dos 6 domínios',
+};
+
 const BOTTLENECK_HUMAN_LABELS: Record<string, { short: string; domains: DomainKey[] }> = {
   wm_reread: { short: 'precisar reler ou reconfirmar instruções recentes', domains: ['working_memory'] },
   att_tabs: { short: 'fragmentação de foco ao alternar tarefas', domains: ['selective_attention'] },
@@ -207,22 +282,32 @@ export function resolveArchetype(
   scores: DomainScoresRecord
 ): { def: ArchetypeDef; topDomains: [DomainKey, DomainKey]; ranked: DomainKey[] } {
   const ranked = [...DOMAIN_LIST]
-    .sort((a, b) => (scores[b.key] ?? 500) - (scores[a.key] ?? 500))
+    .sort((a, b) => (scores[b.key] ?? 0) - (scores[a.key] ?? 0))
     .map((d) => d.key);
 
+  const measured = ranked.filter((k) => (scores[k] ?? 0) > 0);
   const top1 = ranked[0];
   const top2 = ranked[1];
-  const highest = scores[top1] ?? 500;
-  const lowest = scores[ranked[ranked.length - 1]] ?? 500;
 
-  if (highest - lowest < 14) {
-    return { def: BALANCED_ARCHETYPE, topDomains: [top1, top2], ranked };
+  if (measured.length === 0) {
+    return { def: UNMEASURED_ARCHETYPE, topDomains: [top1, top2], ranked };
   }
 
-  const pairKey = [top1, top2].sort().join('+');
+  if (measured.length === 1) {
+    return { def: PARTIAL_ARCHETYPE, topDomains: [top1, top2], ranked };
+  }
+
+  const highest = scores[measured[0]] ?? 0;
+  const lowestMeasured = scores[measured[measured.length - 1]] ?? 0;
+
+  if (highest - lowestMeasured < 14) {
+    return { def: BALANCED_ARCHETYPE, topDomains: [measured[0], measured[1]], ranked };
+  }
+
+  const pairKey = [measured[0], measured[1]].sort().join('+');
   return {
     def: ARCHETYPE_PAIRS[pairKey] ?? BALANCED_ARCHETYPE,
-    topDomains: [top1, top2],
+    topDomains: [measured[0], measured[1]],
     ranked,
   };
 }
@@ -339,9 +424,11 @@ export function buildGameMasteryList(
         ? Math.round(prog.highest_score * 0.65 + (avgScore || prog.highest_score) * 0.35)
         : 0;
     const percentile =
-      refScore > 0
-        ? Math.min(bestSessionPct > 0 ? bestSessionPct : 99.9, percentileFromBenchmark(refScore, bench, ageBracket))
-        : 50;
+      bestSessionPct > 0
+        ? bestSessionPct
+        : refScore > 0
+          ? percentileFromBenchmark(refScore, bench, ageBracket)
+          : 50;
 
     const last10 = [...gameSessions]
       .slice(0, 10)
@@ -362,7 +449,7 @@ export function buildGameMasteryList(
     return {
       slug: g.slug,
       domain: g.domain,
-      currentStage: prog?.current_stage ?? 0,
+      currentStage: Math.max(1, prog?.current_stage ?? 1),
       highestScore: prog?.highest_score ?? 0,
       totalPlays: prog?.total_plays ?? gameSessions.length,
       bestWave,
@@ -397,25 +484,30 @@ export function generateCognitiveDossier(params: {
   const clinical = computeClinicalMetrics(sessions);
   const ageLabel = getAgeBracketMeta(profile.age_bracket).label;
 
-  const globalPct = percentileFromBenchmark(
-    profile.global_cognitive_index,
-    benchmarks.global,
-    profile.age_bracket
-  );
-  const topPercent = percentileToTopPercent(globalPct);
-  const populationBand = getPopulationBand(globalPct);
+  const measuredKeys = DOMAIN_LIST.map((d) => d.key).filter((k) => (scores[k] ?? 0) > 0);
+  const hasMeasured = profile.global_cognitive_index > 0 && measuredKeys.length > 0;
+
+  const globalPct = hasMeasured
+    ? percentileFromBenchmark(profile.global_cognitive_index, benchmarks.global, profile.age_bracket)
+    : 0;
+  const topPercent = hasMeasured ? percentileToTopPercent(globalPct) : 100;
+  const populationBand = hasMeasured ? getPopulationBand(globalPct) : 'Em Evolução';
 
   const top1 = DOMAIN_MAP[topDomains[0]];
   const top2 = DOMAIN_MAP[topDomains[1]];
-  const top1Score = scores[top1.key] ?? 500;
-  const top2Score = scores[top2.key] ?? 500;
-  const top1Pct = Math.round(percentileFromBenchmark(top1Score, benchmarks.domains[top1.key], profile.age_bracket));
-  const top2Pct = Math.round(percentileFromBenchmark(top2Score, benchmarks.domains[top2.key], profile.age_bracket));
-  const top1Top = percentileToTopPercent(top1Pct);
+  const top1Score = scores[top1.key] ?? 0;
+  const top2Score = scores[top2.key] ?? 0;
+  const top1Pct = top1Score > 0
+    ? Math.round(percentileFromBenchmark(top1Score, benchmarks.domains[top1.key], profile.age_bracket))
+    : 0;
+  const top2Pct = top2Score > 0
+    ? Math.round(percentileFromBenchmark(top2Score, benchmarks.domains[top2.key], profile.age_bracket))
+    : 0;
+  const top1Top = top1Score > 0 ? percentileToTopPercent(top1Pct) : 100;
 
   const bottleneckKey = ranked[ranked.length - 1];
   const bottleneckMeta = DOMAIN_MAP[bottleneckKey];
-  const bottleneckScore = scores[bottleneckKey] ?? 500;
+  const bottleneckScore = scores[bottleneckKey] ?? 0;
   const bottleneckBase = scores.baseline_scores?.[bottleneckKey] ?? bottleneckScore;
   const spreadPct = scoreToPercent(top1Score) - scoreToPercent(bottleneckScore);
   const growthRoomPct = Math.max(6, Math.min(55, Math.round(((Math.max(top1Score, 750) - bottleneckScore) / 1000) * 100)));
@@ -426,10 +518,40 @@ export function generateCognitiveDossier(params: {
   const recommendedGameMeta = [...bottleneckGames].sort((a, b) => {
     const pa = progress[a.slug];
     const pb = progress[b.slug];
-    const stageDiff = (pa?.current_stage ?? 0) - (pb?.current_stage ?? 0);
+    const stageDiff = (pa?.current_stage ?? 1) - (pb?.current_stage ?? 1);
     if (stageDiff !== 0) return stageDiff;
     return (pa?.total_plays ?? 0) - (pb?.total_plays ?? 0);
   })[0];
+
+  if (!hasMeasured) {
+    const p1Zero = `Este perfil começou zerado (0%) na faixa ${ageLabel}. Conclua as primeiras sessões de 30 segundos para registrar sua linha de base real em velocidade e precisão.`;
+    const p2Zero = `Assim que você terminar o primeiro exercício, o NeuroLab passa a medir seu tempo de reação (ms), sua precisão média e sua evolução comparando você com você mesmo.`;
+    const p3Zero = `Primeiro passo recomendado: iniciar ${recommendedGameMeta.name} (${bottleneckMeta.name}) ou concluir a avaliação de linha de base para gerar insights personalizados.`;
+
+    return {
+      archetypeTitle: def.title,
+      archetypeSubtitle: def.subtitle,
+      archetypeColor: def.color,
+      topDomains,
+      bottleneckDomain: bottleneckKey,
+      recommendedGame: recommendedGameMeta.slug,
+      globalPercentile: 0,
+      topPercent: 100,
+      populationBand: 'Em Evolução',
+      paragraphs: {
+        profileAndStrengths: p1Zero,
+        behaviorUnderPressure: p2Zero,
+        bottleneckAndPrescription: p3Zero,
+      },
+      clinical,
+      shareSummaryText: [
+        `NeuroLab — Dossiê Cognitivo`,
+        `Perfil: ${def.title} (Faixa ${ageLabel})`,
+        `Índice Global: 0% · Aguardando primeiras medições de 30s`,
+        `Próximo passo: ${bottleneckMeta.name} → ${recommendedGameMeta.name}`,
+      ].join('\n'),
+    };
+  }
 
   const declaredBottlenecks = (profile.cognitive_bottlenecks ?? [])
     .map((id) => ({ id, meta: BOTTLENECK_HUMAN_LABELS[id] }))
@@ -471,9 +593,11 @@ export function generateCognitiveDossier(params: {
     : ` Na prática, você ${def.trait}.`;
 
   const p1 =
-    def.title === BALANCED_ARCHETYPE.title
-      ? `No índice global (${scoreToPercent(profile.global_cognitive_index)}%), você supera ${Math.round(globalPct)}% da faixa ${ageLabel}. ${balanceNote}, com leve liderança em ${top1.name} (${scoreToPercent(top1Score)}%) e ${top2.name} (${scoreToPercent(top2Score)}%), ${speedPhrase}.${goalPhrase}`
-      : `Seus maiores pontos fortes hoje são ${top1.name} (${scoreToPercent(top1Score)}%, Top ${top1Top}% na faixa ${ageLabel}) e ${top2.name} (${scoreToPercent(top2Score)}%, superando ${top2Pct}% da faixa), ${speedPhrase}. ${balanceNote}.${goalPhrase}`;
+    measuredKeys.length === 1
+      ? `Primeira medição registrada em ${top1.name} (${scoreToPercent(top1Score)}%), com estimativa normativa de ${top1Pct}% na faixa ${ageLabel}, ${speedPhrase}. Avalie os demais domínios para mapear seu equilíbrio completo.`
+      : def.title === BALANCED_ARCHETYPE.title
+        ? `No índice global (${scoreToPercent(profile.global_cognitive_index)}%), sua estimativa normativa supera ${Math.round(globalPct)}% na faixa ${ageLabel}. ${balanceNote}, com leve liderança em ${top1.name} (${scoreToPercent(top1Score)}%) e ${top2.name} (${scoreToPercent(top2Score)}%), ${speedPhrase}.${goalPhrase}`
+        : `Seus maiores pontos fortes hoje são ${top1.name} (${scoreToPercent(top1Score)}%, est. Top ${top1Top}% na faixa ${ageLabel}) e ${top2.name} (${scoreToPercent(top2Score)}%, est. ${top2Pct}%), ${speedPhrase}. ${balanceNote}.${goalPhrase}`;
 
   // --- Parágrafo 2: Comportamento sob Pressão e Estabilidade ---
   let p2: string;
@@ -481,7 +605,7 @@ export function generateCognitiveDossier(params: {
     const staminaText =
       stamina <= 2
         ? 'Como sua resistência à fadiga basal é inicial, o protocolo começa em cadência leve para construir constância.'
-        : 'Com boa resistência à carga contínua, a dificuldade progride de forma constante nas 5 ondas de cada sessão.';
+        : 'Com boa resistência à carga contínua, a dificuldade progride de forma suave ao longo de cada sessão.';
     p2 = `Conclua suas primeiras sessões para liberar a leitura de precisão e estabilidade sob pressão temporal. ${staminaText}`;
   } else {
     const accRounded = Math.round(clinical.avgAccuracyPct);
@@ -496,10 +620,10 @@ export function generateCognitiveDossier(params: {
 
     const wavePhrase =
       clinical.earlyClearRatePct >= 45
-        ? `Completou integralmente as 5 ondas antes do tempo limite em ${clinical.earlyClearRatePct}% das sessões, sustentando ${clinical.consistencyIndex}% de estabilidade de foco.`
+        ? `Concluiu integralmente a meta antes do tempo limite em ${clinical.earlyClearRatePct}% das sessões, sustentando ${clinical.consistencyIndex}% de estabilidade de foco.`
         : clinical.earlyClearRatePct > 0
-          ? `Concluiu as 5 ondas completas em ${clinical.earlyClearRatePct}% das sessões, com ${clinical.consistencyIndex}% de estabilidade atencional.`
-          : `Sua estabilidade de foco está em ${clinical.consistencyIndex}% — manter precisão acima de 80% até a 5ª onda destravará os próximos níveis.`;
+          ? `Alcançou 100% da meta contínua em ${clinical.earlyClearRatePct}% das sessões, com ${clinical.consistencyIndex}% de estabilidade atencional.`
+          : `Sua estabilidade de foco está em ${clinical.consistencyIndex}% — concluir a meta com precisão acima de 80% destravará os próximos níveis.`;
 
     p2 = `${precisionTone}. ${wavePhrase}`;
   }
@@ -554,5 +678,269 @@ export function generateCognitiveDossier(params: {
     },
     clinical,
     shareSummaryText,
+  };
+}
+
+function toLocalDateIso(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function sessionLocalDateIso(iso: string): string {
+  const dt = new Date(iso);
+  if (Number.isNaN(dt.getTime())) return (iso || '').slice(0, 10);
+  return toLocalDateIso(dt);
+}
+
+/**
+ * Calcula a evolução semanal (Seg..Dom da semana atual + comparativo 7d vs. 7d anteriores).
+ */
+export function computeWeeklyEvolution(
+  sessions: CognitiveSessionRecord[],
+  snapshots: CognitiveSnapshotRecord[],
+  globalCognitiveIndex: number
+): WeeklyEvolutionSummary {
+  const now = getAppNow();
+  const todayStr = toLocalDateIso(now);
+
+  // Segunda-feira da semana atual (Seg = 0 .. Dom = 6)
+  const dayOfWeek = (now.getDay() + 6) % 7;
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek);
+
+  const countByDate = new Map<string, number>();
+  for (const s of sessions) {
+    const key = sessionLocalDateIso(s.created_at);
+    countByDate.set(key, (countByDate.get(key) ?? 0) + 1);
+  }
+
+  const WEEK_LABELS = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'] as const;
+  const days: WeeklyDayItem[] = WEEK_LABELS.map((shortLabel, idx) => {
+    const d = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + idx);
+    const dateIso = toLocalDateIso(d);
+    const sessionsCount = countByDate.get(dateIso) ?? 0;
+    return {
+      dateIso,
+      shortLabel,
+      isToday: dateIso === todayStr,
+      isFuture: dateIso > todayStr,
+      sessionsCount,
+      trained: sessionsCount > 0,
+    };
+  });
+
+  const activeDaysThisWeek = days.filter((d) => d.trained).length;
+
+  // Janela móvel: últimos 7 dias vs 7 dias anteriores
+  const startCurrent7 = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6).getTime();
+  const startPrev7 = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 13).getTime();
+
+  const current7 = sessions.filter((s) => {
+    const ts = new Date(s.created_at).getTime();
+    return !Number.isNaN(ts) && ts >= startCurrent7;
+  });
+  const prev7 = sessions.filter((s) => {
+    const ts = new Date(s.created_at).getTime();
+    return !Number.isNaN(ts) && ts >= startPrev7 && ts < startCurrent7;
+  });
+
+  const avgAcc = (list: CognitiveSessionRecord[]) =>
+    list.length
+      ? Math.round(list.reduce((acc, s) => acc + Number(s.accuracy_pct || 0), 0) / list.length)
+      : 0;
+
+  const avgRt = (list: CognitiveSessionRecord[]) => {
+    const valid = list.filter((s) => s.rt_mean_ms > 0);
+    return valid.length
+      ? Math.round(valid.reduce((acc, s) => acc + s.rt_mean_ms, 0) / valid.length)
+      : 0;
+  };
+
+  const avgAccuracyThisWeek = avgAcc(current7);
+  const prevAcc = avgAcc(prev7);
+  const accuracyDeltaVsPrevWeek =
+    current7.length > 0 && prev7.length > 0 ? avgAccuracyThisWeek - prevAcc : null;
+
+  const avgRtThisWeek = avgRt(current7);
+  const prevRt = avgRt(prev7);
+  const rtDeltaVsPrevWeek =
+    avgRtThisWeek > 0 && prevRt > 0 ? avgRtThisWeek - prevRt : null;
+
+  // Ganho de índice global nos últimos 7 dias via snapshots
+  const sortedSnaps = [...snapshots].sort((a, b) => a.snapshot_date.localeCompare(b.snapshot_date));
+  const recentSnaps = sortedSnaps.filter((s) => {
+    const ts = new Date(`${s.snapshot_date}T12:00:00`).getTime();
+    return !Number.isNaN(ts) && ts >= startCurrent7;
+  });
+  let indexDelta7dPct: number | null = null;
+  if (recentSnaps.length >= 2) {
+    indexDelta7dPct =
+      scoreToPercent(recentSnaps[recentSnaps.length - 1].global_index) -
+      scoreToPercent(recentSnaps[0].global_index);
+  } else if (sortedSnaps.length >= 1) {
+    const first = sortedSnaps[0];
+    indexDelta7dPct = scoreToPercent(globalCognitiveIndex) - scoreToPercent(first.global_index);
+  }
+
+  // Domínio com melhor média na semana
+  let bestDomainThisWeek: DomainKey | null = null;
+  if (current7.length > 0) {
+    const byDom = new Map<DomainKey, { sum: number; count: number }>();
+    for (const s of current7) {
+      const cur = byDom.get(s.domain) ?? { sum: 0, count: 0 };
+      cur.sum += s.score;
+      cur.count += 1;
+      byDom.set(s.domain, cur);
+    }
+    let bestAvg = -1;
+    for (const [dom, stat] of byDom.entries()) {
+      const avg = stat.sum / stat.count;
+      if (avg > bestAvg) {
+        bestAvg = avg;
+        bestDomainThisWeek = dom;
+      }
+    }
+  }
+
+  return {
+    days,
+    activeDaysThisWeek,
+    sessionsThisWeek: current7.length,
+    sessionsPrevWeek: prev7.length,
+    sessionsDelta: current7.length - prev7.length,
+    avgAccuracyThisWeek,
+    accuracyDeltaVsPrevWeek,
+    avgRtThisWeek,
+    rtDeltaVsPrevWeek,
+    indexDelta7dPct,
+    bestDomainThisWeek,
+  };
+}
+
+/**
+ * Monta o histórico cronológico exercício-a-exercício com variação direta vs. tentativa anterior do mesmo exercício.
+ */
+export function buildExerciseHistory(
+  sessions: CognitiveSessionRecord[],
+  limit = 40
+): ExerciseHistoryEntry[] {
+  const now = getAppNow();
+  const todayStr = toLocalDateIso(now);
+  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  const yesterdayStr = toLocalDateIso(yesterday);
+
+  // Ordena do mais antigo para o mais recente para calcular deltas reais exercício-a-exercício
+  const chronological = [...sessions].sort((a, b) =>
+    (a.created_at || '').localeCompare(b.created_at || '')
+  );
+
+  const prevBySlug = new Map<GameSlug, { indexPct: number; rtMeanMs: number }>();
+  const bestBySlug = new Map<GameSlug, number>();
+
+  const entries: ExerciseHistoryEntry[] = chronological.map((s) => {
+    const indexPct = scoreToPercent(s.score);
+    const prev = prevBySlug.get(s.game_slug);
+    const prevBest = bestBySlug.get(s.game_slug) ?? -1;
+
+    const deltaVsPrevPct = prev ? indexPct - prev.indexPct : null;
+    const rtDeltaVsPrevMs =
+      prev && prev.rtMeanMs > 0 && s.rt_mean_ms > 0 ? s.rt_mean_ms - prev.rtMeanMs : null;
+    const isRecord = prev !== undefined && indexPct > prevBest;
+
+    prevBySlug.set(s.game_slug, { indexPct, rtMeanMs: s.rt_mean_ms });
+    if (indexPct > prevBest) bestBySlug.set(s.game_slug, indexPct);
+
+    const dt = new Date(s.created_at);
+    const dateIso = sessionLocalDateIso(s.created_at);
+    const dayLabel =
+      dateIso === todayStr
+        ? 'Hoje'
+        : dateIso === yesterdayStr
+          ? 'Ontem'
+          : Number.isNaN(dt.getTime())
+            ? dateIso
+            : `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}`;
+    const timeLabel = Number.isNaN(dt.getTime())
+      ? ''
+      : `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
+
+    return {
+      id: s.id,
+      dateIso,
+      dayLabel,
+      timeLabel,
+      slug: s.game_slug,
+      domain: s.domain,
+      stagePlayed: s.stage_played,
+      indexPct,
+      accuracyPct: Math.round(Number(s.accuracy_pct || 0)),
+      rtMeanMs: s.rt_mean_ms,
+      deltaVsPrevPct,
+      rtDeltaVsPrevMs,
+      isRecord,
+    };
+  });
+
+  return entries.reverse().slice(0, limit);
+}
+
+/**
+ * Nota curta e objetiva para o rodapé do Treino Diário falando como o usuário está hoje.
+ */
+export function buildPersonalDailyNote(params: {
+  profile: UserProfile;
+  scores: DomainScoresRecord;
+  sessions: CognitiveSessionRecord[];
+  snapshots: CognitiveSnapshotRecord[];
+  completedTodayCount: number;
+  totalTodayCount: number;
+}): { tag: string; text: string } {
+  const { profile, scores, sessions, snapshots, completedTodayCount, totalTodayCount } = params;
+  const globalPct = scoreToPercent(profile.global_cognitive_index);
+  const weekly = computeWeeklyEvolution(sessions, snapshots, profile.global_cognitive_index);
+
+  const ranked = [...DOMAIN_LIST].sort((a, b) => (scores[a.key] ?? 0) - (scores[b.key] ?? 0));
+  const weakest = ranked[0];
+  const strongest = ranked[ranked.length - 1];
+  const weakPct = scoreToPercent(scores[weakest.key] ?? 0);
+  const strongPct = scoreToPercent(scores[strongest.key] ?? 0);
+
+  if (sessions.length === 0 && globalPct === 0) {
+    return {
+      tag: 'Pronto para começar',
+      text: `Perfil zerado (0%). Faça seu primeiro exercício de 30s (${weakest.name}) para registrar sua linha de base real e iniciar sua evolução.`,
+    };
+  }
+
+  if (sessions.length === 0) {
+    return {
+      tag: 'Seu estado atual',
+      text: `Índice inicial em ${globalPct}%. Concluir os ${totalTodayCount} exercícios de hoje inicia sua curva semanal e reforça ${weakest.name}.`,
+    };
+  }
+
+  const weekPhrase =
+    weekly.indexDelta7dPct !== null && weekly.indexDelta7dPct > 0
+      ? ` (+${weekly.indexDelta7dPct}% nos últimos 7 dias)`
+      : weekly.activeDaysThisWeek >= 3
+        ? ` com ${weekly.activeDaysThisWeek} dias ativos nesta semana`
+        : '';
+
+  if (completedTodayCount >= totalTodayCount && totalTodayCount > 0) {
+    return {
+      tag: 'Resumo de hoje · Meta batida',
+      text: `Você fechou o protocolo em ${globalPct}%${weekPhrase}. ${strongest.name} segue em destaque (${strongPct}%) e ${weakest.name} (${weakPct}%) já ganhou estímulo direto hoje.`,
+    };
+  }
+
+  const accNote =
+    weekly.avgAccuracyThisWeek > 0
+      ? ` Precisão semanal de ${weekly.avgAccuracyThisWeek}%.`
+      : '';
+
+  return {
+    tag: 'Como você está hoje',
+    text: `Equilíbrio geral em ${globalPct}%${weekPhrase}, liderado por ${strongest.name} (${strongPct}%). Focar em ${weakest.name} (${weakPct}%) hoje é o atalho para elevar sua média.${accNote}`,
   };
 }

@@ -21,6 +21,8 @@ import {
 } from '../engine/psychometricEngine';
 import { NORMATIVE_BENCHMARKS, resolveArchetype } from '../engine/cognitiveProfiler';
 import { DOMAIN_LIST, GAME_REGISTRY } from '../engine/gameRegistry';
+import { saveLocalUserState } from './localUserDb';
+import { getAppNowIso, getAppTodayIso, getAppYesterdayIso } from './appClock';
 import { supabase } from './supabase';
 
 const STORAGE_KEY = 'neurolab_local_state_v3';
@@ -35,16 +37,12 @@ export interface AppDataState {
 }
 
 export function todayIso(): string {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+  return getAppTodayIso();
 }
 
 export function normalizeTheme(raw: unknown): ThemeMode {
-  if (raw === 'light') return 'light';
-  return 'dark';
+  if (raw === 'dark') return 'dark';
+  return 'light';
 }
 
 export function createInitialProgress(easeMode = false): Record<GameSlug, GameProgressRecord> {
@@ -53,7 +51,7 @@ export function createInitialProgress(easeMode = false): Record<GameSlug, GamePr
     acc[g.slug] = {
       game_slug: g.slug,
       domain: g.domain,
-      current_stage: 0,
+      current_stage: 1,
       highest_score: 0,
       total_plays: 0,
       ease_mode: easeMode,
@@ -72,12 +70,12 @@ export function createDefaultState(
   const now = new Date().toISOString();
   const scores: DomainScoresRecord = {
     user_id: userId,
-    selective_attention: 500,
-    working_memory: 500,
-    fluid_reasoning: 500,
-    processing_speed: 500,
-    numerical_cognition: 500,
-    inhibitory_control: 500,
+    selective_attention: 0,
+    working_memory: 0,
+    fluid_reasoning: 0,
+    processing_speed: 0,
+    numerical_cognition: 0,
+    inhibitory_control: 0,
     baseline_scores: {},
     updated_at: now,
   };
@@ -86,9 +84,9 @@ export function createDefaultState(
       id: userId,
       name,
       email,
-      theme_preference: 'dark',
+      theme_preference: 'light',
       plan_tier: 'free',
-      global_cognitive_index: 500,
+      global_cognitive_index: 0,
       current_streak: 0,
       best_streak: 0,
       calibrated: false,
@@ -101,7 +99,7 @@ export function createDefaultState(
       application_context: null,
       application_contexts: [],
       age_bracket: '25-34',
-      current_title: 'Observador',
+      current_title: 'Sem avaliação',
       onboarding_answers: {},
       last_played_date: null,
       isLocalGuest,
@@ -130,7 +128,7 @@ export function loadLocalState(): AppDataState | null {
       email: parsed.profile.email,
       theme_preference: normalizeTheme(parsed.profile.theme_preference),
       plan_tier: parsed.profile.plan_tier ?? 'free',
-      global_cognitive_index: parsed.profile.global_cognitive_index ?? 500,
+      global_cognitive_index: parsed.profile.global_cognitive_index ?? 0,
       current_streak: parsed.profile.current_streak ?? 0,
       best_streak: parsed.profile.best_streak ?? 0,
       calibrated: Boolean(parsed.profile.calibrated),
@@ -150,7 +148,10 @@ export function loadLocalState(): AppDataState | null {
           : [],
       age_bracket: (parsed.profile.age_bracket as AgeBracket) || '25-34',
       current_title:
-        parsed.profile.current_title ?? getCognitiveTier(parsed.profile.global_cognitive_index ?? 500).title,
+        parsed.profile.current_title ??
+        ((parsed.profile.global_cognitive_index ?? 0) > 0
+          ? getCognitiveTier(parsed.profile.global_cognitive_index ?? 0).title
+          : 'Sem avaliação'),
       onboarding_answers: parsed.profile.onboarding_answers ?? {},
       last_played_date: parsed.profile.last_played_date ?? null,
       isLocalGuest: parsed.profile.isLocalGuest,
@@ -168,10 +169,19 @@ export function loadLocalState(): AppDataState | null {
         : parsed.dailyProtocol;
 
     const defaults = createInitialProgress();
+    const mergedProgress = { ...defaults, ...parsed.progress };
+    for (const g of GAME_REGISTRY) {
+      if (mergedProgress[g.slug]) {
+        mergedProgress[g.slug] = {
+          ...mergedProgress[g.slug],
+          current_stage: Math.max(1, mergedProgress[g.slug].current_stage || 1),
+        };
+      }
+    }
     return {
       profile: cleanProfile,
       scores: parsed.scores,
-      progress: { ...defaults, ...parsed.progress },
+      progress: mergedProgress,
       sessions: Array.isArray(parsed.sessions) ? parsed.sessions : [],
       snapshots: Array.isArray(parsed.snapshots) ? parsed.snapshots : [],
       dailyProtocol,
@@ -184,6 +194,9 @@ export function loadLocalState(): AppDataState | null {
 export function saveLocalState(state: AppDataState) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    if (state.profile.isLocalGuest) {
+      saveLocalUserState(state);
+    }
   } catch {
     // ignora limite de armazenamento
   }
@@ -208,7 +221,7 @@ export async function loadRemoteState(
       name: base.profile.name,
       theme_preference: base.profile.theme_preference,
       plan_tier: base.profile.plan_tier,
-      global_cognitive_index: 500,
+      global_cognitive_index: 0,
       current_streak: 0,
       best_streak: 0,
       calibrated: false,
@@ -220,7 +233,7 @@ export async function loadRemoteState(
       application_context: null,
       application_contexts: [],
       age_bracket: '25-34',
-      current_title: 'Observador',
+      current_title: 'Sem avaliação',
       onboarding_answers: {},
     });
   } else {
@@ -230,7 +243,7 @@ export async function loadRemoteState(
       name: prof.name || fallbackName,
       theme_preference: normalizeTheme(prof.theme_preference),
       plan_tier: (prof.plan_tier as PlanTier) ?? 'free',
-      global_cognitive_index: prof.global_cognitive_index ?? 500,
+      global_cognitive_index: prof.global_cognitive_index ?? 0,
       current_streak: prof.current_streak ?? 0,
       best_streak: prof.best_streak ?? 0,
       calibrated: Boolean(prof.calibrated),
@@ -246,7 +259,7 @@ export async function loadRemoteState(
           ? prof.application_context.split(' • ').map((s: string) => s.trim()).filter(Boolean)
           : [],
       age_bracket: (prof.age_bracket as AgeBracket) || '25-34',
-      current_title: prof.current_title ?? 'Observador',
+      current_title: prof.current_title ?? 'Sem avaliação',
       onboarding_answers: prof.onboarding_answers ?? {},
       last_played_date: prof.last_played_date ?? null,
       email,
@@ -341,35 +354,28 @@ export async function loadRemoteState(
 }
 
 /**
- * Se o usuário optar por pular o Teste de Rastreio, inicia tudo nos níveis iniciais
- * com linha de base conservadora (420), permitindo calibrar depois.
+ * Se o usuário optar por pular a Avaliação Inicial, mantém tudo zerado (0%)
+ * e vai construindo cada domínio e sua linha de base conforme for jogando.
  */
 export async function skipCalibrationToLowestLevel(state: AppDataState): Promise<AppDataState> {
   const now = new Date().toISOString();
-  const lowScores: DomainScoresRecord = {
+  const zeroScores: DomainScoresRecord = {
     user_id: state.profile.id,
-    selective_attention: 420,
-    working_memory: 420,
-    fluid_reasoning: 420,
-    processing_speed: 420,
-    numerical_cognition: 420,
-    inhibitory_control: 420,
-    baseline_scores: {
-      selective_attention: 420,
-      working_memory: 420,
-      fluid_reasoning: 420,
-      processing_speed: 420,
-      numerical_cognition: 420,
-      inhibitory_control: 420,
-    },
+    selective_attention: state.scores.selective_attention || 0,
+    working_memory: state.scores.working_memory || 0,
+    fluid_reasoning: state.scores.fluid_reasoning || 0,
+    processing_speed: state.scores.processing_speed || 0,
+    numerical_cognition: state.scores.numerical_cognition || 0,
+    inhibitory_control: state.scores.inhibitory_control || 0,
+    baseline_scores: { ...state.scores.baseline_scores },
     updated_at: now,
   };
 
   const easyProgress = createInitialProgress(true);
-  const icg = calculateGlobalCognitiveIndex(lowScores);
-  const title = getCognitiveTier(icg).title;
+  const icg = calculateGlobalCognitiveIndex(zeroScores);
+  const title = icg > 0 ? getCognitiveTier(icg).title : 'Sem avaliação';
   const nextDaily = generateDailyProtocol(
-    lowScores,
+    zeroScores,
     todayIso(),
     state.profile.selected_domains,
     state.profile.daily_goal_minutes
@@ -384,7 +390,7 @@ export async function skipCalibrationToLowestLevel(state: AppDataState): Promise
       global_cognitive_index: icg,
       current_title: title,
     },
-    scores: lowScores,
+    scores: zeroScores,
     progress: easyProgress,
     dailyProtocol: nextDaily,
   };
@@ -398,7 +404,7 @@ export async function skipCalibrationToLowestLevel(state: AppDataState): Promise
         .from('profiles')
         .update({ calibrated: true, global_cognitive_index: icg, current_title: title })
         .eq('id', uid),
-      supabase.from('domain_scores').upsert(lowScores),
+      supabase.from('domain_scores').upsert(zeroScores),
     ]);
   }
 
@@ -409,7 +415,7 @@ export async function recordSessionResult(
   state: AppDataState,
   result: ComputedSessionResult
 ): Promise<AppDataState> {
-  const now = new Date().toISOString();
+  const now = getAppNowIso();
   const today = todayIso();
 
   const prevProg = state.progress[result.gameSlug];
@@ -429,12 +435,15 @@ export async function recordSessionResult(
     updated_at: now,
   };
 
-  if (result.mode === 'calibration') {
-    const calScore = Math.max(50, Math.min(999, result.score));
-    nextScores[result.domain] = calScore;
-    nextScores.baseline_scores[result.domain] = calScore;
+  const curVal = nextScores[result.domain] ?? 0;
+  if (result.mode === 'calibration' || curVal === 0) {
+    // 1ª medição real do domínio: registra diretamente a pontuação obtida como estado atual e linha de base!
+    const measuredScore = Math.max(50, Math.min(999, result.score));
+    nextScores[result.domain] = measuredScore;
+    if (!nextScores.baseline_scores[result.domain]) {
+      nextScores.baseline_scores[result.domain] = measuredScore;
+    }
   } else {
-    const curVal = nextScores[result.domain] ?? 500;
     nextScores[result.domain] = Math.max(80, Math.min(999, curVal + result.domainDelta));
     if (!nextScores.baseline_scores[result.domain]) {
       nextScores.baseline_scores[result.domain] = curVal;
@@ -447,23 +456,12 @@ export async function recordSessionResult(
   );
   const calibrated = state.profile.calibrated || allCalibratedNow;
 
-  if (calibrated && !state.profile.calibrated) {
-    for (const d of DOMAIN_LIST) {
-      if (!nextScores.baseline_scores[d.key]) {
-        nextScores[d.key] = 500;
-        nextScores.baseline_scores[d.key] = 500;
-      }
-    }
-  }
-
   const icg = calculateGlobalCognitiveIndex(nextScores);
-  const currentTitle = getCognitiveTier(icg).title;
+  const currentTitle = icg > 0 ? getCognitiveTier(icg).title : 'Sem avaliação';
 
   let currentStreak = state.profile.current_streak;
   if (state.profile.last_played_date !== today) {
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+    const yStr = getAppYesterdayIso();
     currentStreak = state.profile.last_played_date === yStr ? currentStreak + 1 : 1;
   }
   const bestStreak = Math.max(state.profile.best_streak, currentStreak);
@@ -662,8 +660,9 @@ export async function recordSessionResult(
 }
 
 /**
- * Busca benchmarks globais na RPC do Supabase (`get_global_benchmarks()`).
- * Faz fallback automático para parâmetros normativos calibrados no modo offline.
+ * Busca benchmarks globais.
+ * Em modo local (sem consumo Supabase), usa exclusivamente a calibração científica normativa
+ * da literatura (nunca mistura os perfis fictícios locais como se fossem base populacional real).
  */
 export async function fetchPopulationBenchmarks(backendOnline: boolean): Promise<PopulationBenchmarks> {
   if (!backendOnline) return NORMATIVE_BENCHMARKS;

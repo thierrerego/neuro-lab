@@ -13,11 +13,13 @@ function rnd(min: number, max: number) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-function genExpr(level: 1 | 2 | 3 | 4, easeBoost: boolean): { label: string; val: number } {
+function genExpr(stage: number, level: 1 | 2 | 3 | 4, easeBoost: boolean): { label: string; val: number } {
   if (level === 1) {
-    if (easeBoost) {
-      const a = rnd(5, 25);
-      return { label: `${a}`, val: a };
+    // Nível 2: somas curtas de 1 dígito; Nível 3: somas intermediárias
+    if (stage < 3 || easeBoost) {
+      const a = rnd(2, 9);
+      const b = rnd(1, 8);
+      return { label: `${a} + ${b}`, val: a + b };
     }
     const a = rnd(4, 16);
     const b = rnd(2, 12);
@@ -43,10 +45,37 @@ function genExpr(level: 1 | 2 | 3 | 4, easeBoost: boolean): { label: string; val
   return { label: `${a} + ${b}`, val: a + b };
 }
 
-function makePair(level: 1 | 2 | 3 | 4, easeBoost: boolean): Pair {
+function makePair(stage: number, level: 1 | 2 | 3 | 4, easeBoost: boolean): Pair {
+  // Nível 1 ultrabásico: números puros (7 vs 4) ou somas triviais de 1 dígito (3 + 2 vs 2 + 1)
+  if (stage < 2) {
+    const usePureNumbers = Math.random() < 0.5;
+    for (let i = 0; i < 30; i++) {
+      if (usePureNumbers) {
+        const lv = rnd(2, 19);
+        const rv = rnd(2, 19);
+        const diff = Math.abs(lv - rv);
+        if (diff >= 1 && diff <= 12) {
+          return { leftLabel: `${lv}`, leftVal: lv, rightLabel: `${rv}`, rightVal: rv };
+        }
+      } else {
+        const la = rnd(1, 6);
+        const lb = rnd(1, 5);
+        const ra = rnd(1, 6);
+        const rb = rnd(1, 5);
+        const lv = la + lb;
+        const rv = ra + rb;
+        const diff = Math.abs(lv - rv);
+        if (diff >= 1 && diff <= 6) {
+          return { leftLabel: `${la} + ${lb}`, leftVal: lv, rightLabel: `${ra} + ${rb}`, rightVal: rv };
+        }
+      }
+    }
+    return { leftLabel: '3 + 2', leftVal: 5, rightLabel: '2 + 1', rightVal: 3 };
+  }
+
   for (let i = 0; i < 30; i++) {
-    const l = genExpr(level, easeBoost);
-    const r = genExpr(level, easeBoost);
+    const l = genExpr(stage, level, easeBoost);
+    const r = genExpr(stage, level, easeBoost);
     const diff = Math.abs(l.val - r.val);
     if (diff >= 1 && diff <= (level >= 3 ? 14 : 20)) {
       return { leftLabel: l.label, leftVal: l.val, rightLabel: r.label, rightVal: r.val };
@@ -64,7 +93,7 @@ export function NumberComparisonGame({
   onLiveUpdate,
   onFinish,
 }: MinigameProps) {
-  const [pair, setPair] = useState(() => makePair(config.mathComplexity, config.easeBoost));
+  const [pair, setPair] = useState(() => makePair(config.stage, config.mathComplexity, config.easeBoost));
   const [pId, setPId] = useState(0);
   const [flash, setFlash] = useState<{ side: 'left' | 'right'; ok: boolean } | null>(null);
 
@@ -135,7 +164,7 @@ export function NumberComparisonGame({
       setTimeout(() => {
         if (statsRef.current.finished) return;
         setFlash(null);
-        setPair(makePair(configRef.current.mathComplexity, configRef.current.easeBoost));
+        setPair(makePair(configRef.current.stage, configRef.current.mathComplexity, configRef.current.easeBoost));
         setPId((id) => id + 1);
         statsRef.current.shownAt = performance.now();
       }, 150);

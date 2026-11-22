@@ -5,42 +5,42 @@ export const DOMAIN_LIST: DomainMeta[] = [
     key: 'selective_attention',
     shortName: 'Atenção',
     name: 'Atenção Seletiva',
-    color: '#38bdf8',
+    color: '#0EA5E9',
     calibrationGame: 'visual-search',
   },
   {
     key: 'working_memory',
     shortName: 'Memória',
-    name: 'Memória de Trabalho',
-    color: '#818cf8',
-    calibrationGame: 'spatial-span',
+    name: 'Memória',
+    color: '#6366F1',
+    calibrationGame: 'memory-pairs',
   },
   {
     key: 'fluid_reasoning',
     shortName: 'Raciocínio',
     name: 'Raciocínio Fluido',
-    color: '#a78bfa',
-    calibrationGame: 'raven-matrices',
+    color: '#8B5CF6',
+    calibrationGame: 'number-sequence',
   },
   {
     key: 'processing_speed',
     shortName: 'Velocidade',
     name: 'Velocidade de Processamento',
-    color: '#f59e0b',
+    color: '#D97706',
     calibrationGame: 'speed-match',
   },
   {
     key: 'numerical_cognition',
     shortName: 'Cálculo',
     name: 'Cálculo Mental',
-    color: '#10b981',
+    color: '#059669',
     calibrationGame: 'chain-arithmetic',
   },
   {
     key: 'inhibitory_control',
     shortName: 'Inibitório',
     name: 'Controle Inibitório',
-    color: '#f43f5e',
+    color: '#E11D48',
     calibrationGame: 'stroop-conflict',
   },
 ];
@@ -51,98 +51,188 @@ export const DOMAIN_MAP: Record<DomainKey, DomainMeta> = DOMAIN_LIST.reduce(
 );
 
 /**
- * Catálogo modular de 12 exercícios cognitivos (2 por domínio).
+ * Catálogo completo de 24 exercícios cognitivos (4 por domínio).
+ * Todos começam no Nível 1 (ultrabásico) e progridem em curva suave de Flow.
  */
 export const GAME_REGISTRY: GameMeta[] = [
-  // 1. Atenção Seletiva
+  // 1. Atenção Seletiva (4)
   {
     slug: 'visual-search',
     domain: 'selective_attention',
     name: 'Varredura Visual',
-    shortTip: 'Toque nos alvos',
-    durationSec: 35,
+    shortTip: 'Toque nos alvos iguais',
+    durationSec: 30,
   },
   {
     slug: 'sustained-tracking',
     domain: 'selective_attention',
     name: 'Rastreamento Sustentado',
-    shortTip: 'Siga os alvos',
-    durationSec: 42,
+    shortTip: 'Acompanhe os alvos',
+    durationSec: 30,
   },
-  // 2. Memória de Trabalho
+  {
+    slug: 'odd-one-out',
+    domain: 'selective_attention',
+    name: 'Diferença Oculta',
+    shortTip: 'Ache o símbolo diferente',
+    durationSec: 30,
+  },
+  {
+    slug: 'flanker-focus',
+    domain: 'selective_attention',
+    name: 'Filtro Direcional',
+    shortTip: 'Siga só a seta do meio',
+    durationSec: 30,
+  },
+
+  // 2. Memória (Memória Visual/Normal + Memória de Trabalho — 4)
+  {
+    slug: 'memory-pairs',
+    domain: 'working_memory',
+    name: 'Jogo da Memória',
+    shortTip: 'Encontre os pares iguais',
+    durationSec: 30,
+  },
+  {
+    slug: 'photo-recall',
+    domain: 'working_memory',
+    name: 'Memória Fotográfica',
+    shortTip: 'Onde estava o ícone?',
+    durationSec: 30,
+  },
   {
     slug: 'spatial-span',
     domain: 'working_memory',
     name: 'Matriz Espacial',
-    shortTip: 'Repita a ordem',
-    durationSec: 45,
+    shortTip: 'Repita a sequência',
+    durationSec: 30,
   },
   {
     slug: 'dual-n-back',
     domain: 'working_memory',
     name: 'Dual N-Back',
-    shortTip: 'Igual a N atrás?',
-    durationSec: 40,
+    shortTip: 'Igual a N passos atrás?',
+    durationSec: 30,
   },
-  // 3. Raciocínio Fluido
+
+  // 3. Raciocínio Fluido (4)
+  {
+    slug: 'number-sequence',
+    domain: 'fluid_reasoning',
+    name: 'Sequência Numérica',
+    shortTip: 'Complete o próximo número',
+    durationSec: 30,
+  },
+  {
+    slug: 'logic-intruder',
+    domain: 'fluid_reasoning',
+    name: 'Intruso Lógico',
+    shortTip: 'Ache o que não combina',
+    durationSec: 30,
+  },
   {
     slug: 'raven-matrices',
     domain: 'fluid_reasoning',
     name: 'Matrizes de Raven',
     shortTip: 'Complete o padrão',
-    durationSec: 45,
+    durationSec: 30,
   },
   {
     slug: 'path-logic',
     domain: 'fluid_reasoning',
     name: 'Conexão Lógica',
-    shortTip: '1 → A → 2 → B',
-    durationSec: 40,
+    shortTip: 'Ligue na ordem certa',
+    durationSec: 30,
   },
-  // 4. Velocidade de Processamento
+
+  // 4. Velocidade de Processamento (4)
   {
     slug: 'speed-match',
     domain: 'processing_speed',
     name: 'Comparação Rápida',
     shortTip: 'Igual ou diferente',
-    durationSec: 35,
+    durationSec: 30,
   },
   {
     slug: 'symbol-digit',
     domain: 'processing_speed',
     name: 'Decodificador Símbolo-Dígito',
     shortTip: 'Símbolo → número',
-    durationSec: 35,
+    durationSec: 30,
   },
-  // 5. Cálculo Mental
+  {
+    slug: 'schulte-order',
+    domain: 'processing_speed',
+    name: 'Ordem Crescente',
+    shortTip: 'Toque de 1 em diante',
+    durationSec: 30,
+  },
+  {
+    slug: 'flash-match',
+    domain: 'processing_speed',
+    name: 'Pares Relâmpago',
+    shortTip: 'Toque nos 2 iguais',
+    durationSec: 30,
+  },
+
+  // 5. Cálculo Mental (4)
   {
     slug: 'chain-arithmetic',
     domain: 'numerical_cognition',
     name: 'Aritmética Encadeada',
     shortTip: 'Cálculo rápido',
-    durationSec: 38,
+    durationSec: 30,
   },
   {
     slug: 'number-comparison',
     domain: 'numerical_cognition',
     name: 'Magnitude Numérica',
-    shortTip: 'Toque no maior',
-    durationSec: 35,
+    shortTip: 'Toque no maior valor',
+    durationSec: 30,
   },
-  // 6. Controle Inibitório
+  {
+    slug: 'target-sum',
+    domain: 'numerical_cognition',
+    name: 'Soma Alvo',
+    shortTip: '2 números que somam o alvo',
+    durationSec: 30,
+  },
+  {
+    slug: 'missing-operator',
+    domain: 'numerical_cognition',
+    name: 'Operador Oculto',
+    shortTip: 'Qual sinal completa?',
+    durationSec: 30,
+  },
+
+  // 6. Controle Inibitório (4)
   {
     slug: 'stroop-conflict',
     domain: 'inhibitory_control',
     name: 'Conflito de Stroop',
-    shortTip: 'Cor da tinta',
-    durationSec: 35,
+    shortTip: 'Toque na cor da tinta',
+    durationSec: 30,
   },
   {
     slug: 'go-nogo-reflex',
     domain: 'inhibitory_control',
     name: 'Reflexo Go / No-Go',
     shortTip: 'Toque só no verde',
-    durationSec: 35,
+    durationSec: 30,
+  },
+  {
+    slug: 'opposite-arrow',
+    domain: 'inhibitory_control',
+    name: 'Comando Oposto',
+    shortTip: 'Azul segue · Laranja inverte',
+    durationSec: 30,
+  },
+  {
+    slug: 'rule-switch',
+    domain: 'inhibitory_control',
+    name: 'Classificação por Regra',
+    shortTip: 'Siga a regra do topo',
+    durationSec: 30,
   },
 ];
 

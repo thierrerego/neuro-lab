@@ -15,16 +15,28 @@ export type DomainKey =
 export type GameSlug =
   | 'visual-search'
   | 'sustained-tracking'
+  | 'odd-one-out'
+  | 'flanker-focus'
   | 'spatial-span'
   | 'dual-n-back'
+  | 'memory-pairs'
+  | 'photo-recall'
   | 'raven-matrices'
   | 'path-logic'
+  | 'number-sequence'
+  | 'logic-intruder'
   | 'speed-match'
   | 'symbol-digit'
+  | 'schulte-order'
+  | 'flash-match'
   | 'chain-arithmetic'
   | 'number-comparison'
+  | 'target-sum'
+  | 'missing-operator'
   | 'stroop-conflict'
-  | 'go-nogo-reflex';
+  | 'go-nogo-reflex'
+  | 'opposite-arrow'
+  | 'rule-switch';
 
 export interface DomainMeta {
   key: DomainKey;
@@ -118,6 +130,10 @@ export interface ComputedSessionResult {
   rtSdMs: number;
   isPriorityDomain: boolean;
   domainDelta: number;
+  rawLevelScore?: number;    // 0..1000 dentro do nível jogado (sem corte do teto global)
+  targetRtMs?: number;       // tempo-alvo esperado do exercício + nível + faixa etária
+  hits?: number;
+  targetHits?: number;
 }
 
 export interface OnboardingProfileData {
@@ -157,6 +173,7 @@ export interface UserProfile {
   onboarding_answers: Record<string, unknown>;
   last_played_date: string | null;
   isLocalGuest?: boolean;
+  isAdmin?: boolean;
 }
 
 export interface DomainScoresRecord {

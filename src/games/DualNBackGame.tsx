@@ -12,16 +12,24 @@ const SYMBOLS = ['◆', '▲', '●', '■', '★', '✦'];
 function nextStimulus(history: Stimulus[], nBack: number): Stimulus {
   const canMatch = history.length >= nBack;
   const ref = canMatch ? history[history.length - nBack] : null;
-  const forceSame = Boolean(ref && Math.random() < 0.48);
+  const prev = history.length > 0 ? history[history.length - 1] : null;
+  const forceSame = Boolean(ref && Math.random() < 0.45);
 
   if (forceSame && ref) {
     return { pos: ref.pos, sym: ref.sym };
   }
 
-  let pos = Math.floor(Math.random() * 9);
-  if (ref && pos === ref.pos) {
-    pos = (pos + 1 + Math.floor(Math.random() * 8)) % 9;
-  }
+  // Quando não é match, evita repetir tanto o alvo N atrás quanto a posição imediatamente anterior
+  const forbidden = new Set<number>();
+  if (ref) forbidden.add(ref.pos);
+  if (prev) forbidden.add(prev.pos);
+
+  const candidates = Array.from({ length: 9 }, (_, i) => i).filter((p) => !forbidden.has(p));
+  const pos =
+    candidates.length > 0
+      ? candidates[Math.floor(Math.random() * candidates.length)]
+      : Math.floor(Math.random() * 9);
+
   return {
     pos,
     sym: SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)],
@@ -165,13 +173,13 @@ export function DualNBackGame({
               : `Compare com ${n} atrás`}
         </div>
         {showGhostHint && (
-          <span className="text-[11px] font-semibold" style={{ color: 'var(--text-soft)' }}>
+          <span className="text-xs font-semibold text-center" style={{ color: 'var(--text-muted)' }}>
             A marca pontilhada mostra onde estava o anterior
           </span>
         )}
       </div>
 
-      <div className="grid grid-cols-3 gap-2 w-full max-w-[235px]">
+      <div className="grid grid-cols-3 gap-2.5 w-full max-w-[248px]">
         {Array.from({ length: 9 }, (_, i) => {
           const active = current?.pos === i;
           const isGhost = showGhostHint && refStimulus?.pos === i;
@@ -186,18 +194,18 @@ export function DualNBackGame({
                     ? 'var(--accent-glow)'
                     : 'var(--bg-card)',
                 border: active
-                  ? '2px solid #ffffff'
+                  ? '2px solid var(--accent)'
                   : isGhost
                     ? '2px dashed var(--accent)'
                     : '1px solid var(--border)',
                 color: active ? '#ffffff' : 'var(--accent)',
-                boxShadow: active ? '0 0 22px var(--accent-glow)' : 'none',
+                boxShadow: active ? '0 8px 20px var(--accent-shadow)' : 'var(--card-shadow)',
               }}
             >
               {active ? (
                 current.sym
               ) : isGhost ? (
-                <span className="text-[10px] font-extrabold uppercase opacity-75">Ant.</span>
+                <span className="text-xs font-extrabold uppercase opacity-80">Ant.</span>
               ) : (
                 ''
               )}
@@ -206,11 +214,11 @@ export function DualNBackGame({
         })}
       </div>
 
-      <div className="grid grid-cols-2 gap-2.5 w-full max-w-[330px]">
+      <div className="grid grid-cols-2 gap-3 w-full max-w-[340px]">
         <button
           disabled={!canCompare || paused}
           onClick={() => answer(false)}
-          className="py-4 px-2 rounded-2xl font-extrabold text-xs sm:text-sm transition-all cursor-pointer disabled:opacity-35"
+          className="py-4 px-3 rounded-2xl font-bold text-sm transition-all cursor-pointer disabled:opacity-35"
           style={{
             background:
               flash?.kind === 'diff'
@@ -230,7 +238,7 @@ export function DualNBackGame({
         <button
           disabled={!canCompare || paused}
           onClick={() => answer(true)}
-          className="py-4 px-2 rounded-2xl font-extrabold text-xs sm:text-sm transition-all cursor-pointer disabled:opacity-35 btn-accent"
+          className="py-4 px-3 rounded-2xl font-bold text-sm transition-all cursor-pointer disabled:opacity-35 btn-accent"
           style={
             flash?.kind === 'same'
               ? {

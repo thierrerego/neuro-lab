@@ -100,50 +100,71 @@ export function AuthScreen({
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-8">
-      <div className="w-full max-w-[380px] flex flex-col gap-5">
+    <div className="min-h-screen flex items-center justify-center px-5 py-10">
+      <div className="w-full max-w-[420px] flex flex-col gap-6 animate-pop">
         <div className="flex justify-between items-center">
           <span
-            className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full"
-            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}
+            className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-full"
+            style={{
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border)',
+              color: 'var(--text-muted)',
+              boxShadow: 'var(--card-shadow)',
+            }}
           >
-            <span className="w-2 h-2 rounded-full" style={{ background: backendOnline ? 'var(--ok)' : 'var(--warn)' }} />
+            <span
+              className="w-2 h-2 rounded-full"
+              style={{ background: backendOnline ? 'var(--ok)' : 'var(--warn)' }}
+            />
             {backendOnline ? 'Supabase Local Ativo' : 'Modo Local'}
           </span>
           <button
             type="button"
             onClick={onToggleTheme}
-            className="w-8 h-8 rounded-lg flex items-center justify-center btn-soft cursor-pointer"
-            style={{ color: 'var(--text-muted)' }}
+            className="w-10 h-10 rounded-2xl flex items-center justify-center cursor-pointer transition-all"
+            style={{
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border)',
+              color: 'var(--text-muted)',
+              boxShadow: 'var(--card-shadow)',
+            }}
             title={theme === 'dark' ? 'Alternar para Modo Claro' : 'Alternar para Modo Escuro'}
           >
-            {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
           </button>
         </div>
 
         <div className="text-center py-2">
           <div
-            className="w-12 h-12 mx-auto rounded-xl flex items-center justify-center font-black text-2xl mb-3"
-            style={{ background: 'var(--accent-grad)', color: 'var(--btn-fg)' }}
+            className="w-16 h-16 mx-auto rounded-[20px] flex items-center justify-center font-extrabold text-3xl mb-4"
+            style={{
+              background: 'var(--accent-grad)',
+              color: 'var(--btn-fg)',
+              boxShadow: '0 10px 26px var(--accent-shadow)',
+            }}
           >
             N
           </div>
-          <h1 className="text-2xl font-extrabold tracking-tight">NeuroLab</h1>
-          <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+          <h1 className="text-3xl font-extrabold tracking-tight">NeuroLab</h1>
+          <p className="text-sm mt-1.5 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
             Treinamento cognitivo científico e acompanhamento psicométrico
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="surface-card p-4 flex flex-col gap-3">
-          <div className="grid grid-cols-2 gap-1 p-1 rounded-xl" style={{ background: 'var(--bg)' }}>
+        <form onSubmit={handleSubmit} className="surface-card p-6 flex flex-col gap-4">
+          <div className="grid grid-cols-2 gap-1 p-1.5 rounded-2xl" style={{ background: 'var(--bg-subtle)' }}>
             <button
               type="button"
               onClick={() => {
                 setIsSignUp(false);
                 setError('');
               }}
-              className={`py-2 rounded-lg text-xs font-bold cursor-pointer transition-all ${!isSignUp ? 'btn-accent' : ''}`}
-              style={!isSignUp ? undefined : { color: 'var(--text-muted)' }}
+              className="py-2.5 rounded-xl text-sm font-bold cursor-pointer transition-all"
+              style={{
+                background: !isSignUp ? 'var(--bg-card)' : 'transparent',
+                color: !isSignUp ? 'var(--accent)' : 'var(--text-muted)',
+                boxShadow: !isSignUp ? 'var(--card-shadow)' : 'none',
+              }}
             >
               Entrar
             </button>
@@ -153,8 +174,12 @@ export function AuthScreen({
                 setIsSignUp(true);
                 setError('');
               }}
-              className={`py-2 rounded-lg text-xs font-bold cursor-pointer transition-all ${isSignUp ? 'btn-accent' : ''}`}
-              style={isSignUp ? undefined : { color: 'var(--text-muted)' }}
+              className="py-2.5 rounded-xl text-sm font-bold cursor-pointer transition-all"
+              style={{
+                background: isSignUp ? 'var(--bg-card)' : 'transparent',
+                color: isSignUp ? 'var(--accent)' : 'var(--text-muted)',
+                boxShadow: isSignUp ? 'var(--card-shadow)' : 'none',
+              }}
             >
               Criar conta
             </button>
@@ -162,8 +187,8 @@ export function AuthScreen({
 
           <div className="relative">
             <User
-              size={15}
-              className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
+              size={18}
+              className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
               style={{ color: 'var(--text-soft)' }}
             />
             <input
@@ -174,15 +199,19 @@ export function AuthScreen({
               placeholder="Usuário (ex: thierre)"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full pl-9 pr-3.5 py-2.5 rounded-xl text-sm outline-none"
-              style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)' }}
+              className="w-full pl-11 pr-4 py-3.5 rounded-2xl text-[15px] outline-none"
+              style={{
+                background: 'var(--bg-subtle)',
+                border: '1px solid var(--border)',
+                color: 'var(--text)',
+              }}
             />
           </div>
 
           <div className="relative">
             <Lock
-              size={15}
-              className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
+              size={18}
+              className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
               style={{ color: 'var(--text-soft)' }}
             />
             <input
@@ -191,13 +220,17 @@ export function AuthScreen({
               placeholder="Senha (mín. 6 caracteres)"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full pl-9 pr-3.5 py-2.5 rounded-xl text-sm outline-none"
-              style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)' }}
+              className="w-full pl-11 pr-4 py-3.5 rounded-2xl text-[15px] outline-none"
+              style={{
+                background: 'var(--bg-subtle)',
+                border: '1px solid var(--border)',
+                color: 'var(--text)',
+              }}
             />
           </div>
 
           {error && (
-            <div className="text-xs font-medium text-center px-2" style={{ color: 'var(--err)' }}>
+            <div className="text-sm font-medium text-center px-2" style={{ color: 'var(--err)' }}>
               {error}
             </div>
           )}
@@ -205,26 +238,28 @@ export function AuthScreen({
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 rounded-xl font-bold text-sm btn-accent cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full min-h-[54px] py-4 rounded-2xl font-bold text-[15px] btn-accent cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            <ShieldCheck size={15} />
+            <ShieldCheck size={18} />
             <span>{loading ? 'Conectando...' : isSignUp ? 'Criar conta e iniciar' : 'Entrar'}</span>
           </button>
 
-          <p className="text-[11px] text-center leading-snug" style={{ color: 'var(--text-soft)' }}>
+          <p className="text-xs text-center leading-relaxed" style={{ color: 'var(--text-soft)' }}>
             Dados salvos no seu banco local e sincronizados entre dispositivos.
           </p>
         </form>
 
+        {/* Acesso rápido 100% local (0 consumo Supabase) como Teste ADM + 7 perfis fictícios */}
         <button
           type="button"
           onClick={onGuestLogin}
-          className="w-full py-3 rounded-xl font-semibold text-xs btn-soft cursor-pointer"
+          className="w-full min-h-[54px] py-4 px-5 rounded-2xl font-bold text-sm btn-accent flex items-center justify-center gap-2.5 cursor-pointer"
         >
-          Continuar sem conta (salvar apenas neste aparelho)
+          <ShieldCheck size={18} className="shrink-0" />
+          <span>Entrar como Teste ADM (Base Local · 8 perfis)</span>
         </button>
 
-        <p className="text-[11px] text-center" style={{ color: 'var(--text-soft)' }}>
+        <p className="text-xs text-center" style={{ color: 'var(--text-soft)' }}>
           Treinamento cognitivo pessoal · Sem finalidade diagnóstica médica
         </p>
       </div>

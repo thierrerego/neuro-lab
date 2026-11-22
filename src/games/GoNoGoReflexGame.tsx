@@ -195,16 +195,16 @@ export function GoNoGoReflexGame({
       >
         {trial ? (
           trial.isGo ? (
-            <div className="w-24 h-24 rounded-full flex items-center justify-center text-4xl font-black animate-pop" style={{ background: '#10b981', color: '#052e16', boxShadow: '0 0 32px rgba(16,185,129,0.55)' }}>
+            <div className="w-24 h-24 rounded-full flex items-center justify-center text-4xl font-black animate-pop" style={{ background: '#10B981', color: '#FFFFFF', boxShadow: '0 8px 28px rgba(16,185,129,0.45)' }}>
               GO
             </div>
           ) : (
-            <div className="w-24 h-24 rounded-2xl flex items-center justify-center text-4xl font-black animate-pop" style={{ background: '#f43f5e', color: '#fff', boxShadow: '0 0 32px rgba(244,63,94,0.55)' }}>
+            <div className="w-24 h-24 rounded-2xl flex items-center justify-center text-4xl font-black animate-pop" style={{ background: '#EF4444', color: '#FFFFFF', boxShadow: '0 8px 28px rgba(239,68,68,0.42)' }}>
               ✕
             </div>
           )
         ) : (
-          <span className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--text-soft)' }}>
+          <span className="text-sm font-bold uppercase tracking-wider" style={{ color: 'var(--text-soft)' }}>
             {feedback === 'impulsive' ? 'Impulsivo!' : feedback === 'missed' ? 'Passou!' : 'Aguarde...'}
           </span>
         )}

@@ -16,12 +16,23 @@ import type {
 import { DOMAIN_LIST, GAMES_BY_DOMAIN } from './gameRegistry';
 import { TOTAL_WAVE_HITS } from './waveEngine';
 
-export const AGE_BRACKET_OPTIONS: { id: AgeBracket; label: string; meanOffset: number }[] = [
-  { id: '18-24', label: '18–24 anos', meanOffset: 14 },
-  { id: '25-34', label: '25–34 anos', meanOffset: 0 },
-  { id: '35-44', label: '35–44 anos', meanOffset: -10 },
-  { id: '45-54', label: '45–54 anos', meanOffset: -20 },
-  { id: '55+', label: '55+ anos', meanOffset: -32 },
+/**
+ * Faixas etárias calibradas com fatores de velocidade da literatura psicométrica
+ * (Deary & Der 2005; Salthouse 2009; Tombaugh 2004):
+ * - rtFactor ajusta o tempo de reação esperado à idade (evita penalizar faixas 35+/55+)
+ * - meanOffset ajusta a mediana normativa da curva daquela década de vida
+ */
+export const AGE_BRACKET_OPTIONS: {
+  id: AgeBracket;
+  label: string;
+  meanOffset: number;
+  rtFactor: number;
+}[] = [
+  { id: '18-24', label: '18–24 anos', meanOffset: 16, rtFactor: 0.94 },
+  { id: '25-34', label: '25–34 anos', meanOffset: 0, rtFactor: 1.0 },
+  { id: '35-44', label: '35–44 anos', meanOffset: -12, rtFactor: 1.07 },
+  { id: '45-54', label: '45–54 anos', meanOffset: -24, rtFactor: 1.15 },
+  { id: '55+', label: '55+ anos', meanOffset: -38, rtFactor: 1.25 },
 ];
 
 export function getAgeBracketMeta(bracket?: AgeBracket | string | null) {
@@ -31,6 +42,16 @@ export function getAgeBracketMeta(bracket?: AgeBracket | string | null) {
 /** Converte escala interna (0..1000) em porcentagem limpa (0..100%) */
 export function scoreToPercent(score: number): number {
   return Math.max(0, Math.min(100, Math.round(score / 10)));
+}
+
+/**
+ * Teto progressivo de pontuação por nível (0..1000) distribuído em 20 níveis:
+ * - Nível 1 (ultrabásico): teto 600 (60%), diferenciando pela velocidade.
+ * - Sobe ~20 pontos por nível até 1000 (100%) no Nível 20.
+ */
+export function getStageScoreCeiling(level: number): number {
+  const safe = Math.max(1, Math.min(20, Math.floor(level)));
+  return Math.min(1000, Math.round(600 + ((safe - 1) / 19) * 400));
 }
 
 /** As 7 faixas de classificação cognitiva (0 a 1000 pontos) */
@@ -68,14 +89,14 @@ export const COGNITIVE_TIERS: CognitiveTier[] = [
     title: 'Tático',
     subtitle: 'Alta precisão e agilidade consistente',
     minScore: 720,
-    accentColor: '#818cf8',
+    accentColor: '#6366f1',
   },
   {
     tierIndex: 6,
     title: 'Referência Cognitiva',
     subtitle: 'Entre os 10% melhores da faixa etária',
     minScore: 830,
-    accentColor: '#a78bfa',
+    accentColor: '#8b5cf6',
   },
   {
     tierIndex: 7,
@@ -93,10 +114,6 @@ export function getCognitiveTier(score: number): CognitiveTier {
   return COGNITIVE_TIERS[0];
 }
 
-/**
- * Distribuição Normal Acumulada (CDF) — Abramowitz & Stegun (erro < 1.5e-7)
- * Recalibrada: média μ = 500 (50%), σ = 235 (<200 -> <10%, 750 -> ~85%, 900+ -> Top 5%).
- */
 export function normalCDF(x: number, mean = 500, sd = 235): number {
   const safeSd = Math.max(50, sd);
   const z = (x - mean) / (safeSd * Math.SQRT2);
@@ -114,52 +131,69 @@ export function normalCDF(x: number, mean = 500, sd = 235): number {
 }
 
 /**
- * Converte Score (0..1000) em Percentil realista (1.0% a 99.9%) com regra Anti-Chute.
+ * Percentil específico daquele exercício naquele nível e faixa etária:
+ * - Calibrado com logs reais: ir lento (~2x alvo) fica em ~35–55%, ritmo médio (~1x alvo) em ~55–68%,
+ *   rápido (~0.65x) em ~85–92%, e extremo (~0.5x) em ~95–99%.
  */
 export function scoreToPercentile(
-  score: number,
-  baseStage = 0,
+  levelScore: number,
+  baseStage = 1,
   accuracyPct = 100,
   correctCount = 1,
   ageBracket?: AgeBracket | string | null
 ): number {
-  if (correctCount <= 0 || score <= 0) return 1.0;
+  if (correctCount <= 0 || levelScore <= 0) return 1.0;
   if (accuracyPct < 50) {
     const capped = 1.0 + (Math.max(0, accuracyPct) / 50) * 4.0;
     return Number(Math.max(1.0, Math.min(5.0, capped)).toFixed(1));
   }
 
   const ageOffset = getAgeBracketMeta(ageBracket).meanOffset;
-  const mean = 500 + ageOffset;
-  let rawPct = normalCDF(score, mean, 235) * 100;
+  const levelBaseMean = baseStage <= 1 ? 690 : baseStage <= 5 ? 660 : 635;
+  const mean = levelBaseMean + Math.round(ageOffset * 0.4);
+  const sd = 145;
 
-  const stageCap =
-    baseStage <= 0 ? 89.5 : baseStage === 1 ? 92.5 : baseStage === 2 ? 95.0 : baseStage <= 4 ? 97.5 : 99.9;
-  rawPct = Math.min(rawPct, stageCap);
-
-  const clamped = Math.max(1.0, Math.min(99.9, rawPct));
+  const rawPct = normalCDF(levelScore, mean, sd) * 100;
+  const clamped = Math.max(1.0, Math.min(99.5, rawPct));
   return Number(clamped.toFixed(1));
 }
 
-/** Tempo-alvo de referência (ms) por exercício e nível base */
-export function getTargetRtMs(slug: GameSlug, baseStage: number): number {
+/** Tempo-alvo de referência (ms) calibrado por exercício, nível e faixa etária (literatura psicométrica) */
+export function getTargetRtMs(
+  slug: GameSlug,
+  baseStage: number,
+  ageBracket?: AgeBracket | string | null
+): number {
   const baseByGame: Record<GameSlug, number> = {
-    'go-nogo-reflex': 620,
-    'speed-match': 780,
-    'stroop-conflict': 960,
-    'symbol-digit': 1150,
-    'visual-search': 1250,
-    'dual-n-back': 1250,
-    'number-comparison': 1420,
-    'spatial-span': 1350,
-    'sustained-tracking': 1450,
-    'path-logic': 1380,
-    'chain-arithmetic': 1750,
-    'raven-matrices': 2750,
+    'go-nogo-reflex': 430,
+    'schulte-order': 650,
+    'flanker-focus': 720,
+    'spatial-span': 750,
+    'speed-match': 850,
+    'memory-pairs': 900,
+    'sustained-tracking': 900,
+    'path-logic': 950,
+    'stroop-conflict': 1050,
+    'photo-recall': 1100,
+    'odd-one-out': 1150,
+    'visual-search': 1150,
+    'opposite-arrow': 1150,
+    'rule-switch': 1350,
+    'number-comparison': 1350,
+    'symbol-digit': 1400,
+    'flash-match': 1450,
+    'logic-intruder': 1450,
+    'dual-n-back': 1550,
+    'missing-operator': 1650,
+    'chain-arithmetic': 1850,
+    'number-sequence': 2100,
+    'target-sum': 2200,
+    'raven-matrices': 2400,
   };
   const base = baseByGame[slug] ?? 1200;
-  const safeStage = Math.max(0, baseStage);
-  return Math.max(440, Math.round(base * (1 - Math.min(0.24, safeStage * 0.025))));
+  const d = Math.max(0, baseStage - 1);
+  const ageFactor = getAgeBracketMeta(ageBracket).rtFactor;
+  return Math.max(440, Math.round(base * ageFactor * (1 - Math.min(0.24, d * 0.022))));
 }
 
 export function computeReactionStats(times: number[]): { mean: number; sd: number } {
@@ -174,7 +208,10 @@ export function computeReactionStats(times: number[]): { mean: number; sd: numbe
 }
 
 /**
- * Motor Psicométrico Anti-Chute (0 a 1000) — 60% Assertividade / 40% Tempo Condicional.
+ * Motor Psicométrico em Curva de Flow (Nível 1+):
+ * - No Nível 1 (ultrabásico), gabaritar é natural e a VELOCIDADE diferencia a pontuação (teto 70%).
+ * - Cada nível seguinte aumenta a dificuldade suavemente e libera tetos maiores até 100%.
+ * - Regra Anti-Chute mantida: assertividade < 50% bloqueia bônus de velocidade.
  */
 export function evaluateSession(params: {
   domain: DomainKey;
@@ -202,7 +239,7 @@ export function evaluateSession(params: {
     ageBracket,
   } = params;
 
-  const safeBaseStage = Math.max(0, Math.floor(baseStage));
+  const safeBaseStage = Math.max(1, Math.floor(baseStage));
   const totalAttempts = perf.correct + perf.commissionErrors + perf.omissionErrors;
   const accuracyPct =
     totalAttempts > 0 ? Number(((perf.correct / totalAttempts) * 100).toFixed(1)) : 0;
@@ -215,73 +252,93 @@ export function evaluateSession(params: {
 
   const failedAccuracyGate = perf.correct <= 0 || accuracyPct < 50;
 
-  // 1. Assertividade (60% — máx. 600 pts) ponderada pelo avanço nas 5 ondas
+  // No Nível 1 ultrabásico, velocidade tem peso maior (55%) porque quase todos gabaritam.
+  // Nos níveis mais altos, volta ao equilíbrio 60% precisão / 40% velocidade.
+  const isBasicLevel = safeBaseStage === 1;
+  const maxAccPts = isBasicLevel ? 450 : 600;
+  const maxSpdPts = isBasicLevel ? 550 : 400;
+
+  const targetHits = Math.max(1, wave.totalTargetHits || TOTAL_WAVE_HITS);
   const netAccuracyRatio =
     totalAttempts > 0
       ? Math.max(0, (perf.correct - perf.commissionErrors * 0.35) / totalAttempts)
       : 0;
-  const waveProgressRatio = Math.min(1, wave.totalHits / TOTAL_WAVE_HITS);
-  const waveWeight = 0.25 + 0.75 * waveProgressRatio;
+  const progressRatio = Math.min(1, wave.totalHits / targetHits);
+  const progressWeight = 0.28 + 0.72 * progressRatio;
 
   const accuracyPoints =
     perf.correct <= 0
       ? 0
       : failedAccuracyGate
-        ? Math.min(190, Math.round(netAccuracyRatio * 380 * waveWeight))
-        : Math.min(600, Math.round(netAccuracyRatio * 600 * waveWeight));
+        ? Math.min(190, Math.round(netAccuracyRatio * 360 * progressWeight))
+        : Math.min(maxAccPts, Math.round(netAccuracyRatio * maxAccPts * progressWeight));
 
-  // 2. Velocidade & Conclusão Antecipada (40% — máx. 400 pts) com Gate Condicional
+  const targetRt = getTargetRtMs(gameSlug, safeBaseStage, ageBracket);
   let speedPoints = 0;
   let earlyBonusPoints = 0;
 
   if (!failedAccuracyGate) {
-    const targetRt = getTargetRtMs(gameSlug, safeBaseStage);
-    let rtRatio = 0.55;
+    let rtRatio = 0.45;
     if (rtMeanMs > 0) {
-      const fastBound = targetRt * 0.58;
-      const slowBound = targetRt * 2.5;
+      // Curva sensível à velocidade real:
+      // - 0.50x do alvo -> 1.00 (extremo)
+      // - 1.00x do alvo -> ~0.50 (ritmo médio)
+      // - >= 1.95x do alvo -> 0.04 (muito lento)
+      const fastBound = targetRt * 0.5;
+      const slowBound = targetRt * 1.95;
       const norm = (slowBound - rtMeanMs) / (slowBound - fastBound);
-      rtRatio = Math.max(0.1, Math.min(1, 0.1 + norm * 0.9));
+      const clampedNorm = Math.max(0, Math.min(1, norm));
+      rtRatio = 0.04 + Math.pow(clampedNorm, 1.35) * 0.96;
     }
-    const rawRtPoints = Math.round(rtRatio * 290 * (0.35 + 0.65 * waveProgressRatio));
 
+    const rtShare = Math.round(maxSpdPts * 0.78);
+    const earlyShare = maxSpdPts - rtShare;
+
+    const rawRtPoints = Math.round(rtRatio * rtShare * (0.35 + 0.65 * progressRatio));
     const savedTimeRatio =
       completedEarly && totalDurationMs > 0
         ? Math.min(1, safeRemainingMs / totalDurationMs)
         : 0;
+    // Bônus de tempo economizado ponderado pelo ritmo real (evita inflar nota quando o RT foi lento)
     const rawEarlyBonus = completedEarly
-      ? Math.max(25, Math.round(40 + savedTimeRatio * 70))
+      ? Math.round(earlyShare * savedTimeRatio * (0.25 + 0.75 * rtRatio))
       : 0;
 
-    const rawSpeedTotal = Math.min(400, rawRtPoints + rawEarlyBonus);
-
-    const accFactor = accuracyPct >= 100 ? 1 : Math.pow(accuracyPct / 100, 2);
-    speedPoints = Math.min(400, Math.round(rawSpeedTotal * accFactor));
+    const rawSpeedTotal = Math.min(maxSpdPts, rawRtPoints + rawEarlyBonus);
+    const accFactor = accuracyPct >= 95 ? 1 : Math.pow(accuracyPct / 100, 1.8);
+    speedPoints = Math.min(maxSpdPts, Math.round(rawSpeedTotal * accFactor));
     earlyBonusPoints = Math.round(rawEarlyBonus * accFactor);
   }
 
-  const speedScore = Math.round((speedPoints / 400) * 100);
+  const speedScore = Math.round((speedPoints / maxSpdPts) * 100);
 
-  // 3. Pontuação Final (0 a 1000) com teto suave no Nível Zero
-  const stageScale = Math.min(1.0, 0.86 + safeBaseStage * 0.03);
-  const rawCombined = accuracyPoints + speedPoints;
+  // Aplica o teto progressivo por nível no score global (Nível 1 = até 70% ... Nível 8+ = até 100%),
+  // mas calcula o percentil específico DO NÍVEL usando o desempenho bruto (rawCombined 0..1000)!
+  const levelCeiling = getStageScoreCeiling(safeBaseStage);
+  const rawCombined = Math.min(1000, accuracyPoints + speedPoints);
   const finalScore =
     perf.correct <= 0
       ? 0
-      : Math.max(0, Math.min(1000, Math.round(rawCombined * (failedAccuracyGate ? 1 : stageScale))));
+      : failedAccuracyGate
+        ? Math.min(240, rawCombined)
+        : Math.max(0, Math.min(levelCeiling, Math.round((rawCombined / 1000) * levelCeiling)));
 
   const performanceIndex = scoreToPercent(finalScore);
-  const percentile = scoreToPercentile(finalScore, safeBaseStage, accuracyPct, perf.correct, ageBracket);
+  const percentile = scoreToPercentile(rawCombined, safeBaseStage, accuracyPct, perf.correct, ageBracket);
   const tier = getCognitiveTier(finalScore);
 
-  // 4. Regra de Evolução Permanente do estágio base (piso 0)
+  // Evolução de nível suave e motivadora (piso = Nível 1, sobe com facilidade para dar sensação de progresso)
   let adaptiveDelta = 0;
   let adaptiveStatus: AdaptiveStatus = 'hold';
   let stageCleared = false;
 
-  if (wavesCompleted === 5 && accuracyPct >= 80) {
+  const passedBasicComfort =
+    safeBaseStage <= 2 && wave.totalHits >= Math.ceil(targetHits * 0.75) && accuracyPct >= 80;
+  const passedFull = (wavesCompleted === 5 || wave.isCleared) && accuracyPct >= 80;
+
+  if (passedFull || passedBasicComfort) {
     stageCleared = true;
-    if (accuracyPct === 100 && completedEarly && safeBaseStage >= 1 && finalScore >= 860) {
+    if (accuracyPct === 100 && completedEarly && safeBaseStage >= 2 && speedScore >= 85) {
       adaptiveDelta = 2;
       adaptiveStatus = 'fast_track';
     } else {
@@ -290,7 +347,7 @@ export function evaluateSession(params: {
     }
   } else if (failedAccuracyGate) {
     stageCleared = false;
-    if (safeBaseStage > 0) {
+    if (safeBaseStage > 1) {
       adaptiveDelta = -1;
       adaptiveStatus = 'step_down';
     } else {
@@ -303,18 +360,18 @@ export function evaluateSession(params: {
     stageCleared = false;
   }
 
-  const nextStage = Math.max(0, safeBaseStage + adaptiveDelta);
+  const nextStage = Math.max(1, Math.min(20, safeBaseStage + adaptiveDelta));
   const isPriorityDomain = weakestTwoDomains.includes(domain);
 
-  // Evolução do domínio (escala 120..999)
+  // Evolução motivadora do domínio (cresce visivelmente quando o usuário avança de nível)
   const domainDelta =
     perf.correct <= 0
-      ? -18
+      ? -12
       : failedAccuracyGate
-        ? -14
+        ? -10
         : stageCleared
-          ? Math.min(28, 12 + Math.round(Math.max(0, finalScore - 500) / 28))
-          : 4;
+          ? Math.min(28, 14 + Math.round(Math.max(0, finalScore - 420) / 30))
+          : 5;
 
   return {
     domain,
@@ -346,17 +403,23 @@ export function evaluateSession(params: {
     rtSdMs,
     isPriorityDomain,
     domainDelta,
+    rawLevelScore: rawCombined,
+    targetRtMs: targetRt,
+    hits: wave.totalHits,
+    targetHits,
   };
 }
 
 export function calculateGlobalCognitiveIndex(scores: DomainScoresRecord): number {
-  const sum = DOMAIN_LIST.reduce((acc, d) => acc + (scores[d.key] ?? 500), 0);
-  return Math.round(sum / DOMAIN_LIST.length);
+  const measured = DOMAIN_LIST.map((d) => scores[d.key] ?? 0).filter((v) => v > 0);
+  if (measured.length === 0) return 0;
+  const sum = measured.reduce((acc, v) => acc + v, 0);
+  return Math.round(sum / measured.length);
 }
 
 export function getWeakestDomains(scores: DomainScoresRecord, count = 2): DomainKey[] {
   return [...DOMAIN_LIST]
-    .sort((a, b) => (scores[a.key] ?? 500) - (scores[b.key] ?? 500))
+    .sort((a, b) => (scores[a.key] ?? 0) - (scores[b.key] ?? 0))
     .slice(0, count)
     .map((d) => d.key);
 }
@@ -382,14 +445,14 @@ export function getDailyGamesCount(dailyGoalMinutes?: number): number {
   return 5;
 }
 
-/**
- * Motivo técnico curto exibido no card da Sessão Guiada do Dia.
- */
 export function getProtocolReason(
   role: 'weak' | 'priority' | 'maintenance',
   indexInQueue: number,
   domainScore: number
 ): string {
+  if (domainScore <= 0) {
+    return 'Linha de base: primeira medição neste domínio (30s)';
+  }
   if (role === 'maintenance') {
     return 'Manutenção: consolidação de domínio já elevado';
   }
@@ -417,7 +480,7 @@ const PAIR_INSIGHTS: Record<string, NeuroInsight> = {
   },
   'fluid_reasoning+working_memory': {
     tag: 'Rede Frontoparietal',
-    text: 'Sustentar regras ativas na memória de trabalho amplia a capacidade de inferência lógica sob alta carga cognitiva.',
+    text: 'Sustentar informações ativas na memória amplia a capacidade de inferência lógica sob pressão.',
   },
   'processing_speed+selective_attention': {
     tag: 'Eficiência Visuoespacial',
@@ -425,7 +488,7 @@ const PAIR_INSIGHTS: Record<string, NeuroInsight> = {
   },
   'numerical_cognition+working_memory': {
     tag: 'Sulco Intraparietal',
-    text: 'O cálculo mental encadeado recruta o sulco intraparietal junto ao executivo central, fortalecendo a retenção ativa.',
+    text: 'O cálculo mental encadeado recruta o sulco intraparietal junto à memória, fortalecendo a retenção ativa.',
   },
   'inhibitory_control+processing_speed': {
     tag: 'Controle Executivo',
@@ -441,7 +504,7 @@ const PAIR_INSIGHTS: Record<string, NeuroInsight> = {
   },
   'selective_attention+working_memory': {
     tag: 'Estabilidade de Foco',
-    text: 'Filtrar estímulos irrelevantes protege a capacidade limitada da memória de trabalho contra interferência externa.',
+    text: 'Filtrar estímulos irrelevantes protege a capacidade de memória contra interferência externa.',
   },
 };
 
@@ -451,8 +514,8 @@ const SINGLE_DOMAIN_INSIGHTS: Record<DomainKey, NeuroInsight> = {
     text: 'Sessões curtas e frequentes de busca visual aumentam o ganho sinal-ruído na rede atencional frontoparietal.',
   },
   working_memory: {
-    tag: 'Memória de Trabalho',
-    text: 'Atualizar sequências sob carga progressiva estimula a plasticidade funcional no córtex pré-frontal e parietal posterior.',
+    tag: 'Memória Visual & Operacional',
+    text: 'Combinar recordação visual de pares e atualização sequencial estimula tanto o hipocampo quanto o córtex pré-frontal.',
   },
   fluid_reasoning: {
     tag: 'Raciocínio Fluido',
@@ -472,9 +535,6 @@ const SINGLE_DOMAIN_INSIGHTS: Record<DomainKey, NeuroInsight> = {
   },
 };
 
-/**
- * Seleciona uma nota curta e embasada de neurociência alinhada aos domínios do treino do dia.
- */
 export function getDailyNeuroInsight(domains: DomainKey[], dateStr: string): NeuroInsight {
   const unique = Array.from(new Set(domains));
   for (let i = 0; i < unique.length; i++) {
@@ -488,9 +548,6 @@ export function getDailyNeuroInsight(domains: DomainKey[], dateStr: string): Neu
   return SINGLE_DOMAIN_INSIGHTS[fallbackDomain];
 }
 
-/**
- * Gera a fila diária priorizando automaticamente os domínios com menor percentual atual (treino de déficit).
- */
 export function buildTrainingQueue(
   scores: DomainScoresRecord,
   dateStr: string,
@@ -508,7 +565,7 @@ export function buildTrainingQueue(
 
   if (focusMode === 'goals') {
     const chosen = selectedDomains?.length ? selectedDomains : DOMAIN_LIST.map((d) => d.key);
-    const orderedGoals = [...chosen].sort((a, b) => (scores[a] ?? 500) - (scores[b] ?? 500));
+    const orderedGoals = [...chosen].sort((a, b) => (scores[a] ?? 0) - (scores[b] ?? 0));
     const result: DailyProtocolRecord['recommended_games'] = [];
     const usedSlugs = new Set<GameSlug>();
 
@@ -525,7 +582,7 @@ export function buildTrainingQueue(
     return result;
   }
 
-  const rankedWeak = [...DOMAIN_LIST].sort((a, b) => (scores[a.key] ?? 500) - (scores[b.key] ?? 500));
+  const rankedWeak = [...DOMAIN_LIST].sort((a, b) => (scores[a.key] ?? 0) - (scores[b.key] ?? 0));
   const hasMaintenance = totalGames >= 3;
   const focusCount = hasMaintenance ? totalGames - 1 : totalGames;
 

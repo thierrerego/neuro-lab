@@ -36,32 +36,32 @@ export function CalibrationScreen({
   };
 
   return (
-    <div className="flex flex-col gap-5 py-2 animate-pop">
-      <div className="surface-card p-5 text-center flex flex-col items-center gap-3">
+    <div className="flex flex-col gap-6 py-2 animate-pop">
+      <div className="surface-card p-6 text-center flex flex-col items-center gap-3.5">
         <div
-          className="w-12 h-12 rounded-xl flex items-center justify-center"
-          style={{ background: 'var(--accent-glow)', border: '1px solid var(--border-strong)', color: 'var(--accent)' }}
+          className="w-14 h-14 rounded-2xl flex items-center justify-center"
+          style={{ background: 'var(--accent-glow)', color: 'var(--accent)' }}
         >
-          <ShieldCheck size={24} />
+          <ShieldCheck size={28} />
         </div>
 
-        <h2 className="text-lg font-extrabold tracking-tight">Avaliação de Linha de Base</h2>
-        <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-          Bateria objetiva com <strong>{totalCount} exercícios curtos</strong> (1 por domínio) para medir seu estado inicial, tempo de reação e definir as prioridades do protocolo diário.
+        <h2 className="text-2xl font-extrabold tracking-tight">Avaliação de Linha de Base</h2>
+        <p className="text-sm leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+          Bateria objetiva com <strong style={{ color: 'var(--text)' }}>{totalCount} exercícios de 30s</strong> (1 por domínio) para medir sua linha de base real e personalizar seu protocolo diário.
         </p>
 
-        <div className="w-full h-1.5 rounded-full overflow-hidden mt-1" style={{ background: 'var(--bg-subtle)' }}>
+        <div className="w-full h-2.5 rounded-full overflow-hidden mt-1" style={{ background: 'var(--bg-subtle)' }}>
           <div
             className="h-full rounded-full transition-all duration-300"
-            style={{ width: `${(doneCount / totalCount) * 100}%`, background: 'var(--accent)' }}
+            style={{ width: `${(doneCount / totalCount) * 100}%`, background: 'var(--accent-grad)' }}
           />
         </div>
-        <div className="text-[11px] font-semibold tabular" style={{ color: 'var(--accent)' }}>
+        <div className="text-xs font-bold tabular" style={{ color: 'var(--accent)' }}>
           {doneCount} de {totalCount} concluídos
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-3">
         {activeDomains.map((domKey, i) => {
           const dom = DOMAIN_MAP[domKey];
           const game = GAME_MAP[dom.calibrationGame];
@@ -73,22 +73,25 @@ export function CalibrationScreen({
               key={domKey}
               type="button"
               onClick={() => onStartGame(game.slug, i + 1, totalCount, dom.shortName)}
-              className="surface-card surface-card-click p-3 flex items-center gap-2.5 text-left cursor-pointer"
+              className="surface-card surface-card-click p-4 flex items-center gap-3 text-left cursor-pointer"
               style={{ borderColor: done ? 'rgba(16, 185, 129, 0.45)' : undefined }}
             >
               <div
-                className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
-                style={{ background: `${dom.color}1a`, color: dom.color }}
+                className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0"
+                style={{ background: `${dom.color}16`, color: dom.color }}
               >
-                <GameIcon slug={game.slug} size={17} />
+                <GameIcon slug={game.slug} size={20} />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-xs font-bold truncate">{dom.shortName}</div>
-                <div className="text-[10px] font-medium truncate" style={{ color: done ? 'var(--ok)' : 'var(--text-soft)' }}>
+                <div className="text-sm font-bold truncate">{dom.shortName}</div>
+                <div
+                  className="text-xs font-medium truncate mt-0.5"
+                  style={{ color: done ? 'var(--ok)' : 'var(--text-soft)' }}
+                >
                   {done && doneScore ? `Base ${scoreToPercent(doneScore)}%` : game.name}
                 </div>
               </div>
-              {done && <Check size={14} strokeWidth={2.5} style={{ color: 'var(--ok)' }} />}
+              {done && <Check size={17} strokeWidth={2.8} style={{ color: 'var(--ok)' }} className="shrink-0" />}
             </button>
           );
         })}
@@ -97,9 +100,9 @@ export function CalibrationScreen({
       <button
         type="button"
         onClick={launchNext}
-        className="w-full py-3.5 rounded-xl font-bold text-sm btn-accent flex items-center justify-center gap-2 cursor-pointer"
+        className="w-full min-h-[54px] py-4 px-5 rounded-2xl font-bold text-[15px] btn-accent flex items-center justify-center gap-2.5 cursor-pointer"
       >
-        <Play size={15} fill="currentColor" />
+        <Play size={18} fill="currentColor" />
         <span>
           {allDone
             ? 'Abrir Dossiê Cognitivo'
@@ -113,10 +116,10 @@ export function CalibrationScreen({
         <button
           type="button"
           onClick={onSkipCalibration}
-          className="mx-auto py-1.5 px-3 text-[11px] font-medium cursor-pointer opacity-70 hover:opacity-100 transition-opacity"
+          className="mx-auto py-2 px-4 text-xs font-semibold cursor-pointer opacity-80 hover:opacity-100 transition-opacity"
           style={{ color: 'var(--text-soft)' }}
         >
-          Pular por agora (iniciar no Nível 0)
+          Pular por agora (iniciar no Nível 1)
         </button>
       )}
     </div>

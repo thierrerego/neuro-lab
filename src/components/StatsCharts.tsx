@@ -33,9 +33,10 @@ import {
   percentileToTopPercent,
 } from '../engine/cognitiveProfiler';
 import { getAgeBracketMeta, scoreToPercent } from '../engine/psychometricEngine';
+import { getAppNow } from '../lib/appClock';
 
 /* ============================================================================
-   1. GRÁFICO DE RADAR MINIMALISTA (Linha de Base vs. Atual vs. Média da Faixa)
+   1. GRÁFICO DE RADAR (Linha de Base vs. Atual vs. Média da Faixa)
    ============================================================================ */
 export function ComparativeRadarChart({
   scores,
@@ -60,68 +61,67 @@ export function ComparativeRadarChart({
         return {
           domain: d.shortName,
           fullName: d.name,
-          Base: scoreToPercent(scores.baseline_scores?.[d.key] ?? 500),
-          Atual: scoreToPercent(scores[d.key] ?? 500),
+          Base: scoreToPercent(scores.baseline_scores?.[d.key] ?? 0),
+          Atual: scoreToPercent(scores[d.key] ?? 0),
           Media: scoreToPercent(adj.mean),
         };
       }),
     [scores, benchmarks, ageBracket]
   );
 
-  const currentStroke = isLight ? '#0284c7' : '#38bdf8';
-  const currentFill = isLight ? '#0284c7' : '#38bdf8';
-  const baseStroke = isLight ? '#64748b' : '#94a3b8';
-  const meanStroke = isLight ? '#d97706' : '#f59e0b';
-  const tickColor = isLight ? '#475569' : '#a1a1aa';
+  const currentStroke = isLight ? '#4F6EF7' : '#7C98FF';
+  const currentFill = isLight ? '#4F6EF7' : '#7C98FF';
+  const baseStroke = '#94A3B8';
+  const meanStroke = isLight ? '#F59E0B' : '#FBBF24';
+  const tickColor = isLight ? '#4B5563' : '#A8B5CC';
 
   return (
-    <div className="surface-card p-4">
-      <div className="flex items-center justify-between gap-2 mb-1">
+    <div className="surface-card p-5">
+      <div className="flex items-start justify-between gap-2 mb-1.5">
         <div>
-          <div className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-            Equilíbrio Cognitivo
-          </div>
-          <div className="text-[11px]" style={{ color: 'var(--text-soft)' }}>
-            Escala percentual · Referência {ageLabel}
+          <div className="text-base font-bold tracking-tight">Equilíbrio Cognitivo</div>
+          <div className="text-xs mt-0.5" style={{ color: 'var(--text-soft)' }}>
+            Escala percentual · Estimativa {ageLabel}
           </div>
         </div>
         <span
-          className="text-[11px] font-semibold tabular px-2.5 py-0.5 rounded-full"
+          className="text-xs font-semibold tabular px-3 py-1 rounded-full shrink-0"
           style={{ background: 'var(--bg-subtle)', color: 'var(--text-muted)' }}
         >
           {totalStages} níveis
         </span>
       </div>
 
-      {/* Legenda minimalista das 3 camadas */}
-      <div className="flex flex-wrap items-center gap-3.5 text-[11px] font-medium mt-2 mb-1">
+      {/* Legenda suave das 3 camadas */}
+      <div className="flex flex-wrap items-center gap-4 text-xs font-medium mt-3 mb-1">
         <span className="inline-flex items-center gap-1.5">
-          <span className="w-3 h-0.5 rounded-full" style={{ background: currentStroke }} />
+          <span className="w-3.5 h-1 rounded-full" style={{ background: currentStroke }} />
           <span>Atual</span>
         </span>
         <span className="inline-flex items-center gap-1.5" style={{ color: 'var(--text-muted)' }}>
-          <span className="w-3 border-t-2 border-dashed" style={{ borderColor: baseStroke }} />
+          <span className="w-3.5 border-t-2 border-dashed" style={{ borderColor: baseStroke }} />
           <span>Linha de Base</span>
         </span>
         <span className="inline-flex items-center gap-1.5" style={{ color: 'var(--text-muted)' }}>
-          <span className="w-3 border-t-2 border-dotted" style={{ borderColor: meanStroke }} />
+          <span className="w-3.5 border-t-2 border-dotted" style={{ borderColor: meanStroke }} />
           <span>Média ({ageLabel})</span>
         </span>
       </div>
 
-      <div className="w-full h-[250px]">
+      <div className="w-full h-[265px]">
         <ResponsiveContainer width="100%" height="100%">
           <RadarChart cx="50%" cy="50%" outerRadius="72%" data={data}>
-            <PolarGrid stroke={isLight ? 'rgba(15,23,42,0.1)' : 'rgba(255,255,255,0.1)'} />
+            <PolarGrid stroke={isLight ? 'rgba(15,23,42,0.08)' : 'rgba(148,163,184,0.16)'} />
             <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
-            <PolarAngleAxis dataKey="domain" tick={{ fill: tickColor, fontSize: 11, fontWeight: 600 }} />
+            <PolarAngleAxis dataKey="domain" tick={{ fill: tickColor, fontSize: 12, fontWeight: 600 }} />
             <Tooltip
               contentStyle={{
-                background: 'var(--bg-elev)',
+                background: 'var(--bg-card)',
                 border: '1px solid var(--border)',
-                borderRadius: '10px',
+                borderRadius: '14px',
                 fontSize: '12px',
                 color: 'var(--text)',
+                boxShadow: 'var(--card-shadow)',
               }}
               labelFormatter={(_, payload) => payload?.[0]?.payload?.fullName ?? ''}
               formatter={(value, name) => [`${value}%`, name]}
@@ -131,7 +131,7 @@ export function ComparativeRadarChart({
               dataKey="Media"
               stroke={meanStroke}
               fill="transparent"
-              strokeWidth={1.6}
+              strokeWidth={1.8}
               strokeDasharray="2 3"
             />
             <Radar
@@ -139,7 +139,7 @@ export function ComparativeRadarChart({
               dataKey="Base"
               stroke={baseStroke}
               fill="transparent"
-              strokeWidth={1.6}
+              strokeWidth={1.8}
               strokeDasharray="5 3"
             />
             <Radar
@@ -148,7 +148,7 @@ export function ComparativeRadarChart({
               stroke={currentStroke}
               fill={currentFill}
               fillOpacity={0.18}
-              strokeWidth={2.2}
+              strokeWidth={2.5}
             />
           </RadarChart>
         </ResponsiveContainer>
@@ -182,10 +182,11 @@ export function BellCurveChart({
   const isLight = theme === 'light';
   const ageLabel = getAgeBracketMeta(ageBracket).label;
   const adjustedDist = useMemo(() => adjustDistributionForAge(dist, ageBracket), [dist, ageBracket]);
-  const safeScore = Math.max(50, Math.min(1000, Math.round(score)));
-  const percentile = percentileFromBenchmark(safeScore, dist, ageBracket);
-  const topPct = percentileToTopPercent(percentile);
-  const band = getPopulationBand(percentile);
+  const hasScore = score > 0;
+  const safeScore = hasScore ? Math.max(50, Math.min(1000, Math.round(score))) : 0;
+  const percentile = hasScore ? percentileFromBenchmark(safeScore, dist, ageBracket) : 0;
+  const topPct = hasScore ? percentileToTopPercent(percentile) : 100;
+  const band = hasScore ? getPopulationBand(percentile) : 'Sem medição';
 
   const curveData = useMemo(() => {
     const mean = adjustedDist.mean || 500;
@@ -202,11 +203,11 @@ export function BellCurveChart({
       pts.push({
         x: scoreToPercent(x),
         density,
-        userFill: x <= safeScore ? density : null,
+        userFill: hasScore && x <= safeScore ? density : null,
       });
     }
     return pts;
-  }, [adjustedDist.mean, adjustedDist.sd, safeScore]);
+  }, [adjustedDist.mean, adjustedDist.sd, safeScore, hasScore]);
 
   const snapX = (valPct: number) => {
     let best = curveData[0]?.x ?? valPct;
@@ -221,11 +222,12 @@ export function BellCurveChart({
     return best;
   };
 
-  const accentHex = isLight ? '#0284c7' : '#38bdf8';
-  const userHex = isLight ? '#059669' : '#10b981';
+  const accentHex = isLight ? '#4F6EF7' : '#7C98FF';
+  const userHex = isLight ? '#10B981' : '#34D399';
+  const axisColor = isLight ? '#6B7280' : '#7E8DA8';
 
   const milestones = [
-    { label: 'Média (50%)', value: `${scoreToPercent(adjustedDist.p50)}%`, active: percentile >= 50 },
+    { label: 'Média', value: `${scoreToPercent(adjustedDist.p50)}%`, active: percentile >= 50 },
     { label: 'Top 25%', value: `${scoreToPercent(adjustedDist.p75)}%`, active: percentile >= 75 },
     { label: 'Top 10%', value: `${scoreToPercent(adjustedDist.p90)}%`, active: percentile >= 90 },
     { label: 'Top 1%', value: `${scoreToPercent(adjustedDist.p99)}%`, active: percentile >= 99 },
@@ -234,34 +236,41 @@ export function BellCurveChart({
   const gradId = `bellFill-${label.replace(/[^a-zA-Z0-9]/g, '')}`;
 
   return (
-    <div className={compact ? 'flex flex-col gap-2' : 'surface-card p-4 flex flex-col gap-3'}>
+    <div className={compact ? 'flex flex-col gap-3' : 'surface-card p-5 flex flex-col gap-4'}>
       <div className="flex items-start justify-between gap-2">
         <div>
-          <div className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-            {compact ? `Distribuição · ${label}` : `Posição Normativa · ${label}`}
+          <div className={compact ? 'text-sm font-bold' : 'text-base font-bold tracking-tight'}>
+            {compact ? `Distribuição · ${label}` : `Estimativa Normativa · ${label}`}
           </div>
-          <div className="text-[11px] mt-0.5" style={{ color: 'var(--text-soft)' }}>
-            Superou <strong style={{ color: 'var(--text)' }}>{percentile}%</strong> na faixa {ageLabel}
+          <div className="text-xs mt-0.5" style={{ color: 'var(--text-soft)' }}>
+            {hasScore ? (
+              <>
+                {source === 'population' ? 'Base real: superou ' : 'Estimativa: superou '}
+                <strong style={{ color: 'var(--text)' }}>{percentile}%</strong> na faixa {ageLabel}
+              </>
+            ) : (
+              <>Sem medição ainda · conclua 1 exercício de 30s para posicionar na curva ({ageLabel})</>
+            )}
           </div>
         </div>
         <span
-          className="px-2.5 py-0.5 rounded-full text-[11px] font-bold whitespace-nowrap tabular"
+          className="px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap tabular"
           style={{
-            background: 'var(--accent-glow)',
-            border: '1px solid var(--border-strong)',
-            color: 'var(--accent)',
+            background: hasScore ? 'var(--accent-glow)' : 'var(--bg-subtle)',
+            border: hasScore ? '1px solid var(--border-strong)' : '1px solid transparent',
+            color: hasScore ? 'var(--accent)' : 'var(--text-soft)',
           }}
         >
-          {percentile >= 50 ? `Top ${topPct}%` : band}
+          {!hasScore ? 'Sem dados' : percentile >= 50 ? `Top ${topPct}%` : band}
         </span>
       </div>
 
-      <div className={`w-full ${compact ? 'h-[112px]' : 'h-[144px]'}`}>
+      <div className={`w-full ${compact ? 'h-[124px]' : 'h-[160px]'}`}>
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={curveData} margin={{ top: 14, right: 8, left: 8, bottom: 0 }}>
+          <AreaChart data={curveData} margin={{ top: 18, right: 10, left: 10, bottom: 0 }}>
             <defs>
               <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={accentHex} stopOpacity={0.35} />
+                <stop offset="0%" stopColor={accentHex} stopOpacity={0.32} />
                 <stop offset="100%" stopColor={accentHex} stopOpacity={0.03} />
               </linearGradient>
             </defs>
@@ -269,19 +278,21 @@ export function BellCurveChart({
               dataKey="x"
               type="number"
               domain={[10, 100]}
-              tick={{ fill: '#71717a', fontSize: 10 }}
+              tick={{ fill: axisColor, fontSize: 11 }}
               tickFormatter={(v) => `${v}%`}
               tickCount={5}
               axisLine={false}
               tickLine={false}
             />
-            <YAxis hide domain={[0, 112]} />
+            <YAxis hide domain={[0, 114]} />
             <Tooltip
               contentStyle={{
-                background: 'var(--bg-elev)',
+                background: 'var(--bg-card)',
                 border: '1px solid var(--border)',
-                borderRadius: '10px',
-                fontSize: '11px',
+                borderRadius: '14px',
+                fontSize: '12px',
+                color: 'var(--text)',
+                boxShadow: 'var(--card-shadow)',
               }}
               labelFormatter={(v) => `Índice ${v}%`}
               formatter={(_, name) =>
@@ -291,9 +302,9 @@ export function BellCurveChart({
             <Area
               type="monotone"
               dataKey="density"
-              stroke="rgba(148,163,184,0.4)"
-              fill="rgba(148,163,184,0.08)"
-              strokeWidth={1.5}
+              stroke={isLight ? 'rgba(100,116,139,0.38)' : 'rgba(148,163,184,0.35)'}
+              fill={isLight ? 'rgba(100,116,139,0.08)' : 'rgba(148,163,184,0.08)'}
+              strokeWidth={1.6}
               isAnimationActive={false}
             />
             <Area
@@ -301,52 +312,57 @@ export function BellCurveChart({
               dataKey="userFill"
               stroke={accentHex}
               fill={`url(#${gradId})`}
-              strokeWidth={1.8}
+              strokeWidth={2}
               isAnimationActive={false}
             />
-            <ReferenceLine x={snapX(scoreToPercent(adjustedDist.p50))} stroke="#94a3b8" strokeDasharray="3 3" strokeWidth={1} />
-            <ReferenceLine x={snapX(scoreToPercent(adjustedDist.p90))} stroke={accentHex} strokeDasharray="2 3" strokeWidth={1} />
-            <ReferenceLine
-              x={snapX(scoreToPercent(safeScore))}
-              stroke={userHex}
-              strokeWidth={2}
-              label={{
-                value: 'Você',
-                position: 'top',
-                fill: userHex,
-                fontSize: 10,
-                fontWeight: 700,
-              }}
-            />
+            <ReferenceLine x={snapX(scoreToPercent(adjustedDist.p50))} stroke="#94A3B8" strokeDasharray="3 3" strokeWidth={1.2} />
+            <ReferenceLine x={snapX(scoreToPercent(adjustedDist.p90))} stroke={accentHex} strokeDasharray="2 3" strokeWidth={1.2} />
+            {hasScore && (
+              <ReferenceLine
+                x={snapX(scoreToPercent(safeScore))}
+                stroke={userHex}
+                strokeWidth={2.4}
+                label={{
+                  value: 'Você',
+                  position: 'top',
+                  fill: userHex,
+                  fontSize: 11,
+                  fontWeight: 700,
+                }}
+              />
+            )}
           </AreaChart>
         </ResponsiveContainer>
       </div>
 
-      <div className="grid grid-cols-4 gap-1.5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {milestones.map((m) => (
           <div
             key={m.label}
-            className="rounded-xl px-2 py-1.5 text-center"
+            className="rounded-2xl px-3 py-2.5 text-center"
             style={{
-              background: m.active ? 'var(--accent-glow)' : 'var(--bg)',
-              border: m.active ? '1px solid var(--border-strong)' : '1px solid var(--border)',
+              background: m.active ? 'var(--accent-glow)' : 'var(--bg-subtle)',
+              border: m.active ? '1px solid var(--border-strong)' : '1px solid transparent',
             }}
           >
-            <div className="text-[9px] font-semibold leading-tight" style={{ color: m.active ? 'var(--accent)' : 'var(--text-soft)' }}>
+            <div
+              className="text-xs font-semibold leading-tight"
+              style={{ color: m.active ? 'var(--accent)' : 'var(--text-soft)' }}
+            >
               {m.label}
             </div>
-            <div className="text-xs font-bold tabular mt-0.5">{m.value}</div>
+            <div className="text-sm font-extrabold tabular mt-0.5">{m.value}</div>
           </div>
         ))}
       </div>
 
       {!compact && (
-        <div className="text-[10px] font-medium flex items-center justify-between" style={{ color: 'var(--text-soft)' }}>
+        <div className="text-xs font-medium flex items-center justify-between flex-wrap gap-2" style={{ color: 'var(--text-soft)' }}>
           <span>Faixa {ageLabel} · Mediana {scoreToPercent(adjustedDist.p50)}%</span>
           <span>
             {source === 'population'
               ? `Base real (${sampleSessions} sessões)`
-              : 'Referência normativa'}
+              : 'Estimativa normativa (literatura)'}
           </span>
         </div>
       )}
@@ -383,7 +399,7 @@ export function LongitudinalEvolutionChart({
   const isLight = theme === 'light';
 
   const points = useMemo(() => {
-    const now = Date.now();
+    const now = getAppNow().getTime();
     const cutoffMs =
       period === '7d'
         ? now - 7 * 86400_000
@@ -406,7 +422,7 @@ export function LongitudinalEvolutionChart({
         const rawVal =
           selectedMetric === 'icg'
             ? s.global_index
-            : (s.domain_scores_json?.[selectedMetric] ?? scores[selectedMetric] ?? 500);
+            : (s.domain_scores_json?.[selectedMetric] ?? scores[selectedMetric] ?? 0);
         return {
           label: `${dd}/${mm}`,
           valor: scoreToPercent(rawVal),
@@ -432,21 +448,23 @@ export function LongitudinalEvolutionChart({
       }));
     }
 
-    // 3. Fallback mínimo: Linha de Base vs. Atual
+    // 3. Fallback mínimo: Linha de Base vs. Atual (média apenas dos domínios já medidos)
+    const measuredBase = DOMAIN_LIST.map((d) => scores.baseline_scores?.[d.key] ?? 0).filter((v) => v > 0);
+    const measuredCur = DOMAIN_LIST.map((d) => scores[d.key] ?? 0).filter((v) => v > 0);
+
     const baseRaw =
       selectedMetric === 'icg'
-        ? Math.round(
-            DOMAIN_LIST.reduce((acc, d) => acc + (scores.baseline_scores?.[d.key] ?? 500), 0) /
-              DOMAIN_LIST.length
-          )
-        : (scores.baseline_scores?.[selectedMetric] ?? 500);
+        ? measuredBase.length > 0
+          ? Math.round(measuredBase.reduce((acc, v) => acc + v, 0) / measuredBase.length)
+          : 0
+        : (scores.baseline_scores?.[selectedMetric] ?? 0);
 
     const curRaw =
       selectedMetric === 'icg'
-        ? Math.round(
-            DOMAIN_LIST.reduce((acc, d) => acc + (scores[d.key] ?? 500), 0) / DOMAIN_LIST.length
-          )
-        : (scores[selectedMetric] ?? 500);
+        ? measuredCur.length > 0
+          ? Math.round(measuredCur.reduce((acc, v) => acc + v, 0) / measuredCur.length)
+          : 0
+        : (scores[selectedMetric] ?? 0);
 
     return [
       { label: 'Base', valor: scoreToPercent(baseRaw) },
@@ -463,17 +481,16 @@ export function LongitudinalEvolutionChart({
   const strokeColor =
     selectedMetric === 'icg'
       ? isLight
-        ? '#0284c7'
-        : '#38bdf8'
+        ? '#4F6EF7'
+        : '#7C98FF'
       : DOMAIN_MAP[selectedMetric].color;
+  const axisColor = isLight ? '#6B7280' : '#7E8DA8';
 
   return (
-    <div className="surface-card p-4 flex flex-col gap-3">
+    <div className="surface-card p-5 flex flex-col gap-3.5">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-          Evolução Longitudinal
-        </span>
-        <div className="flex items-center gap-1 p-0.5 rounded-lg" style={{ background: 'var(--bg)' }}>
+        <span className="text-base font-bold tracking-tight">Evolução Longitudinal</span>
+        <div className="flex items-center gap-1 p-1 rounded-xl" style={{ background: 'var(--bg-subtle)' }}>
           {(
             [
               { id: '7d', label: '7d' },
@@ -485,10 +502,11 @@ export function LongitudinalEvolutionChart({
               key={p.id}
               type="button"
               onClick={() => setPeriod(p.id)}
-              className="px-2.5 py-1 rounded-md text-[11px] font-semibold cursor-pointer transition-all"
+              className="px-3 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all"
               style={{
-                background: period === p.id ? 'var(--bg-subtle)' : 'transparent',
+                background: period === p.id ? 'var(--bg-card)' : 'transparent',
                 color: period === p.id ? 'var(--accent)' : 'var(--text-soft)',
+                boxShadow: period === p.id ? 'var(--card-shadow)' : 'none',
               }}
             >
               {p.label}
@@ -498,11 +516,11 @@ export function LongitudinalEvolutionChart({
       </div>
 
       {/* Filtro por Índice Global ou Domínio */}
-      <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+      <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
         <button
           type="button"
           onClick={() => onSelectMetric('icg')}
-          className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap cursor-pointer ${
+          className={`px-3.5 py-2 rounded-full text-xs font-semibold whitespace-nowrap cursor-pointer ${
             selectedMetric === 'icg' ? 'btn-accent' : 'btn-soft'
           }`}
         >
@@ -513,7 +531,7 @@ export function LongitudinalEvolutionChart({
             key={d.key}
             type="button"
             onClick={() => onSelectMetric(d.key)}
-            className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap cursor-pointer ${
+            className={`px-3.5 py-2 rounded-full text-xs font-semibold whitespace-nowrap cursor-pointer ${
               selectedMetric === d.key ? 'btn-accent' : 'btn-soft'
             }`}
           >
@@ -522,29 +540,31 @@ export function LongitudinalEvolutionChart({
         ))}
       </div>
 
-      <div className="w-full h-[155px]">
+      <div className="w-full h-[175px]">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={points} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+          <AreaChart data={points} margin={{ top: 10, right: 10, left: -14, bottom: 0 }}>
             <defs>
               <linearGradient id="longGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={strokeColor} stopOpacity={0.28} />
+                <stop offset="0%" stopColor={strokeColor} stopOpacity={0.26} />
                 <stop offset="100%" stopColor={strokeColor} stopOpacity={0.02} />
               </linearGradient>
             </defs>
-            <XAxis dataKey="label" tick={{ fill: '#71717a', fontSize: 10 }} axisLine={false} tickLine={false} />
+            <XAxis dataKey="label" tick={{ fill: axisColor, fontSize: 11 }} axisLine={false} tickLine={false} />
             <YAxis
               domain={[0, 100]}
               tickFormatter={(v) => `${v}%`}
-              tick={{ fill: '#71717a', fontSize: 10 }}
+              tick={{ fill: axisColor, fontSize: 11 }}
               axisLine={false}
               tickLine={false}
             />
             <Tooltip
               contentStyle={{
-                background: 'var(--bg-elev)',
+                background: 'var(--bg-card)',
                 border: '1px solid var(--border)',
-                borderRadius: '10px',
+                borderRadius: '14px',
                 fontSize: '12px',
+                color: 'var(--text)',
+                boxShadow: 'var(--card-shadow)',
               }}
               formatter={(value) => [
                 `${value}%`,
@@ -553,19 +573,19 @@ export function LongitudinalEvolutionChart({
             />
             <ReferenceLine
               y={benchMeanPct}
-              stroke="#f59e0b"
+              stroke="#F59E0B"
               strokeDasharray="3 3"
-              strokeWidth={1.1}
-              label={{ value: `Média ${benchMeanPct}%`, position: 'insideTopRight', fill: '#f59e0b', fontSize: 10 }}
+              strokeWidth={1.3}
+              label={{ value: `Média ${benchMeanPct}%`, position: 'insideTopRight', fill: '#F59E0B', fontSize: 11 }}
             />
             <Area
               type="monotone"
               dataKey="valor"
               stroke={strokeColor}
               fill="url(#longGrad)"
-              strokeWidth={2.2}
-              dot={{ r: 2.8, fill: strokeColor }}
-              activeDot={{ r: 4.5 }}
+              strokeWidth={2.5}
+              dot={{ r: 3.2, fill: strokeColor }}
+              activeDot={{ r: 5 }}
             />
           </AreaChart>
         </ResponsiveContainer>
@@ -587,8 +607,8 @@ export function GameSparkline({
   if (data.length === 0) {
     return (
       <div
-        className="h-[40px] rounded-xl flex items-center justify-center text-[10px] font-medium"
-        style={{ background: 'var(--bg)', color: 'var(--text-soft)', border: '1px dashed var(--border)' }}
+        className="h-[46px] rounded-2xl flex items-center justify-center text-xs font-medium"
+        style={{ background: 'var(--bg-subtle)', color: 'var(--text-soft)', border: '1px dashed var(--border)' }}
       >
         Sem sessões registradas
       </div>
@@ -605,16 +625,18 @@ export function GameSparkline({
       : normalized;
 
   return (
-    <div className="w-full h-[42px]">
+    <div className="w-full h-[48px]">
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={chartData} margin={{ top: 4, right: 4, left: 4, bottom: 4 }}>
+        <LineChart data={chartData} margin={{ top: 5, right: 6, left: 6, bottom: 5 }}>
           <Tooltip
             contentStyle={{
-              background: 'var(--bg-elev)',
+              background: 'var(--bg-card)',
               border: '1px solid var(--border)',
-              borderRadius: '8px',
-              fontSize: '11px',
-              padding: '4px 8px',
+              borderRadius: '10px',
+              fontSize: '12px',
+              padding: '6px 10px',
+              color: 'var(--text)',
+              boxShadow: 'var(--card-shadow)',
             }}
             labelFormatter={(_label, payload) => {
               const p = payload?.[0]?.payload as { dateLabel?: string } | undefined;
@@ -622,15 +644,15 @@ export function GameSparkline({
             }}
             formatter={(val, _name, item) => {
               const waves = (item?.payload as { waves?: number } | undefined)?.waves ?? 0;
-              return [`${val}% · ${waves}/5 blocos`, 'Índice'] as [string, string];
+              return [`${val}% · ${Math.round((waves / 5) * 100)}% da meta`, 'Índice'] as [string, string];
             }}
           />
           <Line
             type="monotone"
             dataKey="pct"
             stroke={color}
-            strokeWidth={2}
-            dot={{ r: 2, fill: color }}
+            strokeWidth={2.4}
+            dot={{ r: 2.6, fill: color }}
             isAnimationActive={false}
           />
         </LineChart>

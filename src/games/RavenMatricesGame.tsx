@@ -20,20 +20,25 @@ interface MatrixPuzzle {
 }
 
 const SHAPES: ShapeKind[] = ['circle', 'square', 'triangle', 'diamond'];
-const COLORS = ['#38bdf8', '#f472b6', '#34d399', '#fbbf24'];
+const COLORS = ['#3B82F6', '#EC4899', '#10B981', '#D97706'];
 const FILLS: FillMode[] = ['solid', 'outline', 'striped'];
 
 function makePuzzle(effectiveDiff: number): MatrixPuzzle {
+  const lvl = Math.max(1, Math.floor(effectiveDiff));
   const sOffset = Math.floor(Math.random() * SHAPES.length);
   const cOffset = Math.floor(Math.random() * COLORS.length);
   const fOffset = Math.floor(Math.random() * FILLS.length);
-  const rotateRule = effectiveDiff >= 3;
-  const countRule = effectiveDiff >= 4;
-  const fillRule = effectiveDiff >= 2;
+  // Curva gradual em 20 níveis:
+  // Nv.1-2: só forma por linha (cor fixa por linha) | Nv.3-6: forma + cor por coluna
+  // Nv.7-11: + preenchimento | Nv.12-15: + rotação | Nv.16-20: + contagem e deslocamento diagonal
+  const varyColorByCol = lvl >= 3;
+  const fillRule = lvl >= 7;
+  const rotateRule = lvl >= 12;
+  const countRule = lvl >= 16;
 
   const glyphAt = (r: number, c: number): Glyph => ({
-    shape: SHAPES[(sOffset + r + (effectiveDiff >= 5 ? c : 0)) % SHAPES.length],
-    color: COLORS[(cOffset + c) % COLORS.length],
+    shape: SHAPES[(sOffset + r + (lvl >= 14 ? c : 0)) % SHAPES.length],
+    color: COLORS[(cOffset + (varyColorByCol ? c : r)) % COLORS.length],
     rotation: rotateRule ? (r * 90 + c * 45) % 360 : 0,
     count: countRule ? ((r + c) % 3) + 1 : 1,
     fill: fillRule ? FILLS[(fOffset + r + c) % FILLS.length] : 'solid',
@@ -92,7 +97,9 @@ function GlyphSvg({ glyph }: { glyph: Glyph }) {
           {glyph.shape === 'diamond' && (
             <polygon points="0,-19 18,0 0,19 -18,0" fill={fillVal} stroke={glyph.color} strokeWidth="3.2" strokeLinejoin="round" />
           )}
-          {glyph.rotation !== 0 && <circle cx="0" cy="-12" r="2.6" fill="#ffffff" />}
+          {glyph.rotation !== 0 && (
+            <circle cx="0" cy="-12" r="2.8" fill={glyph.fill === 'solid' ? '#ffffff' : glyph.color} />
+          )}
         </g>
       ))}
     </svg>

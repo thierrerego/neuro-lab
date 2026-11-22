@@ -148,8 +148,8 @@ const PEAK_WINDOWS = [
 
 const STAMINA_LEVELS: Record<number, { title: string; curveNote: string }> = {
   1: { title: 'Exaustão rápida', curveNote: 'Cadência inicial leve com adaptação gradual' },
-  2: { title: 'Fadiga moderada', curveNote: 'Progressão conservadora entre blocos' },
-  3: { title: 'Resistência equilibrada', curveNote: 'Curva padrão em 5 blocos progressivos' },
+  2: { title: 'Fadiga moderada', curveNote: 'Progressão conservadora em fluxo contínuo' },
+  3: { title: 'Resistência equilibrada', curveNote: 'Curva padrão em fluxo contínuo adaptativo' },
   4: { title: 'Boa sustentação', curveNote: 'Curva firme com demanda contínua' },
   5: { title: 'Alta resistência sustentada', curveNote: 'Curva intensiva para alta carga cognitiva' },
 };
@@ -395,45 +395,40 @@ export function OnboardingScreen({
   const dailyTaskCount = getDailyGamesCount(minutes);
 
   return (
-    <div className="flex flex-col gap-4 py-1 animate-pop">
+    <div className="flex flex-col gap-5 py-1 animate-pop">
       {/* Cabeçalho + barra segmentada de 6 etapas */}
-      <div className="flex flex-col gap-2.5">
+      <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             {step !== 1 && (
               <button
                 type="button"
                 onClick={goBack}
-                className="w-8 h-8 rounded-lg flex items-center justify-center btn-soft cursor-pointer"
+                className="w-9 h-9 rounded-xl flex items-center justify-center btn-soft cursor-pointer"
                 title="Voltar"
               >
-                <ArrowLeft size={15} />
+                <ArrowLeft size={17} />
               </button>
             )}
-            <span
-              className="text-[11px] font-bold uppercase tracking-wider tabular"
-              style={{ color: 'var(--accent)' }}
-            >
-              {step === 'summary'
-                ? 'Síntese do Protocolo'
-                : `Anamnese Cognitiva · Etapa ${step}/6`}
+            <span className="text-xs font-bold tracking-wide tabular" style={{ color: 'var(--accent)' }}>
+              {step === 'summary' ? 'Síntese do Protocolo' : `Anamnese Cognitiva · Etapa ${step}/6`}
             </span>
           </div>
 
-          <span className="text-[11px] font-semibold tabular" style={{ color: 'var(--text-soft)' }}>
+          <span className="text-xs font-bold tabular" style={{ color: 'var(--text-soft)' }}>
             {step === 'summary' ? '100%' : `${Math.round((numericStep / 6) * 100)}%`}
           </span>
         </div>
 
-        <div className="grid grid-cols-6 gap-1.5">
+        <div className="grid grid-cols-6 gap-2">
           {[1, 2, 3, 4, 5, 6].map((n) => {
             const done = step === 'summary' || n <= numericStep;
             return (
               <div
                 key={n}
-                className="h-1 rounded-full transition-all duration-300"
+                className="h-1.5 rounded-full transition-all duration-300"
                 style={{
-                  background: done ? 'var(--accent)' : 'var(--bg-subtle)',
+                  background: done ? 'var(--accent-grad)' : 'var(--bg-subtle)',
                 }}
               />
             );
@@ -443,18 +438,18 @@ export function OnboardingScreen({
 
       {/* ETAPA 1: OBJETIVOS COGNITIVOS */}
       {step === 1 && (
-        <div className="flex flex-col gap-3 animate-pop">
+        <div className="flex flex-col gap-4 animate-pop">
           <div>
-            <div className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--accent)' }}>
-              <Target size={12} />
+            <div className="inline-flex items-center gap-1.5 text-xs font-bold mb-1.5" style={{ color: 'var(--accent)' }}>
+              <Target size={14} />
               <span>Etapa 1 · Objetivos Cognitivos</span>
             </div>
-            <h2 className="text-lg font-extrabold tracking-tight leading-snug">
+            <h2 className="text-2xl font-extrabold tracking-tight leading-snug">
               Quais capacidades executivas você deseja priorizar?
             </h2>
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2.5">
             {TARGET_OPTIONS.map((opt) => {
               const active = selectedGoals.includes(opt.id);
               return (
@@ -462,7 +457,7 @@ export function OnboardingScreen({
                   key={opt.id}
                   type="button"
                   onClick={() => toggleGoal(opt.id)}
-                  className="surface-card surface-card-click px-3.5 py-3 flex items-start justify-between gap-3 text-left cursor-pointer"
+                  className="surface-card surface-card-click px-4 py-4 flex items-start justify-between gap-3.5 text-left cursor-pointer"
                   style={
                     active
                       ? { borderColor: 'var(--accent)', background: 'var(--accent-glow)' }
@@ -470,20 +465,19 @@ export function OnboardingScreen({
                   }
                 >
                   <div className="min-w-0">
-                    <div className="text-xs font-bold leading-snug">{opt.title}</div>
-                    <div className="text-[11px] mt-0.5 leading-snug" style={{ color: 'var(--text-muted)' }}>
+                    <div className="text-[15px] font-bold leading-snug">{opt.title}</div>
+                    <div className="text-xs sm:text-sm mt-1 leading-snug" style={{ color: 'var(--text-muted)' }}>
                       {opt.desc}
                     </div>
                   </div>
                   <span
-                    className="w-5 h-5 mt-0.5 rounded-md flex items-center justify-center shrink-0"
+                    className="w-6 h-6 mt-0.5 rounded-lg flex items-center justify-center shrink-0"
                     style={{
-                      background: active ? 'var(--accent)' : 'var(--bg)',
-                      border: active ? 'none' : '1px solid var(--border)',
-                      color: 'var(--btn-fg)',
+                      background: active ? 'var(--accent)' : 'var(--bg-subtle)',
+                      color: '#FFFFFF',
                     }}
                   >
-                    {active && <Check size={13} strokeWidth={3} />}
+                    {active && <Check size={14} strokeWidth={3} />}
                   </span>
                 </button>
               );
@@ -497,28 +491,28 @@ export function OnboardingScreen({
               sound.hit(1);
               setStep(2);
             }}
-            className="w-full py-3.5 rounded-xl font-bold text-sm btn-accent cursor-pointer disabled:opacity-40 flex items-center justify-center gap-2"
+            className="w-full min-h-[54px] py-4 rounded-2xl font-bold text-[15px] btn-accent cursor-pointer disabled:opacity-40 flex items-center justify-center gap-2"
           >
             <span>Continuar ({selectedDomains.length} {selectedDomains.length === 1 ? 'domínio' : 'domínios'})</span>
-            <ArrowRight size={15} />
+            <ArrowRight size={17} />
           </button>
         </div>
       )}
 
       {/* ETAPA 2: GARGALOS REAIS */}
       {step === 2 && (
-        <div className="flex flex-col gap-3 animate-pop">
+        <div className="flex flex-col gap-4 animate-pop">
           <div>
-            <div className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--warn)' }}>
-              <ShieldAlert size={12} />
+            <div className="inline-flex items-center gap-1.5 text-xs font-bold mb-1.5" style={{ color: 'var(--warn)' }}>
+              <ShieldAlert size={14} />
               <span>Etapa 2 · Gargalos Reais</span>
             </div>
-            <h2 className="text-lg font-extrabold tracking-tight leading-snug">
-              Em quais situações do dia a dia você percebe maior queda de rendimento?
+            <h2 className="text-2xl font-extrabold tracking-tight leading-snug">
+              Onde você percebe maior queda de rendimento no dia a dia?
             </h2>
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2.5">
             {BOTTLENECK_SCENARIOS.map((sc) => {
               const active = bottlenecks.includes(sc.id);
               return (
@@ -526,22 +520,22 @@ export function OnboardingScreen({
                   key={sc.id}
                   type="button"
                   onClick={() => toggleBottleneck(sc.id)}
-                  className="surface-card surface-card-click px-3.5 py-3 flex items-start justify-between gap-3 text-left cursor-pointer"
+                  className="surface-card surface-card-click px-4 py-4 flex items-start justify-between gap-3.5 text-left cursor-pointer"
                   style={
                     active
-                      ? { borderColor: 'var(--warn)', background: 'rgba(245, 158, 11, 0.1)' }
+                      ? { borderColor: 'var(--warn)', background: 'rgba(245, 158, 11, 0.10)' }
                       : undefined
                   }
                 >
                   <div className="min-w-0">
-                    <div className="text-xs font-semibold leading-relaxed">"{sc.text}"</div>
-                    <div className="flex flex-wrap gap-1 mt-1.5">
+                    <div className="text-sm font-semibold leading-relaxed">"{sc.text}"</div>
+                    <div className="flex flex-wrap gap-1.5 mt-2">
                       {sc.domains.map((dk) => (
                         <span
                           key={dk}
-                          className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                          className="text-xs font-semibold px-2.5 py-0.5 rounded-full"
                           style={{
-                            background: `${DOMAIN_MAP[dk].color}1a`,
+                            background: `${DOMAIN_MAP[dk].color}18`,
                             color: DOMAIN_MAP[dk].color,
                           }}
                         >
@@ -551,14 +545,13 @@ export function OnboardingScreen({
                     </div>
                   </div>
                   <span
-                    className="w-5 h-5 mt-0.5 rounded-md flex items-center justify-center shrink-0"
+                    className="w-6 h-6 mt-0.5 rounded-lg flex items-center justify-center shrink-0"
                     style={{
-                      background: active ? 'var(--warn)' : 'var(--bg)',
-                      border: active ? 'none' : '1px solid var(--border)',
-                      color: '#09090b',
+                      background: active ? 'var(--warn)' : 'var(--bg-subtle)',
+                      color: '#FFFFFF',
                     }}
                   >
-                    {active && <Check size={13} strokeWidth={3} />}
+                    {active && <Check size={14} strokeWidth={3} />}
                   </span>
                 </button>
               );
@@ -571,27 +564,27 @@ export function OnboardingScreen({
               sound.hit(2);
               setStep(3);
             }}
-            className="w-full py-3.5 rounded-xl font-bold text-sm btn-accent cursor-pointer flex items-center justify-center gap-2"
+            className="w-full min-h-[54px] py-4 rounded-2xl font-bold text-[15px] btn-accent cursor-pointer flex items-center justify-center gap-2"
           >
             <span>{bottlenecks.length > 0 ? 'Continuar com gargalos mapeados' : 'Seguir sem gargalos específicos'}</span>
-            <ArrowRight size={15} />
+            <ArrowRight size={17} />
           </button>
         </div>
       )}
 
       {/* ETAPA 3: RITMO CIRCADIANO & RESISTÊNCIA BASAL */}
       {step === 3 && (
-        <div className="flex flex-col gap-4 animate-pop">
-          <div className="flex flex-col gap-2.5">
-            <div className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--accent)' }}>
-              <Clock size={12} />
+        <div className="flex flex-col gap-5 animate-pop">
+          <div className="flex flex-col gap-3">
+            <div className="inline-flex items-center gap-1.5 text-xs font-bold" style={{ color: 'var(--accent)' }}>
+              <Clock size={14} />
               <span>Etapa 3 · Ritmo Circadiano</span>
             </div>
-            <h2 className="text-base font-extrabold tracking-tight leading-snug">
+            <h2 className="text-2xl font-extrabold tracking-tight leading-snug">
               Qual é a sua janela natural de maior clareza mental?
             </h2>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-3">
               {PEAK_WINDOWS.map((w) => {
                 const active = peakTime === w.id;
                 return (
@@ -602,15 +595,15 @@ export function OnboardingScreen({
                       sound.tap();
                       setPeakTime(w.id);
                     }}
-                    className="surface-card surface-card-click py-3 px-3 text-left cursor-pointer"
+                    className="surface-card surface-card-click py-4 px-4 text-left cursor-pointer"
                     style={
                       active
                         ? { borderColor: 'var(--accent)', background: 'var(--accent-glow)' }
                         : undefined
                     }
                   >
-                    <div className="text-sm font-bold">{w.label}</div>
-                    <div className="text-[11px] font-medium tabular" style={{ color: 'var(--text-muted)' }}>
+                    <div className="text-[16px] font-bold">{w.label}</div>
+                    <div className="text-xs font-medium tabular mt-0.5" style={{ color: 'var(--text-muted)' }}>
                       {w.range}
                     </div>
                   </button>
@@ -619,16 +612,16 @@ export function OnboardingScreen({
             </div>
           </div>
 
-          <div className="surface-card p-4 flex flex-col gap-3">
-            <div className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--ok)' }}>
-              <Gauge size={12} />
+          <div className="surface-card p-5 flex flex-col gap-3.5">
+            <div className="inline-flex items-center gap-1.5 text-xs font-bold" style={{ color: 'var(--ok)' }}>
+              <Gauge size={14} />
               <span>Resistência à Fadiga Mental</span>
             </div>
-            <h3 className="text-xs font-bold leading-snug">
+            <h3 className="text-sm font-bold leading-snug">
               Como você avalia sua sustentação de foco após 45 minutos de esforço intelectual contínuo?
             </h3>
 
-            <div className="text-xs font-semibold" style={{ color: 'var(--accent)' }}>
+            <div className="text-sm font-bold" style={{ color: 'var(--accent)' }}>
               Nível {stamina}/5 — {staminaInfo.title}
             </div>
 
@@ -646,7 +639,7 @@ export function OnboardingScreen({
               className="w-full cursor-pointer"
             />
 
-            <div className="grid grid-cols-5 gap-1.5">
+            <div className="grid grid-cols-5 gap-2">
               {[1, 2, 3, 4, 5].map((lvl) => (
                 <button
                   key={lvl}
@@ -655,11 +648,11 @@ export function OnboardingScreen({
                     sound.tap();
                     setStamina(lvl);
                   }}
-                  className="py-1.5 rounded-lg text-xs font-bold tabular cursor-pointer transition-all"
+                  className="py-2.5 rounded-xl text-sm font-bold tabular cursor-pointer transition-all"
                   style={{
-                    background: stamina === lvl ? 'var(--accent-glow)' : 'var(--bg)',
-                    border: stamina === lvl ? '1px solid var(--accent)' : '1px solid var(--border)',
-                    color: stamina === lvl ? 'var(--accent)' : 'var(--text-soft)',
+                    background: stamina === lvl ? 'var(--accent-glow)' : 'var(--bg-subtle)',
+                    border: stamina === lvl ? '1.5px solid var(--accent)' : '1px solid transparent',
+                    color: stamina === lvl ? 'var(--accent)' : 'var(--text-muted)',
                   }}
                 >
                   {lvl}
@@ -667,7 +660,7 @@ export function OnboardingScreen({
               ))}
             </div>
 
-            <div className="flex items-center justify-between text-[10px]" style={{ color: 'var(--text-soft)' }}>
+            <div className="flex items-center justify-between text-xs" style={{ color: 'var(--text-soft)' }}>
               <span>1 · Exaustão rápida</span>
               <span>5 · Alta resistência</span>
             </div>
@@ -679,28 +672,28 @@ export function OnboardingScreen({
               sound.hit(2);
               setStep(4);
             }}
-            className="w-full py-3.5 rounded-xl font-bold text-sm btn-accent cursor-pointer flex items-center justify-center gap-2"
+            className="w-full min-h-[54px] py-4 rounded-2xl font-bold text-[15px] btn-accent cursor-pointer flex items-center justify-center gap-2"
           >
             <span>Continuar</span>
-            <ArrowRight size={15} />
+            <ArrowRight size={17} />
           </button>
         </div>
       )}
 
       {/* ETAPA 4: CONTEXTO DE APLICAÇÃO */}
       {step === 4 && (
-        <div className="flex flex-col gap-3 animate-pop">
+        <div className="flex flex-col gap-4 animate-pop">
           <div>
-            <div className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--accent)' }}>
-              <Brain size={12} />
+            <div className="inline-flex items-center gap-1.5 text-xs font-bold mb-1.5" style={{ color: 'var(--accent)' }}>
+              <Brain size={14} />
               <span>Etapa 4 · Contexto de Aplicação</span>
             </div>
-            <h2 className="text-lg font-extrabold tracking-tight leading-snug">
+            <h2 className="text-2xl font-extrabold tracking-tight leading-snug">
               Onde você pretende aplicar os ganhos do treinamento?
             </h2>
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2.5">
             {APPLICATION_CONTEXTS.map((ctx) => {
               const active = applicationContexts.includes(ctx.id);
               return (
@@ -708,7 +701,7 @@ export function OnboardingScreen({
                   key={ctx.id}
                   type="button"
                   onClick={() => toggleApplicationContext(ctx.id)}
-                  className="surface-card surface-card-click px-4 py-3.5 flex items-center justify-between gap-3 text-left cursor-pointer"
+                  className="surface-card surface-card-click px-4 py-4 flex items-center justify-between gap-3.5 text-left cursor-pointer"
                   style={
                     active
                       ? { borderColor: 'var(--accent)', background: 'var(--accent-glow)' }
@@ -716,20 +709,19 @@ export function OnboardingScreen({
                   }
                 >
                   <div>
-                    <div className="text-xs font-bold leading-snug">{ctx.id}</div>
-                    <div className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                    <div className="text-[15px] font-bold leading-snug">{ctx.id}</div>
+                    <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
                       {ctx.tag}
                     </div>
                   </div>
                   <span
-                    className="w-5 h-5 rounded-md flex items-center justify-center shrink-0"
+                    className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0"
                     style={{
-                      background: active ? 'var(--accent)' : 'var(--bg)',
-                      border: active ? 'none' : '1px solid var(--border)',
-                      color: 'var(--btn-fg)',
+                      background: active ? 'var(--accent)' : 'var(--bg-subtle)',
+                      color: '#FFFFFF',
                     }}
                   >
-                    {active && <Check size={13} strokeWidth={3} />}
+                    {active && <Check size={14} strokeWidth={3} />}
                   </span>
                 </button>
               );
@@ -743,31 +735,31 @@ export function OnboardingScreen({
               sound.hit(2);
               setStep(5);
             }}
-            className="w-full py-3.5 rounded-xl font-bold text-sm btn-accent cursor-pointer disabled:opacity-40 flex items-center justify-center gap-2"
+            className="w-full min-h-[54px] py-4 rounded-2xl font-bold text-[15px] btn-accent cursor-pointer disabled:opacity-40 flex items-center justify-center gap-2"
           >
             <span>Continuar ({applicationContexts.length})</span>
-            <ArrowRight size={15} />
+            <ArrowRight size={17} />
           </button>
         </div>
       )}
 
-      {/* ETAPA 5: FAIXA ETÁRIA (SEM AVATAR / SEXO RPG) */}
+      {/* ETAPA 5: FAIXA ETÁRIA */}
       {step === 5 && (
-        <div className="flex flex-col gap-3.5 animate-pop">
+        <div className="flex flex-col gap-4 animate-pop">
           <div>
-            <div className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--accent)' }}>
-              <Calendar size={12} />
+            <div className="inline-flex items-center gap-1.5 text-xs font-bold mb-1.5" style={{ color: 'var(--accent)' }}>
+              <Calendar size={14} />
               <span>Etapa 5 · Faixa Etária</span>
             </div>
-            <h2 className="text-lg font-extrabold tracking-tight leading-snug">
+            <h2 className="text-2xl font-extrabold tracking-tight leading-snug">
               Qual é a sua faixa etária?
             </h2>
-            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+            <p className="text-sm mt-1.5 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
               Utilizada exclusivamente para calibrar seus percentis e a média normativa do seu Dossiê.
             </p>
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2.5">
             {AGE_BRACKET_OPTIONS.map((opt) => {
               const active = ageBracket === opt.id;
               return (
@@ -778,23 +770,22 @@ export function OnboardingScreen({
                     sound.tap();
                     setAgeBracket(opt.id);
                   }}
-                  className="surface-card surface-card-click px-4 py-3.5 flex items-center justify-between gap-2 text-left cursor-pointer"
+                  className="surface-card surface-card-click px-5 py-4 flex items-center justify-between gap-3 text-left cursor-pointer"
                   style={
                     active
                       ? { borderColor: 'var(--accent)', background: 'var(--accent-glow)' }
                       : undefined
                   }
                 >
-                  <span className="text-sm font-bold">{opt.label}</span>
+                  <span className="text-[16px] font-bold">{opt.label}</span>
                   <span
-                    className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+                    className="w-6 h-6 rounded-full flex items-center justify-center shrink-0"
                     style={{
-                      background: active ? 'var(--accent)' : 'var(--bg)',
-                      border: active ? 'none' : '1.5px solid var(--border)',
-                      color: 'var(--btn-fg)',
+                      background: active ? 'var(--accent)' : 'var(--bg-subtle)',
+                      color: '#FFFFFF',
                     }}
                   >
-                    {active && <Check size={11} strokeWidth={3} />}
+                    {active && <Check size={14} strokeWidth={3} />}
                   </span>
                 </button>
               );
@@ -807,28 +798,28 @@ export function OnboardingScreen({
               sound.hit(3);
               setStep(6);
             }}
-            className="w-full py-3.5 rounded-xl font-bold text-sm btn-accent cursor-pointer flex items-center justify-center gap-2"
+            className="w-full min-h-[54px] py-4 rounded-2xl font-bold text-[15px] btn-accent cursor-pointer flex items-center justify-center gap-2"
           >
             <span>Definir meta diária</span>
-            <ArrowRight size={15} />
+            <ArrowRight size={17} />
           </button>
         </div>
       )}
 
       {/* ETAPA 6: META DIÁRIA EM MINUTOS */}
       {step === 6 && (
-        <div className="flex flex-col gap-3 animate-pop">
+        <div className="flex flex-col gap-4 animate-pop">
           <div>
-            <div className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--ok)' }}>
-              <Activity size={12} />
+            <div className="inline-flex items-center gap-1.5 text-xs font-bold mb-1.5" style={{ color: 'var(--ok)' }}>
+              <Activity size={14} />
               <span>Etapa 6 · Meta Diária</span>
             </div>
-            <h2 className="text-lg font-extrabold tracking-tight leading-snug">
+            <h2 className="text-2xl font-extrabold tracking-tight leading-snug">
               Quanto tempo você deseja dedicar ao protocolo diário?
             </h2>
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2.5">
             {DAILY_LOAD_OPTIONS.map((opt) => {
               const active = minutes === opt.minutes;
               return (
@@ -839,7 +830,7 @@ export function OnboardingScreen({
                     sound.tap();
                     setMinutes(opt.minutes);
                   }}
-                  className="surface-card surface-card-click px-4 py-3.5 flex items-center justify-between gap-3 text-left cursor-pointer"
+                  className="surface-card surface-card-click px-5 py-4 flex items-center justify-between gap-3.5 text-left cursor-pointer"
                   style={
                     active
                       ? { borderColor: 'var(--accent)', background: 'var(--accent-glow)' }
@@ -847,20 +838,21 @@ export function OnboardingScreen({
                   }
                 >
                   <div>
-                    <div className="text-sm font-bold">{opt.label} · {opt.protocolName}</div>
-                    <div className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                    <div className="text-[16px] font-bold">
+                      {opt.label} · {opt.protocolName}
+                    </div>
+                    <div className="text-xs sm:text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
                       {opt.detail}
                     </div>
                   </div>
                   <span
-                    className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+                    className="w-6 h-6 rounded-full flex items-center justify-center shrink-0"
                     style={{
-                      background: active ? 'var(--accent)' : 'var(--bg)',
-                      border: active ? 'none' : '1.5px solid var(--border)',
-                      color: 'var(--btn-fg)',
+                      background: active ? 'var(--accent)' : 'var(--bg-subtle)',
+                      color: '#FFFFFF',
                     }}
                   >
-                    {active && <Check size={12} strokeWidth={3} />}
+                    {active && <Check size={14} strokeWidth={3} />}
                   </span>
                 </button>
               );
@@ -873,113 +865,112 @@ export function OnboardingScreen({
               sound.hit(3);
               setStep('summary');
             }}
-            className="w-full py-3.5 rounded-xl font-bold text-sm btn-accent cursor-pointer flex items-center justify-center gap-2"
+            className="w-full min-h-[54px] py-4 rounded-2xl font-bold text-[15px] btn-accent cursor-pointer flex items-center justify-center gap-2"
           >
             <span>Gerar Protocolo Preliminar</span>
-            <ArrowRight size={15} />
+            <ArrowRight size={17} />
           </button>
         </div>
       )}
 
       {/* TELA FINAL: PROTOCOLO PRELIMINAR GERADO */}
       {step === 'summary' && (
-        <div className="flex flex-col gap-3.5 animate-pop">
-          <div className="surface-card p-4 flex flex-col gap-3.5">
+        <div className="flex flex-col gap-4 animate-pop">
+          <div className="surface-card p-5 flex flex-col gap-4">
             <div className="flex items-center justify-between gap-2">
               <span
-                className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full"
+                className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full"
                 style={{
                   background: 'var(--accent-glow)',
                   color: 'var(--accent)',
-                  border: '1px solid var(--border-strong)',
                 }}
               >
-                <Cpu size={12} />
+                <Cpu size={14} />
                 <span>Protocolo Configurado</span>
               </span>
-              <span className="text-[11px] font-semibold tabular" style={{ color: 'var(--ok)' }}>
-                Nível Inicial 0
+              <span className="text-xs font-bold tabular" style={{ color: 'var(--ok)' }}>
+                Nível Inicial 1
               </span>
             </div>
 
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--text-soft)' }}>
+              <div className="text-xs font-semibold mb-2" style={{ color: 'var(--text-soft)' }}>
                 Domínios Selecionados ({effectiveDomains.length})
               </div>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-2">
                 {effectiveDomains.map((dk) => {
                   const d = DOMAIN_MAP[dk];
                   const isBottleneck = bottleneckDomains.includes(dk);
                   return (
                     <span
                       key={dk}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold"
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold"
                       style={{
-                        background: `${d.color}1a`,
+                        background: `${d.color}18`,
                         color: d.color,
                         border: isBottleneck ? `1px solid ${d.color}` : '1px solid transparent',
                       }}
                     >
                       <span>{d.shortName}</span>
-                      {isBottleneck && <span className="text-[9px] opacity-85">· Gargalo</span>}
+                      {isBottleneck && <span className="opacity-90">· Foco</span>}
                     </span>
                   );
                 })}
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-2">
-              <div className="rounded-xl p-2.5" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
-                <div className="text-[9px] font-semibold uppercase" style={{ color: 'var(--text-soft)' }}>
-                  Faixa Etária
+            <div className="grid grid-cols-3 gap-2.5">
+              <div className="rounded-2xl p-3" style={{ background: 'var(--bg-subtle)' }}>
+                <div className="text-xs font-medium" style={{ color: 'var(--text-soft)' }}>
+                  Faixa
                 </div>
-                <div className="text-xs font-bold tabular mt-0.5">
-                  {getAgeBracketMeta(ageBracket).label}
+                <div className="text-sm font-bold tabular mt-0.5">
+                  {getAgeBracketMeta(ageBracket).label.replace(' anos', '')}
                 </div>
               </div>
-              <div className="rounded-xl p-2.5" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
-                <div className="text-[9px] font-semibold uppercase" style={{ color: 'var(--text-soft)' }}>
+              <div className="rounded-2xl p-3" style={{ background: 'var(--bg-subtle)' }}>
+                <div className="text-xs font-medium" style={{ color: 'var(--text-soft)' }}>
                   Pico Mental
                 </div>
-                <div className="text-xs font-bold mt-0.5 truncate">
+                <div className="text-sm font-bold mt-0.5 truncate">
                   {peakTime.split(' ')[0]}
                 </div>
               </div>
-              <div className="rounded-xl p-2.5" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
-                <div className="text-[9px] font-semibold uppercase" style={{ color: 'var(--text-soft)' }}>
+              <div className="rounded-2xl p-3" style={{ background: 'var(--bg-subtle)' }}>
+                <div className="text-xs font-medium" style={{ color: 'var(--text-soft)' }}>
                   Meta Diária
                 </div>
-                <div className="text-xs font-bold tabular mt-0.5">
+                <div className="text-sm font-bold tabular mt-0.5">
                   {minutes} min ({dailyTaskCount}x)
                 </div>
               </div>
             </div>
 
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-soft)' }}>
-                Avaliação de Linha de Base ({calibrationDomains.length} exercícios · Nível 0)
+              <div className="text-xs font-semibold mb-2.5" style={{ color: 'var(--text-soft)' }}>
+                Avaliação de Linha de Base ({calibrationDomains.length} exercícios · Nível 1)
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2.5">
                 {calibrationDomains.map((dk, idx) => {
                   const dom = DOMAIN_MAP[dk];
                   const game = GAME_MAP[dom.calibrationGame];
                   return (
                     <div
                       key={dk}
-                      className="rounded-xl p-2.5 flex items-center gap-2"
-                      style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
+                      className="rounded-2xl p-3 flex items-center gap-2.5"
+                      style={{ background: 'var(--bg-subtle)' }}
                     >
                       <div
-                        className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-                        style={{ background: `${dom.color}1a`, color: dom.color }}
+                        className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                        style={{ background: `${dom.color}18`, color: dom.color }}
                       >
-                        <GameIcon slug={game.slug} size={15} />
+                        <GameIcon slug={game.slug} size={17} />
                       </div>
                       <div className="min-w-0">
-                        <div className="text-[11px] font-bold truncate">
+                        <div className="text-xs font-bold truncate">
                           {idx + 1}. {game.name}
                         </div>
-                        <div className="text-[10px] truncate" style={{ color: 'var(--text-soft)' }}>
+                        <div className="text-xs truncate" style={{ color: 'var(--text-soft)' }}>
                           {dom.shortName}
                         </div>
                       </div>
@@ -993,16 +984,16 @@ export function OnboardingScreen({
           <button
             type="button"
             onClick={() => handleConfirmProtocol(true)}
-            className="w-full py-3.5 rounded-xl font-bold text-sm btn-accent cursor-pointer flex items-center justify-center gap-2"
+            className="w-full min-h-[54px] py-4 rounded-2xl font-bold text-[15px] btn-accent cursor-pointer flex items-center justify-center gap-2.5"
           >
-            <Play size={15} fill="currentColor" />
+            <Play size={18} fill="currentColor" />
             <span>Iniciar Avaliação Inicial</span>
           </button>
 
           <button
             type="button"
             onClick={() => handleConfirmProtocol(false)}
-            className="mx-auto py-1 px-3 text-[11px] font-medium cursor-pointer"
+            className="mx-auto py-2 px-4 text-xs font-semibold cursor-pointer"
             style={{ color: 'var(--text-soft)' }}
           >
             Revisar bateria antes de começar
@@ -1013,15 +1004,16 @@ export function OnboardingScreen({
       {/* Micro-feedback técnico */}
       {step !== 'summary' && (
         <div
-          className="rounded-xl px-3 py-2.5 flex items-center gap-2 text-[11px]"
+          className="rounded-2xl px-4 py-3 flex items-center gap-2.5 text-xs"
           style={{
             background: 'var(--bg-card)',
             border: '1px solid var(--border)',
             color: 'var(--text-muted)',
+            boxShadow: 'var(--card-shadow)',
           }}
         >
           <span
-            className="w-1.5 h-1.5 rounded-full shrink-0"
+            className="w-2 h-2 rounded-full shrink-0"
             style={{ background: 'var(--ok)' }}
           />
           <span className="leading-snug">{telemetryLine}</span>

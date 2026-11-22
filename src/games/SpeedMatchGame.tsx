@@ -8,7 +8,7 @@ interface CardItem {
 }
 
 const SYMBOLS = ['◆', '▲', '●', '■', '★', '⬟'];
-const COLORS = ['#38bdf8', '#f472b6', '#34d399', '#fbbf24'];
+const COLORS = ['#3B82F6', '#EC4899', '#10B981', '#D97706'];
 
 function randomCard(effectiveDiff: number): CardItem {
   const symPool = SYMBOLS.slice(0, Math.min(SYMBOLS.length, 3 + Math.ceil(effectiveDiff / 2)));
@@ -161,7 +161,7 @@ export function SpeedMatchGame({
                 ? '2px solid var(--err)'
                 : '2px solid var(--border-strong)',
           color: display.color,
-          boxShadow: '0 14px 36px rgba(0,0,0,0.35)',
+          boxShadow: 'var(--card-shadow)',
         }}
       >
         {display.symbol}

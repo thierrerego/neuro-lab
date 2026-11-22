@@ -12,13 +12,20 @@ function rnd(min: number, max: number) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-function buildQuestion(complexity: 1 | 2 | 3 | 4, easeBoost: boolean): MathQuestion {
+function buildQuestion(stage: number, complexity: 1 | 2 | 3 | 4, easeBoost: boolean): MathQuestion {
   let expression = '';
   let answer = 0;
 
-  if (complexity === 1) {
-    const a = easeBoost ? rnd(2, 9) : rnd(3, 16);
-    const b = easeBoost ? rnd(1, 8) : rnd(2, 14);
+  // Nível 1 ultrabásico: somas triviais (1..5 + 1..5)
+  if (stage < 2) {
+    const a = rnd(1, 5);
+    const b = rnd(1, 5);
+    expression = `${a} + ${b}`;
+    answer = a + b;
+  } else if (complexity === 1) {
+    // Progressão suave nos Níveis 2..4
+    const a = stage < 3 ? rnd(2, 9) : easeBoost ? rnd(3, 12) : rnd(4, 15);
+    const b = stage < 3 ? rnd(1, 8) : easeBoost ? rnd(2, 9) : rnd(3, 12);
     expression = `${a} + ${b}`;
     answer = a + b;
   } else if (complexity === 2) {
@@ -59,12 +66,14 @@ function buildQuestion(complexity: 1 | 2 | 3 | 4, easeBoost: boolean): MathQuest
     }
   }
 
-  const offsets = [-10, -3, -2, -1, 1, 2, 3, 10].sort(() => Math.random() - 0.5);
+  const baseOffsets = stage < 2 ? [-4, -3, -2, -1, 1, 2, 3, 4] : [-10, -3, -2, -1, 1, 2, 3, 10];
+  const offsets = [...baseOffsets].sort(() => Math.random() - 0.5);
+  const minCand = stage < 2 ? 1 : 0;
   const set = new Set<number>([answer]);
   for (const off of offsets) {
     if (set.size >= 4) break;
     const cand = answer + off;
-    if (cand !== answer && cand >= 0) set.add(cand);
+    if (cand !== answer && cand >= minCand) set.add(cand);
   }
   while (set.size < 4) set.add(answer + set.size + 1);
 
@@ -84,7 +93,7 @@ export function ChainArithmeticGame({
   onLiveUpdate,
   onFinish,
 }: MinigameProps) {
-  const [q, setQ] = useState(() => buildQuestion(config.mathComplexity, config.easeBoost));
+  const [q, setQ] = useState(() => buildQuestion(config.stage, config.mathComplexity, config.easeBoost));
   const [qId, setQId] = useState(0);
   const [flash, setFlash] = useState<{ val: number; ok: boolean } | null>(null);
 
@@ -154,7 +163,7 @@ export function ChainArithmeticGame({
     setTimeout(() => {
       if (statsRef.current.finished) return;
       setFlash(null);
-      setQ(buildQuestion(configRef.current.mathComplexity, configRef.current.easeBoost));
+      setQ(buildQuestion(configRef.current.stage, configRef.current.mathComplexity, configRef.current.easeBoost));
       setQId((id) => id + 1);
       statsRef.current.shownAt = performance.now();
     }, 160);
