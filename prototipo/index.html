@@ -1,0 +1,1551 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="minimal">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>NeuroLab — Protótipo Interativo</title>
+  <style>
+    /* ============================================================
+       SISTEMA DUAL-THEME (Minimalista vs. Gamificado)
+       ============================================================ */
+    :root,
+    [data-theme="minimal"] {
+      --bg: #0a0e17;
+      --bg-elevated: #111726;
+      --bg-card: #151c2e;
+      --bg-card-hover: #1b243b;
+      --bg-subtle: #1c253a;
+      --border: rgba(148, 163, 184, 0.16);
+      --border-strong: rgba(56, 189, 248, 0.45);
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --text-soft: #64748b;
+      --accent: #38bdf8;
+      --accent-2: #10b981;
+      --accent-glow: rgba(56, 189, 248, 0.18);
+      --accent-grad: linear-gradient(135deg, #0ea5e9, #38bdf8);
+      --warn: #f59e0b;
+      --danger: #f43f5e;
+      --success: #10b981;
+      --radar-fill: rgba(56, 189, 248, 0.24);
+      --radar-stroke: #38bdf8;
+      --radar-base: rgba(148, 163, 184, 0.55);
+      --radius: 14px;
+      --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+      --font-sans: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    }
+
+    [data-theme="gamified"] {
+      --bg: #0f0a21;
+      --bg-elevated: #181036;
+      --bg-card: #21164a;
+      --bg-card-hover: #2c1e63;
+      --bg-subtle: #2b1d5e;
+      --border: rgba(192, 132, 252, 0.28);
+      --border-strong: rgba(245, 158, 11, 0.7);
+      --text: #faf5ff;
+      --text-muted: #c4b5fd;
+      --text-soft: #9481cf;
+      --accent: #a855f7;
+      --accent-2: #06b6d4;
+      --accent-glow: rgba(168, 85, 247, 0.35);
+      --accent-grad: linear-gradient(135deg, #ec4899 0%, #a855f7 50%, #06b6d4 100%);
+      --warn: #fbbf24;
+      --danger: #fb7185;
+      --success: #34d399;
+      --radar-fill: rgba(236, 72, 153, 0.30);
+      --radar-stroke: #f472b6;
+      --radar-base: rgba(196, 181, 253, 0.55);
+      --radius: 18px;
+      --shadow: 0 12px 35px rgba(124, 58, 237, 0.28);
+      --font-sans: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      transition: background 0.3s ease, color 0.3s ease;
+    }
+
+    [data-theme="gamified"] body {
+      background: radial-gradient(circle at top right, #2e1065 0%, #0f0a21 55%, #090617 100%);
+    }
+
+    /* Barra superior do protótipo (controles rápidos de demonstração) */
+    .proto-bar {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.45);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 14px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 12px;
+      backdrop-filter: blur(8px);
+      position: sticky;
+      top: 0;
+      z-index: 60;
+    }
+    .proto-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+    .proto-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--warn);
+      box-shadow: 0 0 8px var(--warn);
+    }
+    .proto-actions {
+      display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+    }
+    .chip-btn {
+      background: var(--bg-card);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 5px 11px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: transform 0.15s, border-color 0.2s, background 0.2s;
+    }
+    .chip-btn:hover { border-color: var(--accent); transform: translateY(-1px); }
+    .chip-btn.active { background: var(--accent-grad); color: #090d16; border-color: transparent; }
+    [data-theme="gamified"] .chip-btn.active { color: #ffffff; }
+
+    /* Moldura Mobile-First */
+    .app-shell {
+      width: 100%;
+      max-width: 440px;
+      min-height: calc(100vh - 45px);
+      background: var(--bg-elevated);
+      border-left: 1px solid var(--border);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      box-shadow: var(--shadow);
+      transition: max-width 0.25s ease, background 0.3s ease;
+    }
+    .app-shell.wide { max-width: 920px; }
+
+    /* Cabeçalho interno do app */
+    .app-header {
+      padding: 14px 18px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-elevated);
+      position: sticky;
+      top: 41px;
+      z-index: 40;
+    }
+    .brand {
+      display: flex; align-items: center; gap: 10px;
+    }
+    .brand-icon {
+      width: 34px; height: 34px; border-radius: 10px;
+      background: var(--accent-grad);
+      display: grid; place-items: center;
+      font-size: 18px; font-weight: 800; color: #fff;
+      box-shadow: 0 4px 14px var(--accent-glow);
+    }
+    .brand-name { font-weight: 800; font-size: 17px; letter-spacing: -0.3px; }
+    .brand-sub { font-size: 11px; color: var(--text-muted); }
+
+    .header-pills { display: flex; align-items: center; gap: 8px; }
+    .streak-pill {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      display: flex; align-items: center; gap: 4px;
+    }
+    .theme-toggle {
+      width: 34px; height: 34px; border-radius: 10px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 16px;
+      cursor: pointer;
+      display: grid; place-items: center;
+    }
+    .theme-toggle:hover { border-color: var(--accent); }
+
+    /* Área de conteúdo */
+    .content {
+      flex: 1;
+      padding: 16px 16px 86px;
+      overflow-y: auto;
+    }
+
+    .screen { display: none; animation: fadeIn 0.22s ease; }
+    .screen.active { display: block; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Componentes comuns */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 15px;
+      margin-bottom: 12px;
+      transition: border-color 0.2s, transform 0.15s, background 0.2s;
+    }
+    .card.clickable { cursor: pointer; }
+    .card.clickable:hover { border-color: var(--accent); background: var(--bg-card-hover); transform: translateY(-1px); }
+
+    .section-title {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+      color: var(--text-muted);
+      font-weight: 700;
+      margin: 16px 0 9px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 13px 16px;
+      border-radius: 12px;
+      border: none;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: transform 0.12s, filter 0.2s, opacity 0.2s;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary {
+      background: var(--accent-grad);
+      color: #06101c;
+      box-shadow: 0 6px 20px var(--accent-glow);
+    }
+    [data-theme="gamified"] .btn-primary { color: #ffffff; }
+    .btn-secondary {
+      background: var(--bg-subtle);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { border-color: var(--accent); }
+    .btn-sm { padding: 8px 12px; font-size: 12.5px; width: auto; border-radius: 10px; }
+
+    .input {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      padding: 12px 13px;
+      color: var(--text);
+      font-size: 14px;
+      outline: none;
+      margin-bottom: 10px;
+    }
+    .input:focus { border-color: var(--accent); }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+    .badge-accent { background: var(--accent-glow); color: var(--accent); border: 1px solid var(--border-strong); }
+    .badge-xp { background: rgba(245, 158, 11, 0.16); color: var(--warn); border: 1px solid rgba(245, 158, 11, 0.45); }
+    .badge-ok { background: rgba(16, 185, 129, 0.16); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.4); }
+    .badge-soft { background: var(--bg-subtle); color: var(--text-muted); border: 1px solid var(--border); }
+
+    /* Barra de XP (destaque no tema Gamificado) */
+    .xp-box {
+      display: none;
+      background: linear-gradient(135deg, rgba(168, 85, 247, 0.22), rgba(6, 182, 212, 0.16));
+      border: 1px solid rgba(192, 132, 252, 0.45);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      margin-bottom: 12px;
+    }
+    [data-theme="gamified"] .xp-box { display: block; }
+    .xp-bar-track {
+      height: 10px; border-radius: 999px;
+      background: rgba(0, 0, 0, 0.35);
+      overflow: hidden;
+      margin-top: 7px;
+    }
+    .xp-bar-fill {
+      height: 100%; border-radius: 999px;
+      background: linear-gradient(90deg, #f59e0b, #ec4899, #06b6d4);
+      width: 71%;
+      transition: width 0.5s ease;
+    }
+
+    /* Hero ICG */
+    .icg-hero {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .icg-number {
+      font-size: 40px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+      background: var(--accent-grad);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .metric-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .metric-mini {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 9px 10px;
+      text-align: center;
+    }
+    .metric-mini .val { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .metric-mini .lbl { font-size: 10.5px; color: var(--text-muted); margin-top: 2px; }
+
+    /* Cards de jogo */
+    .games-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+    .app-shell.wide .games-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    .game-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 13px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transition: border-color 0.2s, transform 0.15s, background 0.2s;
+    }
+    .game-card:hover { border-color: var(--accent); background: var(--bg-card-hover); transform: translateY(-2px); }
+    .game-icon {
+      width: 46px; height: 46px; border-radius: 12px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      display: grid; place-items: center;
+      font-size: 22px; flex-shrink: 0;
+    }
+    .game-info { flex: 1; min-width: 0; }
+    .game-title { font-size: 14.5px; font-weight: 700; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .game-domain { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
+    .game-meta { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 11.5px; color: var(--text-soft); flex-wrap: wrap; }
+
+    /* Filtros de domínio */
+    .filter-scroll {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 6px;
+      margin-bottom: 10px;
+      scrollbar-width: none;
+    }
+    .filter-scroll::-webkit-scrollbar { display: none; }
+    .filter-pill {
+      white-space: nowrap;
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .filter-pill.active {
+      background: var(--accent-grad);
+      color: #06101c;
+      border-color: transparent;
+    }
+    [data-theme="gamified"] .filter-pill.active { color: #fff; }
+
+    /* Onboarding */
+    .progress-bar {
+      height: 6px; border-radius: 999px;
+      background: var(--bg-subtle);
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+    .progress-fill {
+      height: 100%; border-radius: 999px;
+      background: var(--accent-grad);
+      transition: width 0.3s ease;
+    }
+    .option-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 13px 14px;
+      margin-bottom: 9px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 14px;
+      font-weight: 600;
+      transition: border-color 0.15s, background 0.15s, transform 0.1s;
+    }
+    .option-card:hover { border-color: var(--accent); background: var(--bg-card-hover); }
+    .option-card.selected { border-color: var(--accent); background: var(--accent-glow); }
+
+    /* Tela de Jogo (Prévia interativa) */
+    .play-hud {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .hud-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      padding: 8px;
+      text-align: center;
+    }
+    .hud-val { font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .hud-lbl { font-size: 10.5px; color: var(--text-muted); }
+
+    .arena {
+      background: var(--bg);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius);
+      padding: 20px 16px;
+      min-height: 255px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      gap: 14px;
+      margin-bottom: 12px;
+      position: relative;
+      overflow: hidden;
+    }
+    .combo-pill {
+      display: none;
+      position: absolute;
+      top: 10px; right: 10px;
+      background: linear-gradient(135deg, #f59e0b, #ec4899);
+      color: #fff;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 11.5px;
+      font-weight: 800;
+      animation: pulse 0.8s infinite alternate;
+    }
+    [data-theme="gamified"] .combo-pill.show { display: inline-block; }
+    @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.07); } }
+
+    .demo-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 56px);
+      gap: 8px;
+    }
+    .demo-cell {
+      width: 56px; height: 56px; border-radius: 10px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      display: grid; place-items: center;
+      font-size: 20px; font-weight: 800;
+      cursor: pointer;
+      transition: transform 0.1s, background 0.15s, border-color 0.15s;
+    }
+    .demo-cell:hover { border-color: var(--accent); transform: scale(1.04); }
+    .demo-cell.target { background: var(--accent-glow); border-color: var(--accent); }
+    .demo-cell.hit { background: rgba(16, 185, 129, 0.25); border-color: var(--success); }
+
+    .choice-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; max-width: 300px; }
+
+    /* Radar e barras de domínio */
+    .radar-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 6px 0;
+    }
+    .legend {
+      display: flex; gap: 14px; font-size: 12px; color: var(--text-muted); margin-top: 6px;
+    }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .leg-dot { width: 10px; height: 10px; border-radius: 3px; }
+
+    .domain-bar-row { margin-bottom: 11px; }
+    .domain-bar-head { display: flex; justify-content: space-between; font-size: 12.5px; margin-bottom: 5px; }
+    .domain-track {
+      height: 8px; border-radius: 999px; background: var(--bg); overflow: hidden; position: relative;
+      border: 1px solid var(--border);
+    }
+    .domain-fill { height: 100%; border-radius: 999px; background: var(--accent-grad); transition: width 0.4s ease; }
+
+    /* Barra de navegação inferior */
+    .bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 440px;
+      background: var(--bg-elevated);
+      border-top: 1px solid var(--border);
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      padding: 6px 4px 8px;
+      z-index: 50;
+      transition: max-width 0.25s ease;
+    }
+    .bottom-nav.wide { max-width: 920px; }
+    .bottom-nav.hidden { display: none; }
+    .nav-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-soft);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      padding: 6px 4px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .nav-btn .ico { font-size: 19px; line-height: 1; }
+    .nav-btn.active { color: var(--accent); }
+
+    /* Modal de resultado */
+    .modal-backdrop {
+      position: fixed; inset: 0;
+      background: rgba(0, 0, 0, 0.72);
+      display: none; align-items: center; justify-content: center;
+      padding: 18px; z-index: 100;
+      backdrop-filter: blur(5px);
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal-box {
+      width: 100%; max-width: 390px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-strong);
+      border-radius: 18px;
+      padding: 20px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+      animation: fadeIn 0.2s ease;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 82px; left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--bg-card);
+      border: 1px solid var(--accent);
+      color: var(--text);
+      padding: 9px 15px;
+      border-radius: 999px;
+      font-size: 12.5px;
+      font-weight: 600;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s, transform 0.2s;
+      z-index: 120;
+      box-shadow: var(--shadow);
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    .disclaimer {
+      font-size: 11px;
+      color: var(--text-soft);
+      text-align: center;
+      margin-top: 14px;
+      line-height: 1.45;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Barra de controles do protótipo -->
+  <div class="proto-bar">
+    <div class="proto-badge">
+      <span class="proto-dot"></span>
+      <span>Protótipo clicável · NeuroLab (dados simulados)</span>
+    </div>
+    <div class="proto-actions">
+      <button class="chip-btn active" id="btnThemeMin" onclick="setTheme('minimal')">🎯 Minimalista</button>
+      <button class="chip-btn" id="btnThemeGam" onclick="setTheme('gamified')">⚡ Gamificado</button>
+      <button class="chip-btn" id="btnLayout" onclick="toggleWidth()">📱 Celular / 💻 PC</button>
+    </div>
+  </div>
+
+  <div class="app-shell" id="appShell">
+
+    <!-- Cabeçalho do App (escondido no login) -->
+    <header class="app-header" id="appHeader" style="display:none">
+      <div class="brand">
+        <div class="brand-icon">N</div>
+        <div>
+          <div class="brand-name">NeuroLab</div>
+          <div class="brand-sub" id="headerSub">Modo Guiado</div>
+        </div>
+      </div>
+      <div class="header-pills">
+        <div class="streak-pill" title="Sequência diária">🔥 <span id="hdrStreak">7</span>d</div>
+        <button class="theme-toggle" id="hdrThemeBtn" onclick="toggleTheme()" title="Alternar tema">✨</button>
+      </div>
+    </header>
+
+    <main class="content">
+
+      <!-- ============================================================
+           TELA 1: LOGIN & ACESSO RÁPIDO LOCAL
+           ============================================================ -->
+      <section class="screen active" id="screen-auth">
+        <div style="text-align:center; padding: 26px 8px 20px;">
+          <div class="brand-icon" style="width:58px;height:58px;font-size:28px;margin:0 auto 14px;border-radius:16px;">N</div>
+          <h1 style="font-size:26px;font-weight:800;letter-spacing:-0.5px;">NeuroLab</h1>
+          <p style="color:var(--text-muted);font-size:13.5px;margin-top:6px;line-height:1.45;">
+            Treino cognitivo adaptativo em 6 domínios, com progressão por fases e métricas reais de desempenho.
+          </p>
+        </div>
+
+        <div class="card">
+          <button class="btn btn-primary" onclick="quickLogin()">
+            ⚡ Acesso Rápido Local (Entrar agora)
+          </button>
+          <p style="text-align:center;font-size:11.5px;color:var(--text-soft);margin:10px 0 14px;">
+            Ideal para testar o Docker local sem confirmação de e-mail
+          </p>
+          <div style="border-top:1px solid var(--border); padding-top:14px;">
+            <input class="input" type="email" value="thier@neurolab.local" placeholder="E-mail" />
+            <input class="input" type="password" value="••••••••" placeholder="Senha" />
+            <button class="btn btn-secondary" onclick="startOnboarding()">
+              Entrar e fazer Anamnese (6 perguntas)
+            </button>
+          </div>
+        </div>
+
+        <div class="card" style="display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div style="font-size:13px;font-weight:700;">Experimente o Dual-Theme</div>
+            <div style="font-size:11.5px;color:var(--text-muted);">Alterne entre clínico e gamificado com som</div>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="toggleTheme()">Trocar tema</button>
+        </div>
+
+        <p class="disclaimer">
+          Ferramenta educacional de treino cognitivo e raciocínio lógico. Não substitui avaliação nem possui finalidade médica ou clínica.
+        </p>
+      </section>
+
+      <!-- ============================================================
+           TELA 2: ANAMNESE COGNITIVA (6 PERGUNTAS)
+           ============================================================ -->
+      <section class="screen" id="screen-onboarding">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <span class="badge badge-accent" id="obStepBadge">Pergunta 1 de 6</span>
+          <button class="chip-btn" onclick="go('screen-calibration')">Pular →</button>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" id="obProgress" style="width:16%"></div></div>
+
+        <h2 id="obQuestion" style="font-size:20px;font-weight:800;line-height:1.3;margin-bottom:6px;"></h2>
+        <p id="obSub" style="font-size:13px;color:var(--text-muted);margin-bottom:16px;"></p>
+
+        <div id="obOptions"></div>
+
+        <div style="display:flex;gap:8px;margin-top:12px;">
+          <button class="btn btn-secondary" id="obBackBtn" onclick="obPrev()" style="width:38%">◀ Voltar</button>
+          <button class="btn btn-primary" onclick="obNext()">Continuar ▶</button>
+        </div>
+      </section>
+
+      <!-- ============================================================
+           TELA 3: BATERIA DE CALIBRAÇÃO (BASELINE)
+           ============================================================ -->
+      <section class="screen" id="screen-calibration">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+            <div>
+              <span class="badge badge-accent">Calibração Inicial</span>
+              <h2 style="font-size:19px;font-weight:800;margin-top:6px;">Linha de Base (6 Domínios)</h2>
+            </div>
+            <div style="font-size:22px;font-weight:800;color:var(--accent);" id="calCount">0/6</div>
+          </div>
+          <p style="font-size:12.5px;color:var(--text-muted);margin-top:6px;line-height:1.45;">
+            Jogue a <strong>Fase 1</strong> de 1 minigame por domínio para gerar seu gráfico de radar inicial.
+          </p>
+          <div class="progress-bar" style="margin:12px 0 10px;"><div class="progress-fill" id="calProgress" style="width:0%"></div></div>
+          <button class="btn btn-primary" onclick="simulateFullCalibration()">
+            ⚡ Simular Calibração Completa (ir pro Painel)
+          </button>
+        </div>
+
+        <div class="games-grid" id="calList"></div>
+      </section>
+
+      <!-- ============================================================
+           TELA 4: INÍCIO — MODO GUIADO (TREINO DIÁRIO ADAPTATIVO)
+           ============================================================ -->
+      <section class="screen" id="screen-home">
+        <!-- Barra de XP (visível no tema Gamificado) -->
+        <div class="xp-box">
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:12.5px;font-weight:700;">
+            <span>⚡ Nível 6 · Estrategista Neural</span>
+            <span style="color:var(--warn);" id="xpLabel">1.420 / 2.000 XP</span>
+          </div>
+          <div class="xp-bar-track"><div class="xp-bar-fill" id="xpFill"></div></div>
+        </div>
+
+        <!-- Card Principal ICG -->
+        <div class="card">
+          <div class="icg-hero">
+            <div>
+              <div style="font-size:12px;color:var(--text-muted);font-weight:600;">Índice Cognitivo Global (ICG)</div>
+              <div style="display:flex;align-items:baseline;gap:8px;margin-top:4px;">
+                <span class="icg-number" id="homeIcg">648</span>
+                <span class="badge badge-ok" id="homeDelta">+34 pts</span>
+              </div>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="go('screen-stats')">Ver Radar →</button>
+          </div>
+          <div class="metric-row">
+            <div class="metric-mini">
+              <div class="val" id="homeRt">462 ms</div>
+              <div class="lbl">Tempo reação</div>
+            </div>
+            <div class="metric-mini">
+              <div class="val" id="homeAcc">89%</div>
+              <div class="lbl">Precisão média</div>
+            </div>
+            <div class="metric-mini">
+              <div class="val" id="homeStages">26</div>
+              <div class="lbl">Fases vencidas</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Treino Diário Adaptativo -->
+        <div class="section-title">
+          <span>Treino Diário Adaptativo</span>
+          <span id="dailyCount" style="color:var(--accent);">1 / 4 feitos</span>
+        </div>
+
+        <div class="card" style="padding:12px 14px; margin-bottom:10px;">
+          <div style="font-size:12.5px;color:var(--text-muted);line-height:1.4;">
+            Selecionamos <strong>3 jogos nos seus domínios mais fracos</strong> (na sua fase atual) + <strong>1 de manutenção</strong>.
+          </div>
+          <button class="btn btn-primary" style="margin-top:10px;" onclick="startNextDaily()">
+            ▶ Iniciar próximo jogo do dia
+          </button>
+        </div>
+
+        <div class="games-grid" id="dailyGamesList"></div>
+      </section>
+
+      <!-- ============================================================
+           TELA 5: CATÁLOGO — MODO LIVRE (12 MINIGAMES)
+           ============================================================ -->
+      <section class="screen" id="screen-catalog">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <div>
+            <h2 style="font-size:19px;font-weight:800;">Catálogo Completo</h2>
+            <p style="font-size:12px;color:var(--text-muted);">12 minigames · 6 domínios · fases infinitas</p>
+          </div>
+          <span class="badge badge-xp">+20% XP nos 2 fracos</span>
+        </div>
+
+        <div class="filter-scroll" id="domainFilters"></div>
+        <div class="games-grid" id="catalogList"></div>
+      </section>
+
+      <!-- ============================================================
+           TELA 6: TELA DE JOGO (PRÉVIA DO STAGE ENGINE)
+           ============================================================ -->
+      <section class="screen" id="screen-play">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <button class="chip-btn" onclick="exitPlay()">◀ Sair</button>
+          <span class="badge badge-accent" id="playStageBadge">Fase 1</span>
+          <span class="badge badge-soft" id="playModeBadge">Modo Livre</span>
+        </div>
+
+        <div style="margin-bottom:10px;">
+          <h2 id="playTitle" style="font-size:19px;font-weight:800;"></h2>
+          <p id="playStageSpec" style="font-size:12px;color:var(--text-muted);margin-top:2px;"></p>
+        </div>
+
+        <div class="play-hud">
+          <div class="hud-box">
+            <div class="hud-val" id="hudTimer">35s</div>
+            <div class="hud-lbl">Tempo</div>
+          </div>
+          <div class="hud-box">
+            <div class="hud-val" id="hudScore">0</div>
+            <div class="hud-lbl">Pontos</div>
+          </div>
+          <div class="hud-box">
+            <div class="hud-val" id="hudAcc">100%</div>
+            <div class="hud-lbl">Precisão</div>
+          </div>
+        </div>
+
+        <!-- Arena interativa de prévia -->
+        <div class="arena" id="playArena">
+          <span class="combo-pill" id="comboPill">🔥 COMBO x3</span>
+          <div id="arenaContent" style="width:100%;display:flex;flex-direction:column;align-items:center;gap:12px;"></div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <button class="btn btn-primary" onclick="finishPlay(true)">
+            🏆 Simular Vitória (≥80%)
+          </button>
+          <button class="btn btn-secondary" onclick="finishPlay(false)">
+            ↺ Simular Abaixo de 80%
+          </button>
+        </div>
+        <p class="disclaimer">
+          Prévia visual do motor de fases (Stage Engine). No MVP, os 12 jogos terão lógica completa com <code>performance.now()</code>.
+        </p>
+      </section>
+
+      <!-- ============================================================
+           TELA 7: EVOLUÇÃO & RADAR (6 EIXOS)
+           ============================================================ -->
+      <section class="screen" id="screen-stats">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div style="font-size:12px;color:var(--text-muted);font-weight:600;">Perfil Cognitivo · 6 Eixos</div>
+              <h2 style="font-size:19px;font-weight:800;margin-top:2px;">Linha de Base vs. Atual</h2>
+            </div>
+            <span class="badge badge-ok" id="statsIcgBadge">ICG 648</span>
+          </div>
+
+          <div class="radar-wrap">
+            <svg id="radarSvg" viewBox="0 0 320 270" width="100%" style="max-width:320px;"></svg>
+            <div class="legend">
+              <span><i class="leg-dot" style="background:var(--radar-stroke)"></i> Atual</span>
+              <span><i class="leg-dot" style="background:var(--radar-base)"></i> Linha de Base</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Evolução Longitudinal -->
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <span style="font-size:13.5px;font-weight:700;">Evolução do Tempo de Reação (ms)</span>
+            <span class="badge badge-accent">-74 ms ↓</span>
+          </div>
+          <svg id="lineSvg" viewBox="0 0 320 110" width="100%"></svg>
+        </div>
+
+        <div class="section-title"><span>Pontuação por Domínio</span><span>Base → Atual</span></div>
+        <div class="card" id="domainBars"></div>
+      </section>
+
+      <!-- ============================================================
+           TELA 8: PERFIL & CONFIGURAÇÕES
+           ============================================================ -->
+      <section class="screen" id="screen-profile">
+        <div class="card" style="display:flex;align-items:center;gap:13px;">
+          <div class="brand-icon" style="width:48px;height:48px;font-size:20px;border-radius:14px;">T</div>
+          <div style="flex:1;">
+            <div style="font-size:16px;font-weight:800;">Thierre · Local</div>
+            <div style="font-size:12px;color:var(--text-muted);">thier@neurolab.local</div>
+          </div>
+          <span class="badge badge-accent" id="tierBadge">FREE</span>
+        </div>
+
+        <div class="section-title"><span>Aparência (Dual-Theme)</span></div>
+        <div class="card" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <button class="btn btn-secondary" id="profMin" onclick="setTheme('minimal')">🎯 Minimalista</button>
+          <button class="btn btn-secondary" id="profGam" onclick="setTheme('gamified')">⚡ Gamificado</button>
+        </div>
+
+        <div class="section-title"><span>Plano (preparado em profiles.plan_tier)</span></div>
+        <div class="card" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+          <button class="chip-btn active" id="tier-free" onclick="setTier('FREE')" style="justify-content:center;padding:9px;">Free</button>
+          <button class="chip-btn" id="tier-pro" onclick="setTier('PRO')" style="justify-content:center;padding:9px;">Pro</button>
+          <button class="chip-btn" id="tier-elite" onclick="setTier('ELITE')" style="justify-content:center;padding:9px;">Elite</button>
+        </div>
+
+        <div class="section-title"><span>Atalhos do Protótipo</span></div>
+        <div class="card" style="display:flex;flex-direction:column;gap:8px;">
+          <button class="btn btn-secondary" onclick="startOnboarding()">📋 Refazer Anamnese (6 perguntas)</button>
+          <button class="btn btn-secondary" onclick="go('screen-calibration')">🧪 Abrir Bateria de Calibração</button>
+          <button class="btn btn-secondary" onclick="logout()">🚪 Voltar pro Login</button>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Navegação Inferior -->
+    <nav class="bottom-nav hidden" id="bottomNav">
+      <button class="nav-btn active" data-screen="screen-home" onclick="go('screen-home')">
+        <span class="ico">🏠</span><span>Início</span>
+      </button>
+      <button class="nav-btn" data-screen="screen-catalog" onclick="go('screen-catalog')">
+        <span class="ico">🎮</span><span>Jogos (12)</span>
+      </button>
+      <button class="nav-btn" data-screen="screen-stats" onclick="go('screen-stats')">
+        <span class="ico">📊</span><span>Evolução</span>
+      </button>
+      <button class="nav-btn" data-screen="screen-profile" onclick="go('screen-profile')">
+        <span class="ico">⚙️</span><span>Perfil</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- Modal de Resultado da Fase -->
+  <div class="modal-backdrop" id="resultModal">
+    <div class="modal-box">
+      <div style="text-align:center;">
+        <div id="resIcon" style="font-size:40px;margin-bottom:6px;">🏆</div>
+        <span class="badge badge-ok" id="resBadge">FASE DESBLOQUEADA!</span>
+        <h3 id="resTitle" style="font-size:20px;font-weight:800;margin-top:8px;">Fase 2 → Fase 3</h3>
+        <p id="resSub" style="font-size:12.5px;color:var(--text-muted);margin-top:4px;"></p>
+      </div>
+      <div class="metric-row" style="margin:14px 0;">
+        <div class="metric-mini"><div class="val" id="resScore">1.420</div><div class="lbl">Pontuação</div></div>
+        <div class="metric-mini"><div class="val" id="resAcc">92%</div><div class="lbl">Precisão</div></div>
+        <div class="metric-mini"><div class="val" id="resRt">418 ms</div><div class="lbl">RT médio</div></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <button class="btn btn-primary" id="resNextBtn" onclick="replayCurrent()">▶ Jogar Próxima Fase</button>
+        <button class="btn btn-secondary" onclick="closeResult()">Voltar ao Painel</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ============================================================
+    // DADOS DO PROTÓTIPO (6 DOMÍNIOS & 12 MINIGAMES)
+    // ============================================================
+    const DOMAINS = [
+      { id: 'selective_attention', name: 'Atenção', full: 'Atenção Seletiva & Sustentada', icon: '🎯', base: 580, current: 615 },
+      { id: 'working_memory',      name: 'Memória', full: 'Memória de Trabalho',           icon: '🧠', base: 540, current: 572 },
+      { id: 'fluid_reasoning',     name: 'Raciocínio', full: 'Raciocínio Fluido',          icon: '🧩', base: 620, current: 668 },
+      { id: 'processing_speed',    name: 'Velocidade', full: 'Velocidade de Processamento', icon: '⚡', base: 640, current: 705 },
+      { id: 'numerical_cognition', name: 'Numérica', full: 'Cognição Numérica',            icon: '🔢', base: 610, current: 650 },
+      { id: 'inhibitory_control',  name: 'Inibitório', full: 'Controle Inibitório',        icon: '🛑', base: 560, current: 590 }
+    ];
+
+    const GAMES = [
+      { slug: 'visual-search',      name: 'Varredura Visual',       domain: 'selective_attention', icon: '🔍', stage: 3, best: 1420, plays: 6,  desc: 'Encontre todos os alvos entre distratores parecidos.' },
+      { slug: 'sustained-tracking', name: 'Rastreamento (MOT)',     domain: 'selective_attention', icon: '🔵', stage: 2, best: 980,  plays: 3,  desc: 'Memorize 2 a 5 alvos em movimento e clique ao pararem.' },
+      { slug: 'spatial-span',       name: 'Matriz Espacial Reversa',domain: 'working_memory',      icon: '🟦', stage: 3, best: 1310, plays: 5,  desc: 'Repita a sequência de blocos (ordem inversa nas fases altas).' },
+      { slug: 'dual-n-back',        name: 'N-Back Sequencial',      domain: 'working_memory',      icon: '🔁', stage: 2, best: 1120, plays: 4,  desc: 'Indique se o estímulo atual é igual ao de N passos atrás.' },
+      { slug: 'raven-matrices',     name: 'Matrizes Lógicas',       domain: 'fluid_reasoning',     icon: '🧩', stage: 4, best: 1890, plays: 7,  desc: 'Deduza a regra visual e complete a peça faltante.' },
+      { slug: 'path-logic',         name: 'Conexão Lógica (TMT)',   domain: 'fluid_reasoning',     icon: '🔀', stage: 2, best: 1050, plays: 3,  desc: 'Conecte alternando regras (1 → A → 2 → B → 3 → C).' },
+      { slug: 'speed-match',        name: 'Comparação Instantânea', domain: 'processing_speed',    icon: '🃏', stage: 5, best: 2340, plays: 9,  desc: 'Responda Igual ou Diferente em relação à carta anterior.' },
+      { slug: 'symbol-digit',       name: 'Decodificador Rápido',   domain: 'processing_speed',    icon: '🔣', stage: 3, best: 1680, plays: 5,  desc: 'Decodifique símbolos usando a tabela fixa no topo.' },
+      { slug: 'chain-arithmetic',   name: 'Aritmética Encadeada',   domain: 'numerical_cognition', icon: '➕', stage: 4, best: 1940, plays: 6,  desc: 'Resolva cálculos mentais sob pressão de tempo.' },
+      { slug: 'number-comparison',  name: 'Balança Quantitativa',   domain: 'numerical_cognition', icon: '⚖️', stage: 3, best: 1510, plays: 4,  desc: 'Toque rapidamente na expressão de maior valor.' },
+      { slug: 'stroop-conflict',    name: 'Conflito de Stroop',     domain: 'inhibitory_control',  icon: '🎨', stage: 2, best: 1180, plays: 4,  desc: 'Responda pela cor da tinta, ignorando a palavra escrita.' },
+      { slug: 'go-nogo-reflex',     name: 'Filtro Go / No-Go',      domain: 'inhibitory_control',  icon: '🚦', stage: 2, best: 1090, plays: 3,  desc: 'Toque nos alvos autorizados e freie nos estímulos de bloqueio.' }
+    ];
+
+    const ONBOARDING_QS = [
+      { q: 'Qual é o seu principal objetivo no NeuroLab?', sub: 'Usamos isso pra calibrar seu treino diário.', opts: ['🎯 Aumentar foco e atenção', '🧠 Fortalecer memória de trabalho', '⚡ Melhorar velocidade mental', '🧩 Raciocínio lógico e cálculos'] },
+      { q: 'Em que horário você rende melhor?', sub: 'Ajuda a sugerir o momento ideal do protocolo.', opts: ['🌅 Manhã (6h – 11h)', '☀️ Tarde (12h – 17h)', '🌙 Noite (18h – 23h)', '🔄 Varia todo dia'] },
+      { q: 'Quanto tempo por dia você quer treinar?', sub: 'Cada fase dura entre 30s e 45s.', opts: ['⚡ 5 minutos (rápido)', '🎯 10 minutos (ideal — 4 jogos)', '🔥 15+ minutos (intensivo)'] },
+      { q: 'Como prefere a dificuldade inicial?', sub: 'O Stage Engine ajusta sozinho conforme você vence fases.', opts: ['🌱 Começar leve e subir gradualmente', '⚖️ Equilibrado (recomendado)', '🚀 Já começar desafiador'] },
+      { q: 'Qual estilo visual combina mais com você?', sub: 'Você pode trocar a qualquer momento.', opts: ['🎯 Minimalista (clínico, foco total)', '⚡ Gamificado (neon, combos, XP e sons)'], isTheme: true },
+      { q: 'Você já usou apps de treino cognitivo antes?', sub: 'Última pergunta antes da calibração.', opts: ['Nunca usei', 'Já testei (Elevate, Peak, Lumosity)', 'Uso com frequência'] }
+    ];
+
+    // Estado da sessão do protótipo
+    let state = {
+      theme: 'minimal',
+      obIndex: 0,
+      obAnswers: {},
+      calDone: new Set(),
+      dailySlugs: ['spatial-span', 'stroop-conflict', 'visual-search', 'speed-match'],
+      dailyDone: new Set(['speed-match']),
+      selectedDomain: 'all',
+      activeGame: null,
+      playMode: 'free',
+      playScore: 0,
+      playHits: 0,
+      playMiss: 0,
+      playCombo: 0,
+      xp: 1420,
+      tier: 'FREE'
+    };
+
+    // ============================================================
+    // WEB AUDIO API (Sons sintetizados no modo Gamificado)
+    // ============================================================
+    let audioCtx = null;
+    function playTone(freq, dur = 0.08, type = 'sine', vol = 0.08) {
+      if (state.theme !== 'gamified') return;
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + dur);
+      } catch (e) {}
+    }
+    function playSuccessChord() {
+      playTone(523.25, 0.12, 'triangle', 0.09);
+      setTimeout(() => playTone(659.25, 0.12, 'triangle', 0.09), 90);
+      setTimeout(() => playTone(783.99, 0.22, 'triangle', 0.10), 180);
+    }
+
+    // ============================================================
+    // TEMA & LAYOUT
+    // ============================================================
+    function setTheme(theme) {
+      state.theme = theme;
+      document.documentElement.setAttribute('data-theme', theme);
+      document.getElementById('btnThemeMin').classList.toggle('active', theme === 'minimal');
+      document.getElementById('btnThemeGam').classList.toggle('active', theme === 'gamified');
+      document.getElementById('hdrThemeBtn').textContent = theme === 'minimal' ? '⚡' : '🎯';
+      if (theme === 'gamified') playSuccessChord();
+      renderRadar();
+      showToast(theme === 'gamified' ? '⚡ Tema Gamificado ativado (com sons!)' : '🎯 Tema Minimalista ativado');
+    }
+    function toggleTheme() { setTheme(state.theme === 'minimal' ? 'gamified' : 'minimal'); }
+    function toggleWidth() {
+      document.getElementById('appShell').classList.toggle('wide');
+      document.getElementById('bottomNav').classList.toggle('wide');
+    }
+
+    function showToast(msg) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.add('show');
+      clearTimeout(el._t);
+      el._t = setTimeout(() => el.classList.remove('show'), 2100);
+    }
+
+    // ============================================================
+    // NAVEGAÇÃO
+    // ============================================================
+    const SCREEN_TITLES = {
+      'screen-home': 'Modo Guiado · Hoje',
+      'screen-catalog': 'Modo Livre · 12 Jogos',
+      'screen-stats': 'Evolução & Radar',
+      'screen-profile': 'Perfil & Plano',
+      'screen-onboarding': 'Anamnese Cognitiva',
+      'screen-calibration': 'Calibração (Baseline)',
+      'screen-play': 'Partida em Andamento'
+    };
+
+    function go(screenId) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById(screenId).classList.add('active');
+
+      const showChrome = screenId !== 'screen-auth';
+      const showNav = ['screen-home', 'screen-catalog', 'screen-stats', 'screen-profile'].includes(screenId);
+      document.getElementById('appHeader').style.display = showChrome ? 'flex' : 'none';
+      document.getElementById('bottomNav').classList.toggle('hidden', !showNav);
+      document.getElementById('headerSub').textContent = SCREEN_TITLES[screenId] || '';
+
+      document.querySelectorAll('.nav-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.screen === screenId);
+      });
+
+      if (screenId === 'screen-home') renderHome();
+      if (screenId === 'screen-catalog') renderCatalog();
+      if (screenId === 'screen-stats') renderStats();
+      if (screenId === 'screen-calibration') renderCalibration();
+      playTone(440, 0.05, 'sine', 0.04);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function quickLogin() {
+      state.calDone = new Set(DOMAINS.map(d => d.id));
+      go('screen-home');
+      showToast('⚡ Acesso Rápido Local conectado!');
+    }
+    function logout() { go('screen-auth'); }
+
+    // ============================================================
+    // ONBOARDING (6 PERGUNTAS)
+    // ============================================================
+    function startOnboarding() {
+      state.obIndex = 0;
+      renderOnboarding();
+      go('screen-onboarding');
+    }
+    function renderOnboarding() {
+      const item = ONBOARDING_QS[state.obIndex];
+      document.getElementById('obStepBadge').textContent = `Pergunta ${state.obIndex + 1} de ${ONBOARDING_QS.length}`;
+      document.getElementById('obProgress').style.width = `${((state.obIndex + 1) / ONBOARDING_QS.length) * 100}%`;
+      document.getElementById('obQuestion').textContent = item.q;
+      document.getElementById('obSub').textContent = item.sub;
+      document.getElementById('obBackBtn').style.visibility = state.obIndex === 0 ? 'hidden' : 'visible';
+
+      const wrap = document.getElementById('obOptions');
+      wrap.innerHTML = '';
+      item.opts.forEach((opt, idx) => {
+        const div = document.createElement('div');
+        div.className = 'option-card' + (state.obAnswers[state.obIndex] === idx ? ' selected' : '');
+        div.innerHTML = `<span>${opt}</span><span>${state.obAnswers[state.obIndex] === idx ? '✓' : '›'}</span>`;
+        div.onclick = () => {
+          state.obAnswers[state.obIndex] = idx;
+          if (item.isTheme) setTheme(idx === 1 ? 'gamified' : 'minimal');
+          playTone(580, 0.06, 'triangle', 0.07);
+          renderOnboarding();
+          setTimeout(() => obNext(), 220);
+        };
+        wrap.appendChild(div);
+      });
+    }
+    function obPrev() { if (state.obIndex > 0) { state.obIndex--; renderOnboarding(); } }
+    function obNext() {
+      if (state.obIndex < ONBOARDING_QS.length - 1) { state.obIndex++; renderOnboarding(); }
+      else { go('screen-calibration'); }
+    }
+
+    // ============================================================
+    // CALIBRAÇÃO (BASELINE)
+    // ============================================================
+    function renderCalibration() {
+      const done = state.calDone.size;
+      document.getElementById('calCount').textContent = `${done}/6`;
+      document.getElementById('calProgress').style.width = `${(done / 6) * 100}%`;
+
+      const list = document.getElementById('calList');
+      list.innerHTML = '';
+      DOMAINS.forEach(dom => {
+        const g = GAMES.find(x => x.domain === dom.id);
+        const ok = state.calDone.has(dom.id);
+        const el = document.createElement('div');
+        el.className = 'game-card';
+        el.innerHTML = `
+          <div class="game-icon">${g.icon}</div>
+          <div class="game-info">
+            <div class="game-title">${g.name} ${ok ? '<span class="badge badge-ok">Calibrado ✓</span>' : '<span class="badge badge-soft">Fase 1</span>'}</div>
+            <div class="game-domain">${dom.full}</div>
+          </div>
+          <span style="color:var(--accent);font-weight:700;">${ok ? '↺' : '▶'}</span>
+        `;
+        el.onclick = () => openPlay(g.slug, 'calibration');
+        list.appendChild(el);
+      });
+    }
+    function simulateFullCalibration() {
+      DOMAINS.forEach(d => state.calDone.add(d.id));
+      playSuccessChord();
+      go('screen-home');
+      showToast('🎯 Baseline dos 6 domínios calibrado!');
+    }
+
+    // ============================================================
+    // INÍCIO (MODO GUIADO)
+    // ============================================================
+    function getWeakestDomains(n = 2) {
+      return [...DOMAINS].sort((a, b) => a.current - b.current).slice(0, n).map(d => d.id);
+    }
+    function calcIcg() {
+      const avg = DOMAINS.reduce((s, d) => s + d.current, 0) / DOMAINS.length;
+      const baseAvg = DOMAINS.reduce((s, d) => s + d.base, 0) / DOMAINS.length;
+      return { icg: Math.round(avg), delta: Math.round(avg - baseAvg) };
+    }
+
+    function renderHome() {
+      const { icg, delta } = calcIcg();
+      document.getElementById('homeIcg').textContent = icg;
+      document.getElementById('homeDelta').textContent = `${delta >= 0 ? '+' : ''}${delta} pts`;
+      document.getElementById('homeStages').textContent = GAMES.reduce((s, g) => s + g.stage - 1, 0);
+      document.getElementById('dailyCount').textContent = `${state.dailyDone.size} / 4 feitos`;
+      document.getElementById('xpLabel').textContent = `${state.xp.toLocaleString('pt-BR')} / 2.000 XP`;
+      document.getElementById('xpFill').style.width = `${Math.min(100, (state.xp / 2000) * 100)}%`;
+
+      const list = document.getElementById('dailyGamesList');
+      list.innerHTML = '';
+      state.dailySlugs.forEach((slug, i) => {
+        const g = GAMES.find(x => x.slug === slug);
+        const dom = DOMAINS.find(d => d.id === g.domain);
+        const done = state.dailyDone.has(slug);
+        const roleTag = i < 3
+          ? '<span class="badge badge-xp">Foco · +20% XP</span>'
+          : '<span class="badge badge-soft">Manutenção</span>';
+
+        const el = document.createElement('div');
+        el.className = 'game-card';
+        el.style.opacity = done ? '0.72' : '1';
+        el.innerHTML = `
+          <div class="game-icon">${g.icon}</div>
+          <div class="game-info">
+            <div class="game-title">${g.name} ${done ? '<span class="badge badge-ok">Concluído ✓</span>' : roleTag}</div>
+            <div class="game-domain">${dom.full}</div>
+            <div class="game-meta">
+              <span>📍 Fase ${g.stage}</span>
+              <span>🏆 Recorde ${g.best.toLocaleString('pt-BR')}</span>
+            </div>
+          </div>
+          <span style="font-size:18px;color:var(--accent);">${done ? '✓' : '▶'}</span>
+        `;
+        el.onclick = () => openPlay(g.slug, 'guided');
+        list.appendChild(el);
+      });
+    }
+
+    function startNextDaily() {
+      const next = state.dailySlugs.find(s => !state.dailyDone.has(s)) || state.dailySlugs[0];
+      openPlay(next, 'guided');
+    }
+
+    // ============================================================
+    // CATÁLOGO (12 JOGOS — MODO LIVRE)
+    // ============================================================
+    function renderCatalog() {
+      const weak2 = getWeakestDomains(2);
+      const filters = document.getElementById('domainFilters');
+      filters.innerHTML = '';
+
+      const allBtn = document.createElement('button');
+      allBtn.className = 'filter-pill' + (state.selectedDomain === 'all' ? ' active' : '');
+      allBtn.textContent = 'Todos (12)';
+      allBtn.onclick = () => { state.selectedDomain = 'all'; renderCatalog(); };
+      filters.appendChild(allBtn);
+
+      DOMAINS.forEach(d => {
+        const b = document.createElement('button');
+        b.className = 'filter-pill' + (state.selectedDomain === d.id ? ' active' : '');
+        b.textContent = `${d.icon} ${d.name}`;
+        b.onclick = () => { state.selectedDomain = d.id; renderCatalog(); };
+        filters.appendChild(b);
+      });
+
+      const list = document.getElementById('catalogList');
+      list.innerHTML = '';
+      GAMES.filter(g => state.selectedDomain === 'all' || g.domain === state.selectedDomain).forEach(g => {
+        const dom = DOMAINS.find(d => d.id === g.domain);
+        const isWeak = weak2.includes(g.domain);
+        const el = document.createElement('div');
+        el.className = 'game-card';
+        el.innerHTML = `
+          <div class="game-icon">${g.icon}</div>
+          <div class="game-info">
+            <div class="game-title">
+              ${g.name}
+              ${isWeak ? '<span class="badge badge-xp">+20% XP</span>' : ''}
+            </div>
+            <div class="game-domain">${dom.name} · ${g.desc}</div>
+            <div class="game-meta">
+              <span class="badge badge-accent">Fase ${g.stage}</span>
+              <span>🏆 ${g.best.toLocaleString('pt-BR')} pts</span>
+              <span>🎮 ${g.plays}x</span>
+            </div>
+          </div>
+        `;
+        el.onclick = () => openPlay(g.slug, 'free');
+        list.appendChild(el);
+      });
+    }
+
+    // ============================================================
+    // TELA DE JOGO (PRÉVIA CLICÁVEL DO STAGE ENGINE)
+    // ============================================================
+    function stageSpecText(g) {
+      const grid = Math.min(6, 2 + g.stage);
+      const ms = Math.max(650, 1600 - g.stage * 150);
+      const mult = (1 + g.stage * 0.15).toFixed(2);
+      return `Grade ${grid}×${grid} · Exposição ${ms}ms · Multiplicador ×${mult}`;
+    }
+
+    function openPlay(slug, mode) {
+      const g = GAMES.find(x => x.slug === slug);
+      state.activeGame = g;
+      state.playMode = mode;
+      state.playScore = 0;
+      state.playHits = 0;
+      state.playMiss = 0;
+      state.playCombo = 0;
+
+      document.getElementById('playTitle').textContent = `${g.icon} ${g.name}`;
+      document.getElementById('playStageBadge').textContent = `Fase ${g.stage}`;
+      document.getElementById('playModeBadge').textContent =
+        mode === 'calibration' ? 'Calibração' : mode === 'guided' ? 'Modo Guiado' : 'Modo Livre';
+      document.getElementById('playStageSpec').textContent = stageSpecText(g);
+
+      updateHud();
+      renderArenaSample(g);
+      go('screen-play');
+    }
+
+    function updateHud() {
+      const total = state.playHits + state.playMiss;
+      const acc = total === 0 ? 100 : Math.round((state.playHits / total) * 100);
+      document.getElementById('hudScore').textContent = state.playScore.toLocaleString('pt-BR');
+      document.getElementById('hudAcc').textContent = `${acc}%`;
+      const cp = document.getElementById('comboPill');
+      cp.textContent = `🔥 COMBO x${state.playCombo}`;
+      cp.classList.toggle('show', state.playCombo >= 2);
+    }
+
+    function registerTap(ok) {
+      if (ok) {
+        state.playHits++;
+        state.playCombo++;
+        const mult = 1 + state.activeGame.stage * 0.15;
+        state.playScore += Math.round(120 * mult);
+        playTone(540 + state.playCombo * 55, 0.08, 'triangle', 0.09);
+      } else {
+        state.playMiss++;
+        state.playCombo = 0;
+        playTone(180, 0.14, 'sawtooth', 0.08);
+      }
+      updateHud();
+      renderArenaSample(state.activeGame);
+    }
+
+    function renderArenaSample(g) {
+      const box = document.getElementById('arenaContent');
+      box.innerHTML = '';
+
+      if (g.slug === 'stroop-conflict') {
+        const words = [
+          { txt: 'VERMELHO', color: '#38bdf8', ans: 'AZUL' },
+          { txt: 'VERDE',    color: '#f43f5e', ans: 'VERMELHO' },
+          { txt: 'AZUL',     color: '#10b981', ans: 'VERDE' }
+        ];
+        const cur = words[(state.playHits + state.playMiss) % words.length];
+        box.innerHTML = `
+          <div style="font-size:12px;color:var(--text-muted);">Regra: toque na <strong>COR DA TINTA</strong></div>
+          <div style="font-size:34px;font-weight:900;letter-spacing:1px;color:${cur.color};">${cur.txt}</div>
+          <div class="choice-row">
+            <button class="btn btn-secondary" onclick="registerTap(true)">${cur.ans}</button>
+            <button class="btn btn-secondary" onclick="registerTap(false)">${cur.txt}</button>
+          </div>
+        `;
+      } else if (g.slug === 'number-comparison') {
+        const pairs = [
+          ['34 + 19', '8 × 7', 1],
+          ['15 × 4', '42 + 13', 0],
+          ['9 × 7', '50 + 18', 1]
+        ];
+        const [a, b, win] = pairs[(state.playHits + state.playMiss) % pairs.length];
+        box.innerHTML = `
+          <div style="font-size:12px;color:var(--text-muted);">Toque no lado de <strong>MAIOR VALOR</strong></div>
+          <div class="choice-row">
+            <button class="btn btn-secondary" style="font-size:18px;padding:18px 8px;" onclick="registerTap(${win === 0})">${a}</button>
+            <button class="btn btn-secondary" style="font-size:18px;padding:18px 8px;" onclick="registerTap(${win === 1})">${b}</button>
+          </div>
+        `;
+      } else if (g.slug === 'speed-match' || g.slug === 'dual-n-back') {
+        const syms = ['◆', '▲', '●', '■'];
+        const cur = syms[(state.playHits + state.playMiss) % syms.length];
+        box.innerHTML = `
+          <div style="font-size:12px;color:var(--text-muted);">Compare com o estímulo anterior</div>
+          <div style="width:92px;height:110px;border-radius:14px;background:var(--bg-card);border:2px solid var(--accent);display:grid;place-items:center;font-size:46px;">${cur}</div>
+          <div class="choice-row">
+            <button class="btn btn-secondary" onclick="registerTap(true)">✓ Igual</button>
+            <button class="btn btn-secondary" onclick="registerTap(true)">✕ Diferente</button>
+          </div>
+        `;
+      } else {
+        // Grade genérica clicável (Varredura, Matriz Espacial, etc.)
+        const targetIdx = (state.playHits * 3 + 4) % 9;
+        let cells = '';
+        for (let i = 0; i < 9; i++) {
+          const isT = i === targetIdx;
+          cells += `<div class="demo-cell ${isT ? 'target' : ''}" onclick="registerTap(${isT})">${isT ? g.icon : '·'}</div>`;
+        }
+        box.innerHTML = `
+          <div style="font-size:12px;color:var(--text-muted);">Toque no alvo destacado (prévia clicável)</div>
+          <div class="demo-grid">${cells}</div>
+        `;
+      }
+    }
+
+    function finishPlay(cleared) {
+      const g = state.activeGame;
+      const dom = DOMAINS.find(d => d.id === g.domain);
+      const oldStage = g.stage;
+      const finalScore = Math.max(state.playScore, Math.round((950 + g.stage * 220) * (cleared ? 1.15 : 0.72)));
+      const acc = cleared ? 92 : 68;
+      const rt = Math.max(310, 520 - g.stage * 22);
+
+      g.plays++;
+      if (finalScore > g.best) g.best = finalScore;
+
+      if (cleared) {
+        g.stage++;
+        dom.current = Math.min(999, dom.current + 14);
+        state.xp += 180;
+        if (state.playMode === 'guided') state.dailyDone.add(g.slug);
+        if (state.playMode === 'calibration') state.calDone.add(g.domain);
+        playSuccessChord();
+      } else {
+        playTone(220, 0.2, 'sawtooth', 0.08);
+      }
+
+      document.getElementById('resIcon').textContent = cleared ? '🏆' : '🎯';
+      const badge = document.getElementById('resBadge');
+      badge.textContent = cleared ? 'FASE DESBLOQUEADA! (+180 XP)' : 'META NÃO ATINGIDA (< 80%)';
+      badge.className = 'badge ' + (cleared ? 'badge-ok' : 'badge-xp');
+      document.getElementById('resTitle').textContent = cleared ? `Fase ${oldStage} → Fase ${g.stage}` : `Permanece na Fase ${oldStage}`;
+      document.getElementById('resSub').textContent = cleared
+        ? `${dom.full} subiu para ${dom.current} pts.`
+        : 'Treine novamente para atingir ≥ 80% de precisão.';
+      document.getElementById('resScore').textContent = finalScore.toLocaleString('pt-BR');
+      document.getElementById('resAcc').textContent = `${acc}%`;
+      document.getElementById('resRt').textContent = `${rt} ms`;
+      document.getElementById('resNextBtn').textContent = cleared ? `▶ Jogar Fase ${g.stage}` : `↺ Repetir Fase ${oldStage}`;
+
+      document.getElementById('resultModal').classList.add('open');
+    }
+
+    function replayCurrent() {
+      document.getElementById('resultModal').classList.remove('open');
+      openPlay(state.activeGame.slug, state.playMode);
+    }
+    function closeResult() {
+      document.getElementById('resultModal').classList.remove('open');
+      go(state.playMode === 'calibration' ? 'screen-calibration' : 'screen-home');
+    }
+    function exitPlay() {
+      go(state.playMode === 'calibration' ? 'screen-calibration' : state.playMode === 'guided' ? 'screen-home' : 'screen-catalog');
+    }
+
+    // ============================================================
+    // EVOLUÇÃO & GRÁFICO RADAR SVG (6 EIXOS)
+    // ============================================================
+    function renderStats() {
+      const { icg } = calcIcg();
+      document.getElementById('statsIcgBadge').textContent = `ICG ${icg}`;
+      renderRadar();
+      renderLineChart();
+
+      const bars = document.getElementById('domainBars');
+      bars.innerHTML = '';
+      DOMAINS.forEach(d => {
+        const diff = d.current - d.base;
+        bars.innerHTML += `
+          <div class="domain-bar-row">
+            <div class="domain-bar-head">
+              <strong>${d.icon} ${d.full}</strong>
+              <span><span style="color:var(--text-soft)">${d.base}</span> → <strong>${d.current}</strong> <span style="color:var(--success);font-size:11px;">(+${diff})</span></span>
+            </div>
+            <div class="domain-track"><div class="domain-fill" style="width:${Math.min(100, d.current / 10)}%"></div></div>
+          </div>
+        `;
+      });
+    }
+
+    function renderRadar() {
+      const svg = document.getElementById('radarSvg');
+      if (!svg) return;
+      const cx = 160, cy = 135, maxR = 92;
+      const count = DOMAINS.length;
+      const pt = (i, ratio) => {
+        const ang = (Math.PI * 2 * i) / count - Math.PI / 2;
+        return [cx + Math.cos(ang) * maxR * ratio, cy + Math.sin(ang) * maxR * ratio];
+      };
+
+      let html = '';
+      // Anéis de grade
+      [0.25, 0.5, 0.75, 1].forEach(r => {
+        const pts = DOMAINS.map((_, i) => pt(i, r).join(',')).join(' ');
+        html += `<polygon points="${pts}" fill="none" stroke="rgba(148,163,184,0.18)" stroke-width="1"/>`;
+      });
+      // Eixos e rótulos
+      DOMAINS.forEach((d, i) => {
+        const [x, y] = pt(i, 1);
+        const [lx, ly] = pt(i, 1.22);
+        html += `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="rgba(148,163,184,0.18)" stroke-width="1"/>`;
+        html += `<text x="${lx}" y="${ly + 4}" text-anchor="middle" fill="var(--text-muted)" font-size="11" font-weight="700">${d.name}</text>`;
+      });
+
+      // Polígono Linha de Base
+      const basePts = DOMAINS.map((d, i) => pt(i, d.base / 900).join(',')).join(' ');
+      html += `<polygon points="${basePts}" fill="none" stroke="var(--radar-base)" stroke-width="2" stroke-dasharray="4 3"/>`;
+
+      // Polígono Atual
+      const curPts = DOMAINS.map((d, i) => pt(i, d.current / 900).join(',')).join(' ');
+      html += `<polygon points="${curPts}" fill="var(--radar-fill)" stroke="var(--radar-stroke)" stroke-width="2.5"/>`;
+
+      // Pontos nos vértices
+      DOMAINS.forEach((d, i) => {
+        const [x, y] = pt(i, d.current / 900);
+        html += `<circle cx="${x}" cy="${y}" r="4" fill="var(--radar-stroke)"/>`;
+      });
+
+      svg.innerHTML = html;
+    }
+
+    function renderLineChart() {
+      const svg = document.getElementById('lineSvg');
+      const rts = [536, 522, 515, 498, 504, 488, 479, 471, 468, 462];
+      const w = 300, h = 80, ox = 10, oy = 14;
+      const min = 440, max = 560;
+      const pts = rts.map((v, i) => {
+        const x = ox + (i / (rts.length - 1)) * w;
+        const y = oy + ((v - min) / (max - min)) * h;
+        return [x, y];
+      });
+      const poly = pts.map(p => p.join(',')).join(' ');
+      svg.innerHTML = `
+        <line x1="10" y1="20" x2="310" y2="20" stroke="rgba(148,163,184,0.14)" stroke-dasharray="3 3"/>
+        <line x1="10" y1="55" x2="310" y2="55" stroke="rgba(148,163,184,0.14)" stroke-dasharray="3 3"/>
+        <line x1="10" y1="90" x2="310" y2="90" stroke="rgba(148,163,184,0.14)" stroke-dasharray="3 3"/>
+        <polyline points="${poly}" fill="none" stroke="var(--radar-stroke)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        ${pts.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="3.2" fill="var(--radar-stroke)"/>`).join('')}
+        <text x="10" y="106" fill="var(--text-soft)" font-size="10">Sessão 1 (536 ms)</text>
+        <text x="310" y="106" text-anchor="end" fill="var(--success)" font-size="10" font-weight="700">Hoje (462 ms)</text>
+      `;
+    }
+
+    function setTier(t) {
+      state.tier = t;
+      document.getElementById('tierBadge').textContent = t;
+      ['free', 'pro', 'elite'].forEach(k => {
+        document.getElementById('tier-' + k).classList.toggle('active', k.toUpperCase() === t);
+      });
+      showToast(`Plano simulado: ${t}`);
+    }
+
+    // Inicializa gráficos
+    renderRadar();
+  </script>
+</body>
+</html>

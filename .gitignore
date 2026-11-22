@@ -1,0 +1,14 @@
+# Configurações locais
+.claude/
+.env
+.env.local
+
+# Node / Build
+node_modules/
+dist/
+build/
+
+# Sistema
+Thumbs.db
+desktop.ini
+.DS_Store
