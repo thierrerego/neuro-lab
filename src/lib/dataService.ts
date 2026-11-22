@@ -96,7 +96,11 @@ export function loadLocalState(): AppDataState | null {
     // Garante protocolo atualizado pro dia atual
     const today = todayIso();
     if (!parsed.dailyProtocol || parsed.dailyProtocol.protocol_date !== today) {
-      parsed.dailyProtocol = generateDailyProtocol(parsed.scores, today);
+      parsed.dailyProtocol = generateDailyProtocol(
+        parsed.scores,
+        today,
+        parsed.profile.onboarding_answers
+      );
     }
     // Garante que todos os 12 jogos existam no mapa de progresso
     const defaults = createInitialProgress();
@@ -203,7 +207,7 @@ export async function loadRemoteState(userId: string, email?: string): Promise<A
       completed_games: dailyRow.completed_games || [],
     };
   } else {
-    base.dailyProtocol = generateDailyProtocol(base.scores, today);
+    base.dailyProtocol = generateDailyProtocol(base.scores, today, base.profile.onboarding_answers);
     await supabase.from('daily_protocols').upsert({
       user_id: userId,
       protocol_date: today,
@@ -281,7 +285,7 @@ export async function recordSessionResult(
   }
   const nextDaily: DailyProtocolRecord =
     result.mode === 'calibration' && calibrated && !state.profile.calibrated
-      ? generateDailyProtocol(nextScores, today)
+      ? generateDailyProtocol(nextScores, today, state.profile.onboarding_answers)
       : {
           ...state.dailyProtocol,
           completed_games: Array.from(completedSet),
@@ -399,13 +403,35 @@ export async function updateProfilePreferences(
     name: string;
   }>
 ): Promise<AppDataState> {
+  const nextProfile = { ...state.profile, ...patch };
+  // Se atualizou as respostas do questionário, recalcula prioridades do protocolo do dia
+  let nextDaily = state.dailyProtocol;
+  if (patch.onboarding_answers) {
+    const regenerated = generateDailyProtocol(state.scores, todayIso(), patch.onboarding_answers);
+    nextDaily = {
+      ...regenerated,
+      completed_games: state.dailyProtocol.completed_games,
+    };
+  }
   const nextState: AppDataState = {
     ...state,
-    profile: { ...state.profile, ...patch },
+    profile: nextProfile,
+    dailyProtocol: nextDaily,
   };
   saveLocalState(nextState);
   if (!state.profile.isLocalGuest) {
     void supabase.from('profiles').update(patch).eq('id', state.profile.id);
+    if (patch.onboarding_answers) {
+      void supabase.from('daily_protocols').upsert(
+        {
+          user_id: state.profile.id,
+          protocol_date: nextDaily.protocol_date,
+          recommended_games: nextDaily.recommended_games,
+          completed_games: nextDaily.completed_games,
+        },
+        { onConflict: 'user_id,protocol_date' }
+      );
+    }
   }
   return nextState;
 }

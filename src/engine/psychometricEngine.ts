@@ -23,11 +23,43 @@ export function computeReactionStats(times: number[]): { mean: number; sd: numbe
 }
 
 /**
- * Motor Psicométrico & Auto-Adaptação de Dificuldade:
- * - Muito bom (domínio alto + rápido): pula +2 ou +3 fases de uma vez (sobe rápido!)
- * - Bom (≥ 80%): sobe +1 fase
- * - Regular (60%–79%): mantém a fase atual
- * - Fraco (< 60% ou pouquíssimas respostas): desce 1 fase (ou ativa modo mais leve se já estiver na Fase 1)
+ * Calcula a Nota de Velocidade (0..100) combinando:
+ * - Tempo médio de reação (RT_mean em ms) frente à janela esperada da fase
+ * - Cadência de respostas corretas no tempo disponível
+ */
+export function computeSpeedScore(
+  rtMeanMs: number,
+  correctCount: number,
+  config: StageConfig
+): number {
+  if (correctCount <= 0) return 0;
+
+  // Referência de rapidez: 420ms = nota 100, cai suavemente até 2600ms = nota 15
+  let rtScore = 60;
+  if (rtMeanMs > 0) {
+    const fastRef = Math.max(360, Math.min(540, config.stimulusMs * 0.34));
+    const slowRef = Math.max(2100, config.stimulusMs * 1.55);
+    const ratio = (slowRef - rtMeanMs) / (slowRef - fastRef);
+    rtScore = Math.max(12, Math.min(100, Math.round(12 + ratio * 88)));
+  }
+
+  // Bônus/ajuste de volume (acertos por minuto)
+  const pacePerMin = (correctCount / Math.max(15, config.durationSec)) * 60;
+  const paceScore = Math.max(20, Math.min(100, Math.round((pacePerMin / 28) * 100)));
+
+  return Math.max(0, Math.min(100, Math.round(rtScore * 0.72 + paceScore * 0.28)));
+}
+
+/**
+ * Motor Psicométrico & Auto-Adaptação (60% Assertividade + 40% Velocidade):
+ * - Índice da partida = 0.60 * Assertividade + 0.40 * Velocidade
+ * - Pontuação final reflete acertos × índice 60/40 × multiplicador da fase
+ * - Avanço adaptativo:
+ *   • Excepcional (≥95% precisão e índice ≥93, 10+ jogadas): +3 fases
+ *   • Muito bom (≥90% precisão e índice ≥84, 5+ jogadas): +2 fases
+ *   • Bom (≥80% precisão e índice ≥68): +1 fase
+ *   • Regular (60%–79% ou acertou bem mas bem lento): mantém fase
+ *   • Fraco (<60%): desce 1 fase (ou ativa modo mais leve na Fase 1)
  */
 export function evaluateSession(params: {
   domain: DomainKey;
@@ -43,49 +75,47 @@ export function evaluateSession(params: {
     totalAttempts > 0 ? Number(((perf.correct / totalAttempts) * 100).toFixed(1)) : 0;
 
   const { mean: rtMeanMs, sd: rtSdMs } = computeReactionStats(perf.reactionTimesMs);
+  const speedScore = computeSpeedScore(rtMeanMs, perf.correct, config);
 
-  const basePoints =
+  // Nota composta: 60% assertividade + 40% velocidade
+  const performanceIndex =
+    totalAttempts > 0 ? Math.round(accuracyPct * 0.6 + speedScore * 0.4) : 0;
+
+  // Pontuação final diretamente ligada a assertividade + velocidade + fase
+  const rawVolume =
     perf.rawPoints ??
     Math.max(0, perf.correct * 100 - perf.commissionErrors * 45 - perf.omissionErrors * 25);
+  const indexFactor = 0.45 + (performanceIndex / 100) * 1.1; // 0.45x até 1.55x
+  const speedBonus = Math.round(speedScore * 2.4);
+  const accuracyBonus = Math.round(accuracyPct * 3.0);
 
-  const accuracyBonus = accuracyPct >= 95 ? 180 : accuracyPct >= 85 ? 110 : accuracyPct >= 80 ? 60 : 0;
-  const speedBonus = rtMeanMs > 0 ? Math.max(0, Math.round((1200 - rtMeanMs) * 0.28)) : 0;
+  const finalScore =
+    totalAttempts > 0
+      ? Math.max(0, Math.round((rawVolume * indexFactor + accuracyBonus + speedBonus) * config.scoreMultiplier))
+      : 0;
 
-  const finalScore = Math.max(
-    0,
-    Math.round((basePoints + accuracyBonus + speedBonus) * config.scoreMultiplier)
-  );
-
-  // --- Lógica de Auto-Adaptação (Staircase Dinâmico) ---
+  // --- Auto-Adaptação de Fase (Staircase com piso de assertividade) ---
   let adaptiveDelta = 0;
   let adaptiveStatus: AdaptiveStatus = 'hold';
   let stageCleared = false;
 
-  const fastEnough = rtMeanMs === 0 || rtMeanMs <= 950;
-  const ultraFast = rtMeanMs > 0 && rtMeanMs <= 620;
-
-  if (totalAttempts >= 10 && accuracyPct >= 98 && ultraFast) {
-    // Usuário excepcional: salta +3 fases para alcançar desafio real rapidamente
+  if (totalAttempts >= 10 && accuracyPct >= 95 && performanceIndex >= 93) {
     adaptiveDelta = 3;
     adaptiveStatus = 'fast_track';
     stageCleared = true;
-  } else if (totalAttempts >= 5 && accuracyPct >= 94 && fastEnough) {
-    // Usuário muito bom: salta +2 fases de uma vez
+  } else if (totalAttempts >= 5 && accuracyPct >= 90 && performanceIndex >= 84) {
     adaptiveDelta = 2;
     adaptiveStatus = 'fast_track';
     stageCleared = true;
-  } else if (totalAttempts >= 3 && accuracyPct >= config.minAccuracyPct) {
-    // Bom desempenho (>= 80%): avança +1 fase
+  } else if (totalAttempts >= 3 && accuracyPct >= config.minAccuracyPct && performanceIndex >= 68) {
     adaptiveDelta = 1;
     adaptiveStatus = 'level_up';
     stageCleared = true;
   } else if (totalAttempts >= 3 && accuracyPct >= 60) {
-    // Regular (60% - 79%): mantém na mesma fase
     adaptiveDelta = 0;
     adaptiveStatus = 'hold';
     stageCleared = false;
   } else {
-    // Desempenho baixo (< 60% ou travou): facilita automaticamente na próxima!
     stageCleared = false;
     if (config.stage > 1) {
       adaptiveDelta = -1;
@@ -100,15 +130,15 @@ export function evaluateSession(params: {
 
   // XP (+20% nos 2 domínios mais fracos)
   const bonusXp = weakestTwoDomains.includes(domain);
-  const rawXp = (stageCleared ? 140 + (adaptiveDelta - 1) * 45 : 50) + Math.round(finalScore / 25);
+  const rawXp = (stageCleared ? 130 + (adaptiveDelta - 1) * 45 : 45) + Math.round(finalScore / 30);
   const xpEarned = Math.round(bonusXp ? rawXp * 1.2 : rawXp);
 
-  // Delta no score do domínio (200..999)
+  // Evolução do domínio (escala 200..999) guiada pelo índice 60/40
   const domainDelta =
     adaptiveStatus === 'fast_track'
       ? Math.min(36, 18 + adaptiveDelta * 5)
       : stageCleared
-        ? Math.min(24, 10 + Math.round((accuracyPct - 75) * 0.35) + Math.min(6, config.stage))
+        ? Math.min(24, 9 + Math.round((performanceIndex - 65) * 0.4))
         : adaptiveStatus === 'hold'
           ? 2
           : -10;
@@ -124,6 +154,8 @@ export function evaluateSession(params: {
     adaptiveStatus,
     score: finalScore,
     accuracyPct,
+    speedScore,
+    performanceIndex,
     commissionErrors: perf.commissionErrors,
     omissionErrors: perf.omissionErrors,
     rtMeanMs,
@@ -149,28 +181,70 @@ export function getWeakestDomains(scores: DomainScoresRecord, count = 2): Domain
 }
 
 /**
+ * Converte as respostas do questionário de hábitos/foco em pesos de prioridade por domínio
+ * (nunca altera dificuldade — apenas influencia quais áreas entram com foco no Treino Diário).
+ */
+export function getOnboardingDomainWeights(
+  answers?: Record<string, string>
+): Partial<Record<DomainKey, number>> {
+  if (!answers) return {};
+  const w: Partial<Record<DomainKey, number>> = {};
+  const add = (d: DomainKey, v: number) => {
+    w[d] = (w[d] ?? 0) + v;
+  };
+
+  if (answers.goal === 'attention') add('selective_attention', 2);
+  if (answers.goal === 'memory') add('working_memory', 2);
+  if (answers.goal === 'reasoning') add('fluid_reasoning', 2);
+  if (answers.goal === 'speed_math') {
+    add('processing_speed', 1.5);
+    add('numerical_cognition', 1.5);
+  }
+
+  if (answers.pain === 'distraction') add('selective_attention', 1.5);
+  if (answers.pain === 'forgetting') add('working_memory', 1.5);
+  if (answers.pain === 'slowness') add('processing_speed', 1.5);
+  if (answers.pain === 'impulse') add('inhibitory_control', 2);
+
+  if (answers.pressure === 'decisions') add('fluid_reasoning', 1.2);
+  if (answers.pressure === 'math') add('numerical_cognition', 1.5);
+  if (answers.pressure === 'sustained') add('selective_attention', 1.2);
+  if (answers.pressure === 'sequence') add('working_memory', 1.2);
+
+  return w;
+}
+
+/**
  * Gera o Protocolo Diário Adaptativo:
- * 3 minigames nos 3 domínios com menor score atual + 1 de manutenção no mais forte.
+ * 3 minigames combinando domínios mais fracos + prioridades do questionário, + 1 de manutenção.
  */
 export function generateDailyProtocol(
   scores: DomainScoresRecord,
-  dateStr: string
+  dateStr: string,
+  onboardingAnswers?: Record<string, string>
 ): DailyProtocolRecord {
-  const ordered = [...DOMAIN_LIST].sort((a, b) => (scores[a.key] ?? 500) - (scores[b.key] ?? 500));
-  const daySeed = Number(dateStr.replace(/-/g, '')) || 1;
+  const weights = getOnboardingDomainWeights(onboardingAnswers);
 
+  // Score efetivo: domínios fracos e domínios priorizados no questionário sobem pro topo
+  const ranked = [...DOMAIN_LIST].sort((a, b) => {
+    const effA = (scores[a.key] ?? 500) - (weights[a.key] ?? 0) * 42;
+    const effB = (scores[b.key] ?? 500) - (weights[b.key] ?? 0) * 42;
+    return effA - effB;
+  });
+
+  const daySeed = Number(dateStr.replace(/-/g, '')) || 1;
   const pickGame = (domain: DomainKey, offset: number): GameSlug => {
     const games = GAMES_BY_DOMAIN[domain];
     return games[(daySeed + offset) % games.length].slug;
   };
 
-  const weak3 = ordered.slice(0, 3).map((d, idx) => ({
+  const focus3 = ranked.slice(0, 3).map((d, idx) => ({
     slug: pickGame(d.key, idx),
     domain: d.key,
-    role: 'weak' as const,
+    role: (weights[d.key] ?? 0) > 0 ? ('priority' as const) : ('weak' as const),
   }));
 
-  const strongest = ordered[ordered.length - 1];
+  const strongest = ranked[ranked.length - 1];
   const maintenance = {
     slug: pickGame(strongest.key, 1),
     domain: strongest.key,
@@ -179,14 +253,14 @@ export function generateDailyProtocol(
 
   return {
     protocol_date: dateStr,
-    recommended_games: [...weak3, maintenance],
+    recommended_games: [...focus3, maintenance],
     completed_games: [],
   };
 }
 
-/** Converte resultado da calibração em pontuação inicial do domínio (360..740) */
+/** Converte resultado da calibração (60% assertividade + 40% velocidade) em pontuação inicial (350..750) */
 export function calibrationScoreToDomainValue(accuracyPct: number, rtMeanMs: number): number {
-  const accPart = (accuracyPct / 100) * 260;
-  const speedPart = rtMeanMs > 0 ? Math.max(0, Math.min(110, (1250 - rtMeanMs) / 8.5)) : 45;
-  return Math.round(Math.max(350, Math.min(740, 360 + accPart + speedPart)));
+  const speedPart = rtMeanMs > 0 ? Math.max(15, Math.min(100, ((2200 - rtMeanMs) / 1780) * 100)) : 50;
+  const composite = accuracyPct * 0.6 + speedPart * 0.4;
+  return Math.round(Math.max(350, Math.min(750, 350 + composite * 4)));
 }

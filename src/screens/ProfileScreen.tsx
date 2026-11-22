@@ -7,6 +7,7 @@ interface ProfileScreenProps {
   backendOnline: boolean;
   onChangeTheme: (theme: ThemeMode) => void;
   onChangePlan: (plan: PlanTier) => void;
+  onRedoOnboarding: () => void;
   onOpenCalibration: () => void;
   onLogout: () => void;
 }
@@ -16,6 +17,7 @@ export function ProfileScreen({
   backendOnline,
   onChangeTheme,
   onChangePlan,
+  onRedoOnboarding,
   onOpenCalibration,
   onLogout,
 }: ProfileScreenProps) {
@@ -93,7 +95,10 @@ export function ProfileScreen({
         </div>
 
         <button onClick={onOpenCalibration} className="w-full py-3 rounded-xl font-bold text-xs btn-soft flex items-center justify-center gap-2 cursor-pointer">
-          <RefreshCw size={14} /> Calibração (Baseline)
+          <RefreshCw size={14} /> Calibração (6 áreas)
+        </button>
+        <button onClick={onRedoOnboarding} className="w-full py-3 rounded-xl font-bold text-xs btn-soft cursor-pointer">
+          Refazer questionário (6 perguntas)
         </button>
         <button
           onClick={onLogout}

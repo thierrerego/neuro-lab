@@ -77,6 +77,8 @@ export interface ComputedSessionResult {
   adaptiveStatus: AdaptiveStatus;
   score: number;
   accuracyPct: number;
+  speedScore: number;        // 0..100 baseado em RT_mean e cadência
+  performanceIndex: number;  // 0..100 (60% assertividade + 40% velocidade)
   commissionErrors: number;
   omissionErrors: number;
   rtMeanMs: number;
@@ -142,6 +144,6 @@ export interface CognitiveSessionRecord {
 
 export interface DailyProtocolRecord {
   protocol_date: string;
-  recommended_games: { slug: GameSlug; domain: DomainKey; role: 'weak' | 'maintenance' }[];
+  recommended_games: { slug: GameSlug; domain: DomainKey; role: 'weak' | 'priority' | 'maintenance' }[];
   completed_games: GameSlug[];
 }

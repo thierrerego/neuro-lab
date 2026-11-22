@@ -122,6 +122,9 @@ export function HomeScreen({ data, onStartGame, onGoStats }: HomeScreenProps) {
                 <div className="text-sm font-extrabold truncate">{game.name}</div>
                 <div className="flex items-center gap-2 mt-0.5 text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>
                   <span>{dom.shortName}</span>
+                  {item.role === 'priority' && !done && (
+                    <span style={{ color: 'var(--accent)' }}>Prioridade</span>
+                  )}
                   {item.role === 'weak' && !done && (
                     <span style={{ color: 'var(--warn)' }}>+20% XP</span>
                   )}

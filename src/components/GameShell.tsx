@@ -211,6 +211,9 @@ export function GameShell({
               <div className="text-3xl font-black tabular mt-1">
                 {result.score.toLocaleString('pt-BR')} <span className="text-sm font-bold" style={{ color: 'var(--text-muted)' }}>pts</span>
               </div>
+              <div className="text-[11px] font-bold mt-0.5 tabular" style={{ color: 'var(--text-soft)' }}>
+                Índice {result.performanceIndex}/100 (60% precisão · 40% velocidade)
+              </div>
 
               <div className="grid grid-cols-3 gap-2 my-5">
                 <div className="rounded-xl py-2.5 px-2" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
@@ -220,8 +223,12 @@ export function GameShell({
                   <div className="text-[10px] font-semibold" style={{ color: 'var(--text-soft)' }}>Precisão</div>
                 </div>
                 <div className="rounded-xl py-2.5 px-2" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
-                  <div className="text-base font-black tabular">{result.rtMeanMs ? `${result.rtMeanMs}ms` : '—'}</div>
-                  <div className="text-[10px] font-semibold" style={{ color: 'var(--text-soft)' }}>Reação</div>
+                  <div className="text-base font-black tabular" style={{ color: 'var(--accent)' }}>
+                    {result.speedScore}
+                  </div>
+                  <div className="text-[10px] font-semibold tabular" style={{ color: 'var(--text-soft)' }}>
+                    {result.rtMeanMs ? `${result.rtMeanMs}ms` : 'Velocidade'}
+                  </div>
                 </div>
                 <div className="rounded-xl py-2.5 px-2" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
                   <div className="text-base font-black tabular" style={{ color: 'var(--warn)' }}>

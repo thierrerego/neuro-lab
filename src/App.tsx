@@ -16,20 +16,27 @@ import { sound } from './lib/audio';
 import { Layout, type TabKey } from './components/Layout';
 import { GameShell } from './components/GameShell';
 import { AuthScreen } from './screens/AuthScreen';
+import { OnboardingScreen } from './screens/OnboardingScreen';
 import { CalibrationScreen } from './screens/CalibrationScreen';
 import { HomeScreen } from './screens/HomeScreen';
 import { CatalogScreen } from './screens/CatalogScreen';
 import { StatsScreen } from './screens/StatsScreen';
 import { ProfileScreen } from './screens/ProfileScreen';
 
-type FlowView = 'auth' | 'calibration' | 'app' | 'playing';
+type FlowView = 'auth' | 'onboarding' | 'calibration' | 'app' | 'playing';
+
+function resolveNextView(state: AppDataState): FlowView {
+  const hasOnboarding = Object.keys(state.profile.onboarding_answers || {}).length >= 6;
+  if (!hasOnboarding) return 'onboarding';
+  if (!state.profile.calibrated) return 'calibration';
+  return 'app';
+}
 
 export default function App() {
   const [data, setData] = useState<AppDataState | null>(() => loadLocalState());
   const [view, setView] = useState<FlowView>(() => {
     const saved = loadLocalState();
-    if (!saved) return 'auth';
-    return saved.profile.calibrated ? 'app' : 'calibration';
+    return saved ? resolveNextView(saved) : 'auth';
   });
   const [tab, setTab] = useState<TabKey>('home');
   const [theme, setTheme] = useState<ThemeMode>(() => loadLocalState()?.profile.theme_preference ?? 'gamified');
@@ -58,7 +65,7 @@ export default function App() {
           const remote = await loadRemoteState(sess.session.user.id, sess.session.user.email);
           setData(remote);
           setTheme(remote.profile.theme_preference);
-          setView(remote.profile.calibrated ? 'app' : 'calibration');
+          setView(resolveNextView(remote));
         }
       }
     })();
@@ -77,21 +84,28 @@ export default function App() {
     void handleThemeChange(theme === 'gamified' ? 'minimal' : 'gamified');
   };
 
-  // Sem questionário: entrou, vai direto jogar (Calibração ou Painel)
+  // Fluxo da 1ª vez: Login -> 6 Perguntas (hábitos/foco) -> Calibração (6 áreas) -> Painel
   const handleGuestLogin = () => {
     const existing = loadLocalState();
     const state = existing ?? createDefaultState('local-guest', 'Jogador Local', true);
     state.profile.theme_preference = theme;
     saveLocalState(state);
     setData(state);
-    setView(state.profile.calibrated ? 'app' : 'calibration');
+    setView(resolveNextView(state));
   };
 
   const handleRemoteLogin = async (userId: string, email?: string) => {
     const remote = await loadRemoteState(userId, email);
     setData(remote);
     setTheme(remote.profile.theme_preference);
-    setView(remote.profile.calibrated ? 'app' : 'calibration');
+    setView(resolveNextView(remote));
+  };
+
+  const handleOnboardingComplete = async (answers: Record<string, string>) => {
+    if (!data) return;
+    const updated = await updateProfilePreferences(data, { onboarding_answers: answers });
+    setData(updated);
+    setView(updated.profile.calibrated ? 'app' : 'calibration');
   };
 
   const startGame = (slug: GameSlug, mode: SessionMode, returnView: FlowView = 'app') => {
@@ -153,6 +167,24 @@ export default function App() {
     );
   }
 
+  if (view === 'onboarding') {
+    return (
+      <Layout
+        activeTab={tab}
+        onTab={setTab}
+        streak={data.profile.current_streak}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
+        showNav={false}
+      >
+        <OnboardingScreen
+          initialAnswers={data.profile.onboarding_answers}
+          onComplete={(ans) => void handleOnboardingComplete(ans)}
+        />
+      </Layout>
+    );
+  }
+
   if (view === 'calibration') {
     return (
       <Layout
@@ -210,6 +242,7 @@ export default function App() {
             const updated = await updateProfilePreferences(data, { plan_tier: plan });
             setData(updated);
           }}
+          onRedoOnboarding={() => setView('onboarding')}
           onOpenCalibration={() => setView('calibration')}
           onLogout={() => void handleLogout()}
         />
