@@ -16,14 +16,13 @@ import { sound } from './lib/audio';
 import { Layout, type TabKey } from './components/Layout';
 import { GameShell } from './components/GameShell';
 import { AuthScreen } from './screens/AuthScreen';
-import { OnboardingScreen } from './screens/OnboardingScreen';
 import { CalibrationScreen } from './screens/CalibrationScreen';
 import { HomeScreen } from './screens/HomeScreen';
 import { CatalogScreen } from './screens/CatalogScreen';
 import { StatsScreen } from './screens/StatsScreen';
 import { ProfileScreen } from './screens/ProfileScreen';
 
-type FlowView = 'auth' | 'onboarding' | 'calibration' | 'app' | 'playing';
+type FlowView = 'auth' | 'calibration' | 'app' | 'playing';
 
 export default function App() {
   const [data, setData] = useState<AppDataState | null>(() => loadLocalState());
@@ -39,17 +38,16 @@ export default function App() {
   const [activePlay, setActivePlay] = useState<{
     slug: GameSlug;
     stage: number;
+    easeBoost: boolean;
     mode: SessionMode;
     returnView: FlowView;
   } | null>(null);
 
-  // Sincroniza tema com <html data-theme="..."> e sintetizador Web Audio
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     sound.setTheme(theme);
   }, [theme]);
 
-  // Verifica Docker/Supabase local e restaura sessão remota se houver
   useEffect(() => {
     void (async () => {
       const online = await checkBackendOnline();
@@ -79,42 +77,29 @@ export default function App() {
     void handleThemeChange(theme === 'gamified' ? 'minimal' : 'gamified');
   };
 
+  // Sem questionário: entrou, vai direto jogar (Calibração ou Painel)
   const handleGuestLogin = () => {
     const existing = loadLocalState();
     const state = existing ?? createDefaultState('local-guest', 'Jogador Local', true);
     state.profile.theme_preference = theme;
     saveLocalState(state);
     setData(state);
-    const hasOnboarding = Object.keys(state.profile.onboarding_answers || {}).length > 0;
-    if (!hasOnboarding) setView('onboarding');
-    else if (!state.profile.calibrated) setView('calibration');
-    else setView('app');
+    setView(state.profile.calibrated ? 'app' : 'calibration');
   };
 
   const handleRemoteLogin = async (userId: string, email?: string) => {
     const remote = await loadRemoteState(userId, email);
     setData(remote);
     setTheme(remote.profile.theme_preference);
-    const hasOnboarding = Object.keys(remote.profile.onboarding_answers || {}).length > 0;
-    if (!hasOnboarding) setView('onboarding');
-    else if (!remote.profile.calibrated) setView('calibration');
-    else setView('app');
-  };
-
-  const handleOnboardingComplete = async (answers: Record<string, string>) => {
-    if (!data) return;
-    const updated = await updateProfilePreferences(data, {
-      onboarding_answers: answers,
-      theme_preference: theme,
-    });
-    setData(updated);
-    setView(updated.profile.calibrated ? 'app' : 'calibration');
+    setView(remote.profile.calibrated ? 'app' : 'calibration');
   };
 
   const startGame = (slug: GameSlug, mode: SessionMode, returnView: FlowView = 'app') => {
     if (!data) return;
-    const stage = mode === 'calibration' ? 1 : (data.progress[slug]?.current_stage ?? 1);
-    setActivePlay({ slug, stage, mode, returnView });
+    const prog = data.progress[slug];
+    const stage = mode === 'calibration' ? 1 : (prog?.current_stage ?? 1);
+    const easeBoost = mode === 'calibration' ? false : Boolean(prog?.ease_mode && stage === 1);
+    setActivePlay({ slug, stage, easeBoost, mode, returnView });
     setView('playing');
   };
 
@@ -151,12 +136,13 @@ export default function App() {
       <GameShell
         slug={activePlay.slug}
         stage={activePlay.stage}
+        easeBoost={activePlay.easeBoost}
         mode={activePlay.mode}
         theme={theme}
         weakestTwo={weakest2}
         onComplete={handleSessionComplete}
-        onPlayNext={(nextStage) =>
-          setActivePlay((prev) => (prev ? { ...prev, stage: nextStage } : null))
+        onPlayNext={(nextStage, nextEase) =>
+          setActivePlay((prev) => (prev ? { ...prev, stage: nextStage, easeBoost: nextEase } : null))
         }
         onExit={() => {
           const target = activePlay.returnView;
@@ -164,25 +150,6 @@ export default function App() {
           setView(target);
         }}
       />
-    );
-  }
-
-  if (view === 'onboarding') {
-    return (
-      <Layout
-        activeTab={tab}
-        onTab={setTab}
-        streak={data.profile.current_streak}
-        theme={theme}
-        onToggleTheme={handleToggleTheme}
-        showNav={false}
-      >
-        <OnboardingScreen
-          onThemePreview={(t) => void handleThemeChange(t)}
-          onComplete={(ans) => void handleOnboardingComplete(ans)}
-          onSkip={() => setView('calibration')}
-        />
-      </Layout>
     );
   }
 
@@ -243,7 +210,6 @@ export default function App() {
             const updated = await updateProfilePreferences(data, { plan_tier: plan });
             setData(updated);
           }}
-          onRedoOnboarding={() => setView('onboarding')}
           onOpenCalibration={() => setView('calibration')}
           onLogout={() => void handleLogout()}
         />

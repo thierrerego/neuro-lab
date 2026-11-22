@@ -224,14 +224,15 @@ export async function recordSessionResult(
   const now = new Date().toISOString();
   const today = todayIso();
 
-  // 1. Atualiza progresso do minigame
+  // 1. Atualiza progresso do minigame (sobe +1/+2/+3 quando vai bem OU desce -1 / ativa modo leve quando vai mal!)
   const prevProg = state.progress[result.gameSlug];
   const updatedProg: GameProgressRecord = {
     game_slug: result.gameSlug,
     domain: result.domain,
-    current_stage: Math.max(prevProg.current_stage, result.nextStage),
+    current_stage: result.nextStage,
     highest_score: Math.max(prevProg.highest_score, result.score),
     total_plays: prevProg.total_plays + 1,
+    ease_mode: result.adaptiveStatus === 'ease_mode',
     updated_at: now,
   };
 

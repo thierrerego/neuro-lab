@@ -1,4 +1,5 @@
 import type {
+  AdaptiveStatus,
   ComputedSessionResult,
   DailyProtocolRecord,
   DomainKey,
@@ -22,8 +23,11 @@ export function computeReactionStats(times: number[]): { mean: number; sd: numbe
 }
 
 /**
- * Calcula pontuação, precisão, métricas de RT, avanço de fase e XP.
- * Pontuação base × (1 + stage * 0.15) + bônus de precisão + bônus de velocidade.
+ * Motor Psicométrico & Auto-Adaptação de Dificuldade:
+ * - Muito bom (domínio alto + rápido): pula +2 ou +3 fases de uma vez (sobe rápido!)
+ * - Bom (≥ 80%): sobe +1 fase
+ * - Regular (60%–79%): mantém a fase atual
+ * - Fraco (< 60% ou pouquíssimas respostas): desce 1 fase (ou ativa modo mais leve se já estiver na Fase 1)
  */
 export function evaluateSession(params: {
   domain: DomainKey;
@@ -35,16 +39,15 @@ export function evaluateSession(params: {
 }): ComputedSessionResult {
   const { domain, gameSlug, mode, config, perf, weakestTwoDomains } = params;
   const totalAttempts = perf.correct + perf.commissionErrors + perf.omissionErrors;
-  const accuracyPct = totalAttempts > 0
-    ? Number(((perf.correct / totalAttempts) * 100).toFixed(1))
-    : 0;
+  const accuracyPct =
+    totalAttempts > 0 ? Number(((perf.correct / totalAttempts) * 100).toFixed(1)) : 0;
 
   const { mean: rtMeanMs, sd: rtSdMs } = computeReactionStats(perf.reactionTimesMs);
 
-  // Pontuação base
-  const basePoints = perf.rawPoints ?? Math.max(0, perf.correct * 100 - perf.commissionErrors * 45 - perf.omissionErrors * 25);
+  const basePoints =
+    perf.rawPoints ??
+    Math.max(0, perf.correct * 100 - perf.commissionErrors * 45 - perf.omissionErrors * 25);
 
-  // Bônus de precisão e de velocidade de reação (quanto menor o RT, maior o bônus)
   const accuracyBonus = accuracyPct >= 95 ? 180 : accuracyPct >= 85 ? 110 : accuracyPct >= 80 ? 60 : 0;
   const speedBonus = rtMeanMs > 0 ? Math.max(0, Math.round((1200 - rtMeanMs) * 0.28)) : 0;
 
@@ -53,21 +56,62 @@ export function evaluateSession(params: {
     Math.round((basePoints + accuracyBonus + speedBonus) * config.scoreMultiplier)
   );
 
-  // Regra de avanço: precisa ter jogado de verdade (>= 3 respostas) e >= 80% de acerto
-  const stageCleared = totalAttempts >= 3 && accuracyPct >= config.minAccuracyPct;
-  const nextStage = stageCleared ? config.stage + 1 : config.stage;
+  // --- Lógica de Auto-Adaptação (Staircase Dinâmico) ---
+  let adaptiveDelta = 0;
+  let adaptiveStatus: AdaptiveStatus = 'hold';
+  let stageCleared = false;
+
+  const fastEnough = rtMeanMs === 0 || rtMeanMs <= 950;
+  const ultraFast = rtMeanMs > 0 && rtMeanMs <= 620;
+
+  if (totalAttempts >= 10 && accuracyPct >= 98 && ultraFast) {
+    // Usuário excepcional: salta +3 fases para alcançar desafio real rapidamente
+    adaptiveDelta = 3;
+    adaptiveStatus = 'fast_track';
+    stageCleared = true;
+  } else if (totalAttempts >= 5 && accuracyPct >= 94 && fastEnough) {
+    // Usuário muito bom: salta +2 fases de uma vez
+    adaptiveDelta = 2;
+    adaptiveStatus = 'fast_track';
+    stageCleared = true;
+  } else if (totalAttempts >= 3 && accuracyPct >= config.minAccuracyPct) {
+    // Bom desempenho (>= 80%): avança +1 fase
+    adaptiveDelta = 1;
+    adaptiveStatus = 'level_up';
+    stageCleared = true;
+  } else if (totalAttempts >= 3 && accuracyPct >= 60) {
+    // Regular (60% - 79%): mantém na mesma fase
+    adaptiveDelta = 0;
+    adaptiveStatus = 'hold';
+    stageCleared = false;
+  } else {
+    // Desempenho baixo (< 60% ou travou): facilita automaticamente na próxima!
+    stageCleared = false;
+    if (config.stage > 1) {
+      adaptiveDelta = -1;
+      adaptiveStatus = 'step_down';
+    } else {
+      adaptiveDelta = 0;
+      adaptiveStatus = 'ease_mode';
+    }
+  }
+
+  const nextStage = Math.max(1, config.stage + adaptiveDelta);
 
   // XP (+20% nos 2 domínios mais fracos)
   const bonusXp = weakestTwoDomains.includes(domain);
-  const rawXp = (stageCleared ? 140 : 55) + Math.round(finalScore / 25);
+  const rawXp = (stageCleared ? 140 + (adaptiveDelta - 1) * 45 : 50) + Math.round(finalScore / 25);
   const xpEarned = Math.round(bonusXp ? rawXp * 1.2 : rawXp);
 
-  // Delta no score do domínio (escala 200..999)
-  const domainDelta = stageCleared
-    ? Math.min(28, 10 + Math.round((accuracyPct - 75) * 0.4) + Math.min(8, config.stage))
-    : accuracyPct >= 65
-      ? 3
-      : -4;
+  // Delta no score do domínio (200..999)
+  const domainDelta =
+    adaptiveStatus === 'fast_track'
+      ? Math.min(36, 18 + adaptiveDelta * 5)
+      : stageCleared
+        ? Math.min(24, 10 + Math.round((accuracyPct - 75) * 0.35) + Math.min(6, config.stage))
+        : adaptiveStatus === 'hold'
+          ? 2
+          : -10;
 
   return {
     domain,
@@ -76,6 +120,8 @@ export function evaluateSession(params: {
     stagePlayed: config.stage,
     stageCleared,
     nextStage,
+    adaptiveDelta,
+    adaptiveStatus,
     score: finalScore,
     accuracyPct,
     commissionErrors: perf.commissionErrors,
@@ -88,7 +134,7 @@ export function evaluateSession(params: {
   };
 }
 
-/** Calcula o Índice Cognitivo Global (ICG) — média ponderada dos 6 domínios */
+/** Calcula o Índice Cognitivo Global (ICG) — média dos 6 domínios */
 export function calculateGlobalCognitiveIndex(scores: DomainScoresRecord): number {
   const sum = DOMAIN_LIST.reduce((acc, d) => acc + (scores[d.key] ?? 500), 0);
   return Math.round(sum / DOMAIN_LIST.length);
@@ -138,9 +184,9 @@ export function generateDailyProtocol(
   };
 }
 
-/** Converte pontuação da calibração (Fase 1) em pontuação inicial do domínio (380..720) */
+/** Converte resultado da calibração em pontuação inicial do domínio (360..740) */
 export function calibrationScoreToDomainValue(accuracyPct: number, rtMeanMs: number): number {
-  const accPart = (accuracyPct / 100) * 240;
-  const speedPart = rtMeanMs > 0 ? Math.max(0, Math.min(100, (1200 - rtMeanMs) / 9)) : 45;
-  return Math.round(Math.max(360, Math.min(720, 370 + accPart + speedPart)));
+  const accPart = (accuracyPct / 100) * 260;
+  const speedPart = rtMeanMs > 0 ? Math.max(0, Math.min(110, (1250 - rtMeanMs) / 8.5)) : 45;
+  return Math.round(Math.max(350, Math.min(740, 360 + accPart + speedPart)));
 }

@@ -12,13 +12,13 @@ function rnd(min: number, max: number) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-function buildQuestion(complexity: 1 | 2 | 3 | 4): MathQuestion {
+function buildQuestion(complexity: 1 | 2 | 3 | 4, easeBoost: boolean): MathQuestion {
   let expression = '';
   let answer = 0;
 
   if (complexity === 1) {
-    const a = rnd(6, 28);
-    const b = rnd(5, 24);
+    const a = easeBoost ? rnd(2, 10) : rnd(3, 18);
+    const b = easeBoost ? rnd(1, 9) : rnd(2, 14);
     expression = `${a} + ${b}`;
     answer = a + b;
   } else if (complexity === 2) {
@@ -77,7 +77,7 @@ function buildQuestion(complexity: 1 | 2 | 3 | 4): MathQuestion {
 }
 
 export function ChainArithmeticGame({ config, finishRequested, onLiveUpdate, onFinish }: MinigameProps) {
-  const [q, setQ] = useState(() => buildQuestion(config.mathComplexity));
+  const [q, setQ] = useState(() => buildQuestion(config.mathComplexity, config.easeBoost));
   const [qId, setQId] = useState(0);
   const [flash, setFlash] = useState<{ val: number; ok: boolean } | null>(null);
 
@@ -132,7 +132,7 @@ export function ChainArithmeticGame({ config, finishRequested, onLiveUpdate, onF
     setFlash({ val, ok });
     setTimeout(() => {
       setFlash(null);
-      setQ(buildQuestion(config.mathComplexity));
+      setQ(buildQuestion(config.mathComplexity, config.easeBoost));
       setQId((id) => id + 1);
       statsRef.current.shownAt = performance.now();
     }, 180);

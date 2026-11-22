@@ -17,7 +17,7 @@ function makeSequence(cells: number, length: number): number[] {
 export function SpatialSpanGame({ config, finishRequested, onLiveUpdate, onFinish }: MinigameProps) {
   const grid = Math.min(4, Math.max(3, config.gridSize));
   const totalCells = grid * grid;
-  const baseLen = Math.min(7, 2 + Math.ceil(config.stage / 2));
+  const baseLen = config.easeBoost ? 2 : Math.min(7, config.stage === 1 ? 3 : 2 + Math.ceil(config.stage / 2));
 
   const [round, setRound] = useState(1);
   const [seqLen, setSeqLen] = useState(baseLen);

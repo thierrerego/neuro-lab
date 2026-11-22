@@ -13,20 +13,24 @@ function rnd(min: number, max: number) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-function genExpr(level: 1 | 2 | 3 | 4): { label: string; val: number } {
+function genExpr(level: 1 | 2 | 3 | 4, easeBoost: boolean): { label: string; val: number } {
   if (level === 1) {
-    const a = rnd(12, 45);
-    const b = rnd(7, 29);
+    if (easeBoost) {
+      const a = rnd(5, 25);
+      return { label: `${a}`, val: a };
+    }
+    const a = rnd(4, 18);
+    const b = rnd(2, 12);
     return { label: `${a} + ${b}`, val: a + b };
   }
   if (level === 2) {
     if (Math.random() < 0.5) {
-      const a = rnd(18, 55);
-      const b = rnd(9, 34);
+      const a = rnd(14, 42);
+      const b = rnd(7, 28);
       return { label: `${a} + ${b}`, val: a + b };
     }
-    const a = rnd(45, 95);
-    const b = rnd(12, 38);
+    const a = rnd(35, 78);
+    const b = rnd(8, 28);
     return { label: `${a} − ${b}`, val: a - b };
   }
   if (Math.random() < 0.55) {
@@ -39,20 +43,20 @@ function genExpr(level: 1 | 2 | 3 | 4): { label: string; val: number } {
   return { label: `${a} + ${b}`, val: a + b };
 }
 
-function makePair(level: 1 | 2 | 3 | 4): Pair {
+function makePair(level: 1 | 2 | 3 | 4, easeBoost: boolean): Pair {
   for (let i = 0; i < 30; i++) {
-    const l = genExpr(level);
-    const r = genExpr(level);
+    const l = genExpr(level, easeBoost);
+    const r = genExpr(level, easeBoost);
     const diff = Math.abs(l.val - r.val);
     if (diff >= 1 && diff <= (level >= 3 ? 14 : 20)) {
       return { leftLabel: l.label, leftVal: l.val, rightLabel: r.label, rightVal: r.val };
     }
   }
-  return { leftLabel: '34 + 19', leftVal: 53, rightLabel: '8 × 7', rightVal: 56 };
+  return { leftLabel: '14 + 5', leftVal: 19, rightLabel: '12 + 9', rightVal: 21 };
 }
 
 export function NumberComparisonGame({ config, finishRequested, onLiveUpdate, onFinish }: MinigameProps) {
-  const [pair, setPair] = useState(() => makePair(config.mathComplexity));
+  const [pair, setPair] = useState(() => makePair(config.mathComplexity, config.easeBoost));
   const [pId, setPId] = useState(0);
   const [flash, setFlash] = useState<{ side: 'left' | 'right'; ok: boolean } | null>(null);
 
@@ -108,12 +112,12 @@ export function NumberComparisonGame({ config, finishRequested, onLiveUpdate, on
       setFlash({ side, ok });
       setTimeout(() => {
         setFlash(null);
-        setPair(makePair(config.mathComplexity));
+        setPair(makePair(config.mathComplexity, config.easeBoost));
         setPId((id) => id + 1);
         statsRef.current.shownAt = performance.now();
       }, 170);
     },
-    [flash, pair, config.mathComplexity, config.scoreMultiplier, onLiveUpdate]
+    [flash, pair, config.mathComplexity, config.easeBoost, config.scoreMultiplier, onLiveUpdate]
   );
 
   useEffect(() => {

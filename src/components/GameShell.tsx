@@ -18,17 +18,19 @@ import { sound } from '../lib/audio';
 interface GameShellProps {
   slug: GameSlug;
   stage: number;
+  easeBoost?: boolean;
   mode: SessionMode;
   theme: ThemeMode;
   weakestTwo: DomainKey[];
   onComplete: (result: ComputedSessionResult) => Promise<void>;
-  onPlayNext: (nextStage: number) => void;
+  onPlayNext: (nextStage: number, easeBoost: boolean) => void;
   onExit: () => void;
 }
 
 export function GameShell({
   slug,
   stage,
+  easeBoost = false,
   mode,
   theme,
   weakestTwo,
@@ -37,7 +39,7 @@ export function GameShell({
   onExit,
 }: GameShellProps) {
   const game = GAME_MAP[slug];
-  const config = useMemo(() => getStageConfig(slug, stage), [slug, stage]);
+  const config = useMemo(() => getStageConfig(slug, stage, easeBoost), [slug, stage, easeBoost]);
   const GameComponent = GAME_COMPONENTS[slug];
 
   const [timeLeft, setTimeLeft] = useState(config.durationSec);
@@ -160,7 +162,7 @@ export function GameShell({
         <div className="flex-1 flex flex-col items-center justify-center px-4 pb-8">
           {!result ? (
             <GameComponent
-              key={`${slug}-${stage}`}
+              key={`${slug}-${stage}-${easeBoost ? 'easy' : 'std'}`}
               config={config}
               finishRequested={finishRequested}
               onLiveUpdate={setLive}
@@ -181,11 +183,29 @@ export function GameShell({
               <div
                 className="inline-block px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider mb-2"
                 style={{
-                  background: result.stageCleared ? 'rgba(52, 211, 153, 0.18)' : 'rgba(251, 191, 36, 0.16)',
-                  color: result.stageCleared ? 'var(--ok)' : 'var(--warn)',
+                  background:
+                    result.adaptiveStatus === 'fast_track'
+                      ? 'var(--accent-glow)'
+                      : result.stageCleared
+                        ? 'rgba(52, 211, 153, 0.18)'
+                        : 'rgba(251, 191, 36, 0.16)',
+                  color:
+                    result.adaptiveStatus === 'fast_track'
+                      ? 'var(--accent)'
+                      : result.stageCleared
+                        ? 'var(--ok)'
+                        : 'var(--warn)',
                 }}
               >
-                {result.stageCleared ? `Fase ${result.nextStage} desbloqueada` : 'Meta 80%'}
+                {result.adaptiveStatus === 'fast_track'
+                  ? `⚡ +${result.adaptiveDelta} fases → Fase ${result.nextStage}`
+                  : result.adaptiveStatus === 'level_up'
+                    ? `Fase ${result.nextStage} desbloqueada`
+                    : result.adaptiveStatus === 'step_down'
+                      ? `Ajustado → Fase ${result.nextStage}`
+                      : result.adaptiveStatus === 'ease_mode'
+                        ? 'Próxima mais leve'
+                        : `Mantém Fase ${result.nextStage}`}
               </div>
 
               <div className="text-3xl font-black tabular mt-1">
@@ -215,18 +235,18 @@ export function GameShell({
 
               <div className="flex flex-col gap-2.5">
                 <button
-                  onClick={() => onPlayNext(result.nextStage)}
+                  onClick={() => onPlayNext(result.nextStage, result.adaptiveStatus === 'ease_mode')}
                   className="w-full py-3.5 rounded-2xl font-extrabold text-sm btn-accent flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {result.stageCleared ? (
                     <>
-                      <span>Fase {result.nextStage}</span>
+                      <span>Jogar Fase {result.nextStage}</span>
                       <ArrowRight size={17} />
                     </>
                   ) : (
                     <>
                       <RotateCcw size={16} />
-                      <span>Tentar Fase {result.stagePlayed}</span>
+                      <span>Jogar Fase {result.nextStage}</span>
                     </>
                   )}
                 </button>

@@ -5,7 +5,7 @@ import type { MinigameProps } from './GameProps';
 const ALL_SYMBOLS = ['◆', '▲', '●', '★', '✦', '✚', '⬟', '◈', '☾'];
 
 export function SymbolDigitGame({ config, finishRequested, onLiveUpdate, onFinish }: MinigameProps) {
-  const pairCount = Math.min(9, 4 + config.stage);
+  const pairCount = config.easeBoost ? 3 : Math.min(9, 3 + config.stage);
   const [legend] = useState(() => {
     const shuffled = [...ALL_SYMBOLS].sort(() => Math.random() - 0.5).slice(0, pairCount);
     return shuffled.map((sym, i) => ({ sym, digit: i + 1 }));

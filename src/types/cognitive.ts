@@ -53,7 +53,10 @@ export interface StageConfig {
   minAccuracyPct: number;    // 80% padrão
   scoreMultiplier: number;   // 1 + stage * 0.15
   roundsTarget: number;      // número de rodadas em jogos por turno
+  easeBoost: boolean;        // modo mais leve ativado automaticamente após desempenho baixo na Fase 1
 }
+
+export type AdaptiveStatus = 'fast_track' | 'level_up' | 'hold' | 'step_down' | 'ease_mode';
 
 export interface RawGamePerformance {
   correct: number;
@@ -70,6 +73,8 @@ export interface ComputedSessionResult {
   stagePlayed: number;
   stageCleared: boolean;
   nextStage: number;
+  adaptiveDelta: number;     // +3, +2, +1, 0 ou -1
+  adaptiveStatus: AdaptiveStatus;
   score: number;
   accuracyPct: number;
   commissionErrors: number;
@@ -115,6 +120,7 @@ export interface GameProgressRecord {
   current_stage: number;
   highest_score: number;
   total_plays: number;
+  ease_mode?: boolean;
   updated_at: string;
 }
 
