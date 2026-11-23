@@ -6,6 +6,7 @@ import type {
   DailyProtocolRecord,
   DomainKey,
   DomainScoresRecord,
+  GameProgressRecord,
   GameSlug,
   RawGamePerformance,
   SessionMode,
@@ -13,7 +14,7 @@ import type {
   TrainingFocusMode,
   WaveState,
 } from '../types/cognitive';
-import { DOMAIN_LIST, GAMES_BY_DOMAIN } from './gameRegistry';
+import { DOMAIN_LIST, DOMAIN_MAP, GAME_REGISTRY, GAMES_BY_DOMAIN } from './gameRegistry';
 import { TOTAL_WAVE_HITS } from './waveEngine';
 
 /**
@@ -637,5 +638,104 @@ export function generateDailyProtocol(
     protocol_date: dateStr,
     recommended_games: buildTrainingQueue(scores, dateStr, 'weak', selectedDomains, dailyGoalMinutes),
     completed_games: [],
+  };
+}
+
+export interface FlowPick {
+  slug: GameSlug;
+  reasonType: 'new' | 'catchup' | 'improve';
+  reasonLabel: string;
+  targetStage?: number;
+}
+
+/**
+ * Motor do Modo Flow Contínuo:
+ * 1) Jogos que o usuário ainda nunca jogou (priorizando domínios mais baixos).
+ * 2) Jogos atrasados de fase em relação ao nível geral (mantém subindo até igualar).
+ * 3) Quando todos estiverem nivelados, alterna de forma inteligente nos mais fracos/aleatórios.
+ */
+export function pickNextFlowGame(
+  progress: Record<GameSlug, GameProgressRecord>,
+  scores: DomainScoresRecord,
+  justPlayedSlug?: GameSlug
+): FlowPick {
+  const allGames = GAME_REGISTRY;
+
+  // 1. Jogos nunca jogados primeiro
+  const unplayed = allGames
+    .filter((g) => (progress[g.slug]?.total_plays ?? 0) === 0 && g.slug !== justPlayedSlug)
+    .sort((a, b) => (scores[a.domain] ?? 0) - (scores[b.domain] ?? 0));
+
+  if (unplayed.length > 0) {
+    const pick = unplayed[0];
+    return {
+      slug: pick.slug,
+      reasonType: 'new',
+      reasonLabel: `Jogo novo · ${DOMAIN_MAP[pick.domain].shortName}`,
+    };
+  }
+
+  // 2. Jogos atrasados de fase em relação ao nível típico do usuário
+  const playedStages = allGames
+    .map((g) => Math.max(1, progress[g.slug]?.current_stage ?? 1))
+    .sort((a, b) => a - b);
+
+  // Usa o percentil 65 dos níveis como referência ("nível geral" dos jogos que você já domina)
+  const refIdx = Math.min(playedStages.length - 1, Math.floor(playedStages.length * 0.65));
+  const referenceStage = playedStages[refIdx] ?? 1;
+
+  // Se o jogo que acabou de jogar ainda está bem atrás da referência (diferença >= 2), continua subindo ele!
+  if (justPlayedSlug) {
+    const curStage = Math.max(1, progress[justPlayedSlug]?.current_stage ?? 1);
+    if (referenceStage - curStage >= 2) {
+      return {
+        slug: justPlayedSlug,
+        reasonType: 'catchup',
+        reasonLabel: `Subir fase (Nv.${curStage} → Nv.${referenceStage})`,
+        targetStage: referenceStage,
+      };
+    }
+  }
+
+  // Procura o jogo mais atrasado de fase (diferença >= 2 da referência)
+  const lagging = allGames
+    .filter((g) => {
+      const st = Math.max(1, progress[g.slug]?.current_stage ?? 1);
+      return referenceStage - st >= 2;
+    })
+    .sort((a, b) => {
+      const sa = Math.max(1, progress[a.slug]?.current_stage ?? 1);
+      const sb = Math.max(1, progress[b.slug]?.current_stage ?? 1);
+      if (sa !== sb) return sa - sb;
+      return (scores[a.domain] ?? 0) - (scores[b.domain] ?? 0);
+    });
+
+  if (lagging.length > 0) {
+    const pick = lagging[0];
+    const st = Math.max(1, progress[pick.slug]?.current_stage ?? 1);
+    return {
+      slug: pick.slug,
+      reasonType: 'catchup',
+      reasonLabel: `Alcançar nível (Nv.${st} → Nv.${referenceStage})`,
+      targetStage: referenceStage,
+    };
+  }
+
+  // 3. Tudo nivelado: escolhe aleatoriamente entre os jogos/domínios com maior margem de evolução (sem repetir o último)
+  const rankedWeak = allGames
+    .filter((g) => g.slug !== justPlayedSlug)
+    .sort((a, b) => {
+      const scoreA = (scores[a.domain] ?? 0) * 0.6 + (progress[a.slug]?.highest_score ?? 0) * 0.4;
+      const scoreB = (scores[b.domain] ?? 0) * 0.6 + (progress[b.slug]?.highest_score ?? 0) * 0.4;
+      return scoreA - scoreB;
+    });
+
+  const poolSize = Math.min(8, rankedWeak.length);
+  const pick = rankedWeak[Math.floor(Math.random() * Math.max(1, poolSize))] ?? allGames[0];
+
+  return {
+    slug: pick.slug,
+    reasonType: 'improve',
+    reasonLabel: `Melhorar ${DOMAIN_MAP[pick.domain].shortName}`,
   };
 }

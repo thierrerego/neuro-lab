@@ -38,6 +38,7 @@ import {
 import { checkBackendOnline, supabase } from './lib/supabase';
 import {
   generateDailyProtocol,
+  pickNextFlowGame,
   getCalibrationDomains,
   getWeakestDomains,
   scoreToPercent,
@@ -125,6 +126,7 @@ export default function App() {
     calibrationInfo?: CalibrationBannerInfo;
     guidedQueue?: GameSlug[];
     domainFocusQueue?: { domain: DomainKey; slugs: GameSlug[] };
+    flowMode?: boolean;
     sandboxMode?: boolean;
   } | null>(null);
 
@@ -350,7 +352,8 @@ export default function App() {
     returnView: FlowView = 'app',
     calibrationInfo?: CalibrationBannerInfo,
     guidedQueue?: GameSlug[],
-    domainFocusQueue?: { domain: DomainKey; slugs: GameSlug[] }
+    domainFocusQueue?: { domain: DomainKey; slugs: GameSlug[] },
+    flowMode = false
   ) => {
     if (!data) return;
     const prog = data.progress[slug];
@@ -366,8 +369,15 @@ export default function App() {
       calibrationInfo,
       guidedQueue,
       domainFocusQueue,
+      flowMode,
     });
     setView('playing');
+  };
+
+  const handleStartFlow = (justPlayedSlug?: GameSlug) => {
+    if (!data) return;
+    const pick = pickNextFlowGame(data.progress, data.scores, justPlayedSlug);
+    startGame(pick.slug, 'free', 'app', undefined, undefined, undefined, true);
   };
 
   const handleImproveDomain = (domain: DomainKey) => {
@@ -471,6 +481,15 @@ export default function App() {
         nextChallengeLabel = `Próximo do Treino (${nextStepNum}/${list.length})`;
         onNextChallenge = () => startGame(nextSlug, 'guided', 'app', undefined, list);
       }
+    } else if (activePlay.flowMode) {
+      const nextPick = pickNextFlowGame(data.progress, data.scores, activePlay.slug);
+      const nextGameMeta = GAME_MAP[nextPick.slug];
+      nextChallengeLabel =
+        nextPick.slug === activePlay.slug
+          ? `Flow: subir fase (${nextGameMeta.name})`
+          : `Flow: ${nextGameMeta.name}`;
+      onNextChallenge = () =>
+        startGame(nextPick.slug, 'free', 'app', undefined, undefined, undefined, true);
     } else if (activePlay.domainFocusQueue) {
       const { domain, slugs } = activePlay.domainFocusQueue;
       const curIdx = slugs.indexOf(activePlay.slug);
@@ -682,6 +701,7 @@ export default function App() {
         <HomeScreen
           data={data}
           onStartGame={(slug, mode, queue) => startGame(slug, mode, 'app', undefined, queue)}
+          onStartFlow={() => handleStartFlow()}
           onOpenCalibration={() => setView('calibration')}
         />
       )}

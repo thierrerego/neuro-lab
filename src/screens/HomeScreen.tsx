@@ -11,12 +11,14 @@ import {
   Sparkles,
   Target,
   TrendingUp,
+  Zap,
 } from 'lucide-react';
 import type { AppDataState } from '../lib/dataService';
 import { DOMAIN_LIST, DOMAIN_MAP, GAME_MAP, GAME_REGISTRY } from '../engine/gameRegistry';
 import {
   getDailyNeuroInsight,
   getProtocolReason,
+  pickNextFlowGame,
   scoreToPercent,
 } from '../engine/psychometricEngine';
 import {
@@ -28,12 +30,14 @@ import { GameIcon } from '../components/DomainIcon';
 interface HomeScreenProps {
   data: AppDataState;
   onStartGame: (slug: GameSlug, mode: SessionMode, queue?: GameSlug[]) => void;
+  onStartFlow: () => void;
   onOpenCalibration: () => void;
 }
 
 export function HomeScreen({
   data,
   onStartGame,
+  onStartFlow,
   onOpenCalibration,
 }: HomeScreenProps) {
   const { profile, scores, progress, dailyProtocol, sessions, snapshots } = data;
@@ -175,6 +179,12 @@ export function HomeScreen({
 
     return { strongDomains: strong, weakDomains: weak };
   }, [scores]);
+
+  const flowPreview = useMemo(
+    () => pickNextFlowGame(progress, scores),
+    [progress, scores]
+  );
+  const flowGameMeta = GAME_MAP[flowPreview.slug];
 
   const neuroInsight = useMemo(
     () =>
@@ -373,6 +383,36 @@ export function HomeScreen({
           </span>
         </button>
       )}
+
+      {/* =====================================================================
+          1.5. BOTÃO MODO FLOW (RITMO CONTÍNUO INTELIGENTE)
+          ===================================================================== */}
+      <button
+        type="button"
+        onClick={onStartFlow}
+        className="w-full rounded-[24px] p-5 text-left cursor-pointer transition-transform active:scale-[0.985] flex items-center justify-between gap-4"
+        style={{
+          background: 'var(--accent-grad)',
+          color: '#FFFFFF',
+          boxShadow: '0 12px 28px var(--accent-shadow)',
+        }}
+      >
+        <div className="min-w-0 flex-1">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-white/18">
+            <Zap size={13} fill="currentColor" />
+            <span>Modo Flow</span>
+          </div>
+          <div className="text-lg font-extrabold leading-tight mt-2">
+            Jogar no automático
+          </div>
+          <div className="text-xs font-medium mt-1 opacity-90 truncate">
+            Próximo: <strong>{flowGameMeta.name}</strong> · {flowPreview.reasonLabel}
+          </div>
+        </div>
+        <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center shrink-0">
+          <Play size={22} fill="currentColor" />
+        </div>
+      </button>
 
       {/* =====================================================================
           2. SESSÃO GUIADA DO DIA (CARDS AMPLOS E CONFORTÁVEIS)
