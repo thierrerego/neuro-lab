@@ -108,5 +108,39 @@ export function GameIcon({ slug, size = 20 }: { slug: GameSlug; size?: number })
       return <Sigma size={size} />;
     case 'inverted-signal':
       return <Shuffle size={size} />;
+    case 'pass-the-ball':
+      return <GitBranch size={size} />;
+    case 'hidden-gold':
+      return <Sparkles size={size} />;
+    case 'shopping-list':
+      return <Layers size={size} />;
+    case 'match-pairs':
+      return <Copy size={size} />;
+    case 'phone-number':
+      return <Hash size={size} />;
+    case 'secret-code':
+      return <ListOrdered size={size} />;
+    case 'strange-signals':
+      return <Activity size={size} />;
+    case 'ancient-numbers':
+      return <ListOrdered size={size} />;
+    case 'crime-scene':
+      return <ScanSearch size={size} />;
+    case 'treasure-hunt':
+      return <Palette size={size} />;
+    case 'identical-items':
+      return <Copy size={size} />;
+    case 'missing-number':
+      return <Hash size={size} />;
+    case 'fan-count':
+      return <Eye size={size} />;
+    case 'secret-anagrams':
+      return <Shuffle size={size} />;
+    case 'fish-out-of-water':
+      return <Unlink size={size} />;
+    case 'sort-trash':
+      return <Repeat size={size} />;
+    case 'complex-patterns':
+      return <Shapes size={size} />;
   }
 }

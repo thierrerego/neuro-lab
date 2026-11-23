@@ -17,10 +17,17 @@ export function getTargetHitsForGame(slug?: GameSlug): number {
   switch (slug) {
     case 'schulte-order':
     case 'path-logic':
+    case 'ancient-numbers':
       return 3;
     case 'spatial-span':
     case 'sustained-tracking':
     case 'reverse-digits':
+    case 'pass-the-ball':
+    case 'hidden-gold':
+    case 'shopping-list':
+    case 'phone-number':
+    case 'secret-code':
+    case 'strange-signals':
       return 4;
     case 'visual-search':
     case 'conjunction-search':
@@ -30,13 +37,21 @@ export function getTargetHitsForGame(slug?: GameSlug): number {
     case 'target-sum':
     case 'number-sequence':
     case 'logic-balance':
+    case 'crime-scene':
+    case 'fan-count':
+    case 'secret-anagrams':
       return 6;
     case 'dual-n-back':
     case 'memory-pairs':
+    case 'match-pairs':
     case 'chain-arithmetic':
     case 'missing-operator':
     case 'number-comparison':
     case 'quick-pair':
+    case 'treasure-hunt':
+    case 'identical-items':
+    case 'missing-number':
+    case 'complex-patterns':
       return 8;
     case 'odd-one-out':
     case 'flash-match':
@@ -44,8 +59,10 @@ export function getTargetHitsForGame(slug?: GameSlug): number {
     case 'rule-switch':
     case 'stroop-conflict':
     case 'quick-estimate':
+    case 'fish-out-of-water':
       return 10;
     case 'logic-intruder':
+    case 'sort-trash':
       return 12;
     case 'opposite-arrow':
     case 'speed-match':

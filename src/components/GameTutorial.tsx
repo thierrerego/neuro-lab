@@ -1802,6 +1802,40 @@ function getTutorialInstruction(slug: GameSlug, config: StageConfig): string {
       return 'Compare mentalmente as duas expressões e toque na que dá o MAIOR resultado.';
     case 'inverted-signal':
       return 'Sinal VERDE: siga a seta. Sinal VERMELHO: toque na direção OPOSTA.';
+    case 'pass-the-ball':
+      return 'Memorize onde estão as armadilhas 🚧 e leve a bola ⚽ até a bandeira 🏁 sem pisar nelas.';
+    case 'hidden-gold':
+      return 'Memorize onde estão as moedas 🪙 e toque nas mesmas posições quando sumirem.';
+    case 'shopping-list':
+      return 'Memorize os itens da lista de compras e selecione exatamente eles na prateleira.';
+    case 'match-pairs':
+      return 'Memorize os emojis revelados e combine todos os pares idênticos com o mínimo de erros.';
+    case 'phone-number':
+      return 'Memorize o número exibido na tela e digite-o completo no teclado numérico.';
+    case 'secret-code':
+      return 'Memorize os números espalhados e toque nos quadrados em ordem CRESCENTE quando sumirem.';
+    case 'strange-signals':
+      return 'Observe a sequência de sinais 📡 que piscam na matriz e repita exatamente na mesma ordem.';
+    case 'ancient-numbers':
+      return 'Toque nos números espalhados pela tela na ordem crescente (1 → 2 → 3...) bem rápido.';
+    case 'crime-scene':
+      return 'Todos os objetos têm um par, exceto UM. Localize e toque no único item solitário.';
+    case 'treasure-hunt':
+      return 'Observe as cores misturadas e toque rapidamente na cor que aparece em maior quantidade.';
+    case 'identical-items':
+      return 'Apenas um par de emojis se repete na grade. Toque em qualquer um dos dois itens iguais.';
+    case 'missing-number':
+      return 'Descubra qual número está faltando na sequência e toque na alternativa correta.';
+    case 'fan-count':
+      return 'Conte rapidamente quantas camisas têm a cor pedida no topo e toque no total certo.';
+    case 'secret-anagrams':
+      return 'Encontre a única opção que usa exatamente as mesmas letras da palavra-alvo embaralhadas.';
+    case 'fish-out-of-water':
+      return 'Observe o grupo e toque no único item intruso que não pertence à categoria ou padrão.';
+    case 'sort-trash':
+      return 'Classifique rapidamente cada item tocando na lixeira da cor certa (Papel, Plástico, Vidro ou Orgânico).';
+    case 'complex-patterns':
+      return 'Compare os dois padrões e responda SIM se o da direita for o mesmo apenas girado, ou NÃO se for diferente.';
   }
 }
 
@@ -1867,6 +1901,40 @@ function TutorialStageVisual({ slug, config }: { slug: GameSlug; config: StageCo
       return <NumberComparisonDemo />;
     case 'inverted-signal':
       return <OppositeArrowDemo />;
+    case 'pass-the-ball':
+      return <PathLogicDemo alternating={false} />;
+    case 'hidden-gold':
+      return <PhotoRecallDemo />;
+    case 'shopping-list':
+      return <PhotoRecallDemo />;
+    case 'match-pairs':
+      return <MemoryPairsDemo />;
+    case 'phone-number':
+      return <SpatialSpanDemo reverseOrder={false} />;
+    case 'secret-code':
+      return <SchulteOrderDemo />;
+    case 'strange-signals':
+      return <SpatialSpanDemo reverseOrder={false} />;
+    case 'ancient-numbers':
+      return <SchulteOrderDemo />;
+    case 'crime-scene':
+      return <OddOneOutDemo />;
+    case 'treasure-hunt':
+      return <VisualSearchDemo />;
+    case 'identical-items':
+      return <FlashMatchDemo />;
+    case 'missing-number':
+      return <NumberSequenceDemo />;
+    case 'fan-count':
+      return <VisualSearchDemo />;
+    case 'secret-anagrams':
+      return <LogicIntruderDemo />;
+    case 'fish-out-of-water':
+      return <LogicIntruderDemo />;
+    case 'sort-trash':
+      return <RuleSwitchDemo />;
+    case 'complex-patterns':
+      return <RavenMatricesDemo />;
   }
 }
 

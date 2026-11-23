@@ -195,6 +195,23 @@ export function getTargetRtMs(
     'quick-pair': 1400,
     'quick-estimate': 1550,
     'inverted-signal': 1050,
+    'pass-the-ball': 780,
+    'hidden-gold': 850,
+    'shopping-list': 1100,
+    'match-pairs': 950,
+    'phone-number': 2200,
+    'secret-code': 900,
+    'strange-signals': 780,
+    'ancient-numbers': 720,
+    'crime-scene': 1650,
+    'treasure-hunt': 1350,
+    'identical-items': 1350,
+    'missing-number': 1550,
+    'fan-count': 1750,
+    'secret-anagrams': 2100,
+    'fish-out-of-water': 1250,
+    'sort-trash': 980,
+    'complex-patterns': 1750,
   };
   const base = baseByGame[slug] ?? 1200;
   const d = Math.max(0, baseStage - 1);

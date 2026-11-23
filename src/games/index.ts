@@ -31,26 +31,60 @@ import { LogicBalanceGame } from './LogicBalanceGame';
 import { QuickPairGame } from './QuickPairGame';
 import { QuickEstimateGame } from './QuickEstimateGame';
 import { InvertedSignalGame } from './InvertedSignalGame';
+import { PassTheBallGame } from './PassTheBallGame';
+import { HiddenGoldGame } from './HiddenGoldGame';
+import { ShoppingListGame } from './ShoppingListGame';
+import { MatchPairsGame } from './MatchPairsGame';
+import { PhoneNumberGame } from './PhoneNumberGame';
+import { SecretCodeGame } from './SecretCodeGame';
+import { StrangeSignalsGame } from './StrangeSignalsGame';
+import { AncientNumbersGame } from './AncientNumbersGame';
+import { CrimeSceneGame } from './CrimeSceneGame';
+import { TreasureHuntGame } from './TreasureHuntGame';
+import { IdenticalItemsGame } from './IdenticalItemsGame';
+import { MissingNumberGame } from './MissingNumberGame';
+import { FanCountGame } from './FanCountGame';
+import { SecretAnagramsGame } from './SecretAnagramsGame';
+import { FishOutOfWaterGame } from './FishOutOfWaterGame';
+import { SortTrashGame } from './SortTrashGame';
+import { ComplexPatternsGame } from './ComplexPatternsGame';
 
 export const GAME_COMPONENTS: Record<GameSlug, ComponentType<MinigameProps>> = {
-  // 1. Atenção Seletiva (5)
+  // 1. Atenção Seletiva (11)
   'visual-search': VisualSearchGame,
   'sustained-tracking': SustainedTrackingGame,
   'odd-one-out': OddOneOutGame,
   'flanker-focus': FlankerFocusGame,
   'conjunction-search': ConjunctionSearchGame,
-  // 2. Memória (5)
+  'ancient-numbers': AncientNumbersGame,
+  'crime-scene': CrimeSceneGame,
+  'treasure-hunt': TreasureHuntGame,
+  'identical-items': IdenticalItemsGame,
+  'missing-number': MissingNumberGame,
+  'fan-count': FanCountGame,
+  // 2. Memória (12)
   'memory-pairs': MemoryPairsGame,
   'photo-recall': PhotoRecallGame,
   'spatial-span': SpatialSpanGame,
   'dual-n-back': DualNBackGame,
   'reverse-digits': ReverseDigitsGame,
-  // 3. Raciocínio Fluido (5)
+  'pass-the-ball': PassTheBallGame,
+  'hidden-gold': HiddenGoldGame,
+  'shopping-list': ShoppingListGame,
+  'match-pairs': MatchPairsGame,
+  'phone-number': PhoneNumberGame,
+  'secret-code': SecretCodeGame,
+  'strange-signals': StrangeSignalsGame,
+  // 3. Raciocínio Fluido (9)
   'number-sequence': NumberSequenceGame,
   'logic-intruder': LogicIntruderGame,
   'raven-matrices': RavenMatricesGame,
   'path-logic': PathLogicGame,
   'logic-balance': LogicBalanceGame,
+  'secret-anagrams': SecretAnagramsGame,
+  'fish-out-of-water': FishOutOfWaterGame,
+  'sort-trash': SortTrashGame,
+  'complex-patterns': ComplexPatternsGame,
   // 4. Velocidade de Processamento (5)
   'speed-match': SpeedMatchGame,
   'symbol-digit': SymbolDigitGame,

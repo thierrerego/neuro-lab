@@ -112,5 +112,39 @@ export function getStageShortBadge(slug: GameSlug, cfg: StageConfig): string {
       return `Faixa N${cfg.mathComplexity}`;
     case 'inverted-signal':
       return lvl >= 6 ? '4 direções' : 'Esq / Dir';
+    case 'pass-the-ball':
+      return lvl <= 2 ? '3×3' : lvl <= 5 ? '4×4' : lvl <= 10 ? '5×5' : '6×6';
+    case 'hidden-gold':
+      return lvl <= 2 ? '3×3 · 3 moedas' : lvl <= 5 ? '4×4 · 4 moedas' : '5×5 · Ouro';
+    case 'shopping-list':
+      return `${lvl <= 2 ? 3 : lvl <= 5 ? 4 : lvl <= 9 ? 5 : lvl <= 13 ? 6 : lvl <= 17 ? 7 : 8} itens`;
+    case 'match-pairs':
+      return lvl <= 1 ? '3 pares' : lvl <= 3 ? '4 pares' : lvl <= 7 ? '6 pares' : '8 pares';
+    case 'phone-number':
+      return `${lvl <= 2 ? 4 : lvl <= 4 ? 5 : lvl <= 7 ? 6 : lvl <= 10 ? 8 : lvl <= 14 ? 9 : 11} dígitos`;
+    case 'secret-code':
+      return `${lvl <= 2 ? 3 : lvl <= 5 ? 4 : lvl <= 9 ? 5 : lvl <= 14 ? 6 : 7} números`;
+    case 'strange-signals':
+      return `${lvl <= 2 ? 3 : lvl <= 5 ? 4 : lvl <= 9 ? 5 : lvl <= 14 ? 6 : 7} sinais`;
+    case 'ancient-numbers':
+      return `1→${lvl <= 2 ? 6 : lvl <= 5 ? 8 : lvl <= 9 ? 10 : lvl <= 14 ? 12 : 15}`;
+    case 'crime-scene':
+      return `${lvl <= 2 ? 9 : lvl <= 6 ? 11 : lvl <= 11 ? 15 : 19} objetos`;
+    case 'treasure-hunt':
+      return lvl <= 3 ? '3 cores' : '4 cores';
+    case 'identical-items':
+      return `${lvl <= 2 ? 6 : lvl <= 6 ? 9 : lvl <= 11 ? 12 : 16} itens`;
+    case 'missing-number':
+      return `1..${lvl <= 2 ? 6 : lvl <= 5 ? 8 : lvl <= 9 ? 10 : 12}`;
+    case 'fan-count':
+      return `${lvl <= 2 ? 9 : lvl <= 5 ? 12 : lvl <= 10 ? 16 : 20} fãs`;
+    case 'secret-anagrams':
+      return lvl <= 4 ? '4–5 letras' : lvl <= 10 ? '6 letras' : '7+ letras';
+    case 'fish-out-of-water':
+      return lvl <= 4 ? '4 opções' : '6 opções';
+    case 'sort-trash':
+      return `${lvl <= 3 ? 2 : lvl <= 7 ? 3 : 4} lixeiras`;
+    case 'complex-patterns':
+      return lvl <= 6 ? '3×3 · Rotação' : '4×4 · Rotação';
   }
 }

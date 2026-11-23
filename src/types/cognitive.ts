@@ -42,7 +42,27 @@ export type GameSlug =
   | 'go-nogo-reflex'
   | 'opposite-arrow'
   | 'rule-switch'
-  | 'inverted-signal';
+  | 'inverted-signal'
+  // Novos — Memória de Trabalho (7)
+  | 'pass-the-ball'
+  | 'hidden-gold'
+  | 'shopping-list'
+  | 'match-pairs'
+  | 'phone-number'
+  | 'secret-code'
+  | 'strange-signals'
+  // Novos — Atenção Seletiva (6)
+  | 'ancient-numbers'
+  | 'crime-scene'
+  | 'treasure-hunt'
+  | 'identical-items'
+  | 'missing-number'
+  | 'fan-count'
+  // Novos — Raciocínio Fluido (4)
+  | 'secret-anagrams'
+  | 'fish-out-of-water'
+  | 'sort-trash'
+  | 'complex-patterns';
 
 export interface DomainMeta {
   key: DomainKey;
