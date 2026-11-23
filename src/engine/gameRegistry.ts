@@ -84,6 +84,13 @@ export const GAME_REGISTRY: GameMeta[] = [
     shortTip: 'Siga só a seta do meio',
     durationSec: 30,
   },
+  {
+    slug: 'conjunction-search',
+    domain: 'selective_attention',
+    name: 'Conjunção Visual',
+    shortTip: 'Combine forma e cor exatas',
+    durationSec: 30,
+  },
 
   // 2. Memória (Memória Visual/Normal + Memória de Trabalho — 4)
   {
@@ -112,6 +119,13 @@ export const GAME_REGISTRY: GameMeta[] = [
     domain: 'working_memory',
     name: 'Dual N-Back',
     shortTip: 'Igual a N passos atrás?',
+    durationSec: 30,
+  },
+  {
+    slug: 'reverse-digits',
+    domain: 'working_memory',
+    name: 'Dígitos Inversos',
+    shortTip: 'Digite de trás pra frente',
     durationSec: 30,
   },
 
@@ -144,6 +158,13 @@ export const GAME_REGISTRY: GameMeta[] = [
     shortTip: 'Ligue na ordem certa',
     durationSec: 30,
   },
+  {
+    slug: 'logic-balance',
+    domain: 'fluid_reasoning',
+    name: 'Balança Lógica',
+    shortTip: 'Descubra o valor do símbolo',
+    durationSec: 30,
+  },
 
   // 4. Velocidade de Processamento (4)
   {
@@ -172,6 +193,13 @@ export const GAME_REGISTRY: GameMeta[] = [
     domain: 'processing_speed',
     name: 'Pares Relâmpago',
     shortTip: 'Toque nos 2 iguais',
+    durationSec: 30,
+  },
+  {
+    slug: 'quick-pair',
+    domain: 'processing_speed',
+    name: 'Par Rápido',
+    shortTip: 'Encontre o par idêntico',
     durationSec: 30,
   },
 
@@ -204,6 +232,13 @@ export const GAME_REGISTRY: GameMeta[] = [
     shortTip: 'Qual sinal completa?',
     durationSec: 30,
   },
+  {
+    slug: 'quick-estimate',
+    domain: 'numerical_cognition',
+    name: 'Maior Expressão',
+    shortTip: 'Toque na conta maior',
+    durationSec: 30,
+  },
 
   // 6. Controle Inibitório (4)
   {
@@ -232,6 +267,13 @@ export const GAME_REGISTRY: GameMeta[] = [
     domain: 'inhibitory_control',
     name: 'Classificação por Regra',
     shortTip: 'Siga a regra do topo',
+    durationSec: 30,
+  },
+  {
+    slug: 'inverted-signal',
+    domain: 'inhibitory_control',
+    name: 'Regra Invertida',
+    shortTip: 'Verde segue · Vermelho inverte',
     durationSec: 30,
   },
 ];

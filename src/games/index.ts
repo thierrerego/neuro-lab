@@ -25,36 +25,48 @@ import { StroopConflictGame } from './StroopConflictGame';
 import { GoNoGoReflexGame } from './GoNoGoReflexGame';
 import { OppositeArrowGame } from './OppositeArrowGame';
 import { RuleSwitchGame } from './RuleSwitchGame';
+import { ConjunctionSearchGame } from './ConjunctionSearchGame';
+import { ReverseDigitsGame } from './ReverseDigitsGame';
+import { LogicBalanceGame } from './LogicBalanceGame';
+import { QuickPairGame } from './QuickPairGame';
+import { QuickEstimateGame } from './QuickEstimateGame';
+import { InvertedSignalGame } from './InvertedSignalGame';
 
 export const GAME_COMPONENTS: Record<GameSlug, ComponentType<MinigameProps>> = {
-  // 1. Atenção Seletiva
+  // 1. Atenção Seletiva (5)
   'visual-search': VisualSearchGame,
   'sustained-tracking': SustainedTrackingGame,
   'odd-one-out': OddOneOutGame,
   'flanker-focus': FlankerFocusGame,
-  // 2. Memória
+  'conjunction-search': ConjunctionSearchGame,
+  // 2. Memória (5)
   'memory-pairs': MemoryPairsGame,
   'photo-recall': PhotoRecallGame,
   'spatial-span': SpatialSpanGame,
   'dual-n-back': DualNBackGame,
-  // 3. Raciocínio Fluido
+  'reverse-digits': ReverseDigitsGame,
+  // 3. Raciocínio Fluido (5)
   'number-sequence': NumberSequenceGame,
   'logic-intruder': LogicIntruderGame,
   'raven-matrices': RavenMatricesGame,
   'path-logic': PathLogicGame,
-  // 4. Velocidade de Processamento
+  'logic-balance': LogicBalanceGame,
+  // 4. Velocidade de Processamento (5)
   'speed-match': SpeedMatchGame,
   'symbol-digit': SymbolDigitGame,
   'schulte-order': SchulteOrderGame,
   'flash-match': FlashMatchGame,
-  // 5. Cálculo Mental
+  'quick-pair': QuickPairGame,
+  // 5. Cálculo Mental (5)
   'chain-arithmetic': ChainArithmeticGame,
   'number-comparison': NumberComparisonGame,
   'target-sum': TargetSumGame,
   'missing-operator': MissingOperatorGame,
-  // 6. Controle Inibitório
+  'quick-estimate': QuickEstimateGame,
+  // 6. Controle Inibitório (5)
   'stroop-conflict': StroopConflictGame,
   'go-nogo-reflex': GoNoGoReflexGame,
   'opposite-arrow': OppositeArrowGame,
   'rule-switch': RuleSwitchGame,
+  'inverted-signal': InvertedSignalGame,
 };

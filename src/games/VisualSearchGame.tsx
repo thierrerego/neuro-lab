@@ -156,17 +156,16 @@ export function VisualSearchGame({
       statsRef.current.rawPoints += 100 + Math.min(80, statsRef.current.combo * 12);
       sound.hit(statsRef.current.combo);
 
-      const clearedAll = onWaveHit();
-      if (clearedAll) {
-        emitLive(0);
-        finishNow();
-        return;
-      }
-
       const nextCells = board.cells.map((c) => (c.id === cell.id ? { ...c, found: true } : c));
       const remaining = nextCells.filter((c) => c.isTarget && !c.found).length;
 
       if (remaining === 0) {
+        const clearedAll = onWaveHit();
+        if (clearedAll) {
+          emitLive(0);
+          finishNow();
+          return;
+        }
         const nextNum = boardNum + 1;
         setBoardNum(nextNum);
         // Usa a grade/alvos da onda atual (escala intra-partida!)

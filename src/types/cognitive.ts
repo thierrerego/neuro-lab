@@ -17,26 +17,32 @@ export type GameSlug =
   | 'sustained-tracking'
   | 'odd-one-out'
   | 'flanker-focus'
+  | 'conjunction-search'
   | 'spatial-span'
   | 'dual-n-back'
   | 'memory-pairs'
   | 'photo-recall'
+  | 'reverse-digits'
   | 'raven-matrices'
   | 'path-logic'
   | 'number-sequence'
   | 'logic-intruder'
+  | 'logic-balance'
   | 'speed-match'
   | 'symbol-digit'
   | 'schulte-order'
   | 'flash-match'
+  | 'quick-pair'
   | 'chain-arithmetic'
   | 'number-comparison'
   | 'target-sum'
   | 'missing-operator'
+  | 'quick-estimate'
   | 'stroop-conflict'
   | 'go-nogo-reflex'
   | 'opposite-arrow'
-  | 'rule-switch';
+  | 'rule-switch'
+  | 'inverted-signal';
 
 export interface DomainMeta {
   key: DomainKey;

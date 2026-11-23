@@ -189,6 +189,12 @@ export function getTargetRtMs(
     'number-sequence': 2100,
     'target-sum': 2200,
     'raven-matrices': 2400,
+    'conjunction-search': 1250,
+    'reverse-digits': 2100,
+    'logic-balance': 2300,
+    'quick-pair': 1400,
+    'quick-estimate': 1550,
+    'inverted-signal': 1050,
   };
   const base = baseByGame[slug] ?? 1200;
   const d = Math.max(0, baseStage - 1);

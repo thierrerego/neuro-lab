@@ -119,19 +119,19 @@ export function PathLogicGame({
       statsRef.current.rawPoints += 110 + Math.min(70, statsRef.current.combo * 10);
       sound.hit(statsRef.current.combo);
 
-      const clearedAll = onWaveHit();
-      emitLive();
-      if (clearedAll) {
-        finishNow();
-        return;
-      }
-
       if (nextOrder + 1 >= nodes.length) {
+        const clearedAll = onWaveHit();
+        emitLive();
+        if (clearedAll) {
+          finishNow();
+          return;
+        }
         const { count: nextCount, alternating: nextAlt } = getTrailParams(configRef.current.stage);
         setAlternating(nextAlt);
         setNodes(buildTrail(nextCount, nextAlt));
         setNextOrder(0);
       } else {
+        emitLive();
         setNextOrder(nextOrder + 1);
       }
     } else {

@@ -42,7 +42,14 @@ import type { PreviousExerciseReference, WeeklyDayItem } from '../engine/cogniti
 import { GAME_COMPONENTS } from '../games';
 import type { LiveMetrics } from '../games/GameProps';
 import { sound } from '../lib/audio';
+import {
+  formatTuningShort,
+  isLabTuningModified,
+  type LabLevelTuning,
+  type PlateauAttempt,
+} from '../lib/labTuning';
 import { GameTutorial } from './GameTutorial';
+import { LabTuningPanel } from './LabTuningPanel';
 
 export interface CalibrationBannerInfo {
   currentIndex: number; // 1..total
@@ -75,6 +82,11 @@ interface GameShellProps {
   onNextChallenge?: () => void;
   onTestMaxLevel?: () => void;
   sandboxJumpLabel?: string;
+  labTuning?: LabLevelTuning;
+  onLabTuningChange?: (next: LabLevelTuning) => void;
+  onLabTuningReset?: () => void;
+  plateauAttempts?: PlateauAttempt[];
+  onResetPlateauAttempts?: () => void;
   onComplete: (result: ComputedSessionResult) => Promise<void>;
   onPlayNext: (nextStage: number, easeBoost: boolean) => void;
   onExit: () => void;
@@ -96,6 +108,11 @@ export function GameShell({
   onNextChallenge,
   onTestMaxLevel,
   sandboxJumpLabel = 'Platô (Nv. 13)',
+  labTuning,
+  onLabTuningChange,
+  onLabTuningReset,
+  plateauAttempts,
+  onResetPlateauAttempts,
   onComplete,
   onPlayNext,
   onExit,
@@ -105,13 +122,26 @@ export function GameShell({
   const GameComponent = GAME_COMPONENTS[slug];
   const ageLabel = getAgeBracketMeta(ageBracket).label;
 
-  const [wave, setWave] = useState<WaveState>(() => createWaveState(stage, slug));
+  const labTuningRef = useRef<LabLevelTuning | undefined>(labTuning);
+  labTuningRef.current = labTuning;
+  const [appliedTuning, setAppliedTuning] = useState<LabLevelTuning | undefined>(labTuning);
+
+  const [wave, setWave] = useState<WaveState>(() => createWaveState(stage, slug, labTuning));
   const waveRef = useRef<WaveState>(wave);
   waveRef.current = wave;
 
   const effectiveConfig = useMemo(
-    () => getWaveEffectiveConfig(slug, wave, easeBoost),
-    [slug, wave, easeBoost]
+    () => getWaveEffectiveConfig(slug, wave, easeBoost, appliedTuning),
+    [slug, wave, easeBoost, appliedTuning]
+  );
+
+  const hasPendingTuningChange = Boolean(
+    sandboxMode &&
+      labTuning &&
+      appliedTuning &&
+      (Math.abs(labTuning.effectiveLevel - appliedTuning.effectiveLevel) > 0.001 ||
+        Math.abs(labTuning.speedScale - appliedTuning.speedScale) > 0.001 ||
+        labTuning.targetHits !== appliedTuning.targetHits)
   );
 
   const totalDurationSec = effectiveConfig.durationSec;
@@ -152,10 +182,12 @@ export function GameShell({
   const finishedRef = useRef(false);
 
   useEffect(() => {
-    const freshWave = createWaveState(stage, slug);
+    const nextTuning = labTuningRef.current;
+    setAppliedTuning(nextTuning);
+    const freshWave = createWaveState(stage, slug, nextTuning);
     waveRef.current = freshWave;
     setWave(freshWave);
-    const dur = getWaveEffectiveConfig(slug, freshWave, easeBoost).durationSec;
+    const dur = getWaveEffectiveConfig(slug, freshWave, easeBoost, nextTuning).durationSec;
     setTimeLeft(dur);
     setFinishRequested(false);
     setResult(null);
@@ -362,15 +394,19 @@ export function GameShell({
         {/* Faixa superior da Área de Testes (Sandbox ADM) */}
         {sandboxMode && (
           <div
-            className="px-5 py-2 flex items-center justify-between text-xs font-bold"
+            className="px-5 py-2 flex items-center justify-between gap-2 text-xs font-bold"
             style={{
               background: 'rgba(139, 92, 246, 0.12)',
               borderBottom: '1px solid rgba(139, 92, 246, 0.25)',
               color: '#7C3AED',
             }}
           >
-            <span>Área de Testes (Sandbox) · Nível {stage}</span>
-            <span className="font-semibold opacity-80">Só grava no Log</span>
+            <span className="truncate">Sandbox · Nível {stage}</span>
+            <span className="font-semibold opacity-90 truncate">
+              {appliedTuning && isLabTuningModified(slug, stage, appliedTuning)
+                ? formatTuningShort(appliedTuning)
+                : 'Padrão · Só grava no Log'}
+            </span>
           </div>
         )}
 
@@ -727,6 +763,20 @@ export function GameShell({
                     </div>
                   </div>
 
+                  {/* 3 barras reais de calibração (Dificuldade, Velocidade e Meta) */}
+                  {labTuning && onLabTuningChange && onLabTuningReset && (
+                    <LabTuningPanel
+                      slug={slug}
+                      stage={stage}
+                      tuning={labTuning}
+                      onChange={onLabTuningChange}
+                      onReset={onLabTuningReset}
+                      plateauAttempts={plateauAttempts}
+                      onResetPlateauAttempts={onResetPlateauAttempts}
+                      compact
+                    />
+                  )}
+
                   {/* Barrinha opcional (só mexe se achar que o nível não está certo) + Observação */}
                   <div
                     className="rounded-2xl p-4 flex flex-col gap-3 text-left"
@@ -958,12 +1008,16 @@ export function GameShell({
                   <button
                     type="button"
                     onClick={handleReplay}
-                    className="w-full min-h-[48px] py-3.5 px-4 rounded-2xl font-semibold text-sm btn-soft flex items-center justify-center gap-2 cursor-pointer"
+                    className={`w-full min-h-[48px] py-3.5 px-4 rounded-2xl text-sm flex items-center justify-center gap-2 cursor-pointer ${
+                      hasPendingTuningChange ? 'font-bold btn-accent' : 'font-semibold btn-soft'
+                    }`}
                   >
                     <RotateCcw size={16} />
                     <span>
                       {sandboxMode
-                        ? `Repetir Nível ${stage}`
+                        ? hasPendingTuningChange
+                          ? `Testar Nível ${stage} com novo ajuste`
+                          : `Repetir Nível ${stage}`
                         : result.stageCleared
                           ? `Jogar novamente (Nível ${result.nextStage})`
                           : `Tentar novamente (Nível ${result.nextStage})`}

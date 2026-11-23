@@ -106,6 +106,12 @@ export const NORMATIVE_BENCHMARKS: PopulationBenchmarks = {
     'go-nogo-reflex': { mean: 500, sd: 234, p50: 500, p75: 658, p90: 800, p99: 958, avg_rt_ms: 630, early_rate_pct: 32 },
     'opposite-arrow': { mean: 508, sd: 230, p50: 508, p75: 663, p90: 802, p99: 960, avg_rt_ms: 820, early_rate_pct: 36 },
     'rule-switch': { mean: 502, sd: 232, p50: 502, p75: 659, p90: 800, p99: 958, avg_rt_ms: 960, early_rate_pct: 33 },
+    'conjunction-search': { mean: 504, sd: 232, p50: 504, p75: 660, p90: 801, p99: 958, avg_rt_ms: 1250, early_rate_pct: 32 },
+    'reverse-digits': { mean: 492, sd: 238, p50: 492, p75: 652, p90: 797, p99: 956, avg_rt_ms: 2100, early_rate_pct: 28 },
+    'logic-balance': { mean: 494, sd: 238, p50: 494, p75: 654, p90: 798, p99: 957, avg_rt_ms: 2300, early_rate_pct: 27 },
+    'quick-pair': { mean: 508, sd: 229, p50: 508, p75: 663, p90: 802, p99: 960, avg_rt_ms: 1400, early_rate_pct: 35 },
+    'quick-estimate': { mean: 502, sd: 233, p50: 502, p75: 659, p90: 800, p99: 958, avg_rt_ms: 1550, early_rate_pct: 33 },
+    'inverted-signal': { mean: 504, sd: 231, p50: 504, p75: 660, p90: 801, p99: 958, avg_rt_ms: 1050, early_rate_pct: 34 },
   },
 };
 

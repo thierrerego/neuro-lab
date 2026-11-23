@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Lock, Moon, ShieldCheck, Sun, User } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { signInLocalAccount, signUpLocalAccount } from '../lib/localUserDb';
+import type { AppDataState } from '../lib/dataService';
 import type { ThemeMode } from '../types/cognitive';
 
 interface AuthScreenProps {
@@ -8,6 +10,7 @@ interface AuthScreenProps {
   theme: ThemeMode;
   onToggleTheme: () => void;
   onGuestLogin: () => void;
+  onLocalAccountLogin: (state: AppDataState) => void;
   onRemoteLogin: (userId: string, email?: string, displayName?: string) => Promise<void>;
 }
 
@@ -48,6 +51,7 @@ export function AuthScreen({
   theme,
   onToggleTheme,
   onGuestLogin,
+  onLocalAccountLogin,
   onRemoteLogin,
 }: AuthScreenProps) {
   const [isSignUp, setIsSignUp] = useState(true);
@@ -59,6 +63,23 @@ export function AuthScreen({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    // Quando não há Supabase remoto/Docker ligado (ex.: GitHub Pages), salva contas locais com usuário + senha
+    if (!backendOnline) {
+      setLoading(true);
+      try {
+        const accountState = isSignUp
+          ? signUpLocalAccount(username, password)
+          : signInLocalAccount(username, password);
+        onLocalAccountLogin(accountState);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Falha ao acessar conta.');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     const parsed = usernameToAuthEmail(username);
     if (!parsed) {
       setError('Digite um usuário com pelo menos 3 letras ou números.');
@@ -114,9 +135,9 @@ export function AuthScreen({
           >
             <span
               className="w-2 h-2 rounded-full"
-              style={{ background: backendOnline ? 'var(--ok)' : 'var(--warn)' }}
+              style={{ background: backendOnline ? 'var(--ok)' : 'var(--accent)' }}
             />
-            {backendOnline ? 'Supabase Local Ativo' : 'Modo Local'}
+            {backendOnline ? 'Servidor Conectado' : 'Contas no Aparelho'}
           </span>
           <button
             type="button"
@@ -217,7 +238,7 @@ export function AuthScreen({
             <input
               type="password"
               autoComplete={isSignUp ? 'new-password' : 'current-password'}
-              placeholder="Senha (mín. 6 caracteres)"
+              placeholder={backendOnline ? 'Senha (mín. 6 caracteres)' : 'Senha (mín. 4 caracteres)'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full pl-11 pr-4 py-3.5 rounded-2xl text-[15px] outline-none"
@@ -245,18 +266,20 @@ export function AuthScreen({
           </button>
 
           <p className="text-xs text-center leading-relaxed" style={{ color: 'var(--text-soft)' }}>
-            Dados salvos no seu banco local e sincronizados entre dispositivos.
+            {backendOnline
+              ? 'Dados salvos no servidor e sincronizados entre dispositivos.'
+              : 'Crie seu usuário e senha — cada pessoa mantém seu próprio histórico salvo neste aparelho.'}
           </p>
         </form>
 
-        {/* Acesso rápido 100% local (0 consumo Supabase) como Teste ADM + 7 perfis fictícios */}
+        {/* Acesso rápido para demonstração */}
         <button
           type="button"
           onClick={onGuestLogin}
-          className="w-full min-h-[54px] py-4 px-5 rounded-2xl font-bold text-sm btn-accent flex items-center justify-center gap-2.5 cursor-pointer"
+          className="w-full min-h-[48px] py-3.5 px-5 rounded-2xl font-semibold text-xs btn-soft flex items-center justify-center gap-2 cursor-pointer"
         >
-          <ShieldCheck size={18} className="shrink-0" />
-          <span>Entrar como Teste ADM (Base Local · 8 perfis)</span>
+          <ShieldCheck size={16} className="shrink-0" />
+          <span>Entrar como Teste ADM (Demo)</span>
         </button>
 
         <p className="text-xs text-center" style={{ color: 'var(--text-soft)' }}>

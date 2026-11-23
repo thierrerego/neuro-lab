@@ -196,18 +196,17 @@ export function SustainedTrackingGame({
       statsRef.current.rawPoints += 150 + statsRef.current.combo * 15;
       sound.hit(statsRef.current.combo);
 
-      const clearedAll = onWaveHit();
       const updated = balls.map((b) => (b.id === ball.id ? { ...b, picked: true } : b));
       setBalls(updated);
       emitLive();
 
-      if (clearedAll) {
-        setTimeout(() => finishNow(), 180);
-        return;
-      }
-
       const left = updated.filter((b) => b.isTarget && !b.picked).length;
       if (left === 0) {
+        const clearedAll = onWaveHit();
+        if (clearedAll) {
+          setTimeout(() => finishNow(), 180);
+          return;
+        }
         spawnNextRound();
       }
     } else {

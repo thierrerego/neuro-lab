@@ -96,5 +96,17 @@ export function GameIcon({ slug, size = 20 }: { slug: GameSlug; size?: number })
       return <Shuffle size={size} />;
     case 'rule-switch':
       return <ShieldAlert size={size} />;
+    case 'conjunction-search':
+      return <Crosshair size={size} />;
+    case 'reverse-digits':
+      return <ArrowUpDown size={size} />;
+    case 'logic-balance':
+      return <Scale size={size} />;
+    case 'quick-pair':
+      return <Copy size={size} />;
+    case 'quick-estimate':
+      return <Sigma size={size} />;
+    case 'inverted-signal':
+      return <Shuffle size={size} />;
   }
 }

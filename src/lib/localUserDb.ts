@@ -22,7 +22,100 @@ import { NORMATIVE_BENCHMARKS, resolveArchetype } from '../engine/cognitiveProfi
 import { getAppTodayIso, resetSimulatedDayOffset } from './appClock';
 
 const LOCAL_DB_KEY = 'neurolab_local_db_v1';
+const LOCAL_AUTH_KEY = 'neurolab_local_auth_v1';
 export const ADMIN_USER_ID = 'adm-001';
+
+interface LocalCredential {
+  userId: string;
+  username: string;
+  passwordHash: string;
+}
+
+function normalizeUsernameSlug(raw: string): string {
+  return raw
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9._-]+/g, '.')
+    .replace(/^\.+|\.+$/g, '');
+}
+
+function hashPasswordLocal(slug: string, password: string): string {
+  const str = `neurolab::${slug}::${password}`;
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return `${(h2 >>> 0).toString(16).padStart(8, '0')}${(h1 >>> 0).toString(16).padStart(8, '0')}`;
+}
+
+function readLocalCredentials(): Record<string, LocalCredential> {
+  try {
+    const raw = localStorage.getItem(LOCAL_AUTH_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, LocalCredential>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeLocalCredentials(creds: Record<string, LocalCredential>) {
+  try {
+    localStorage.setItem(LOCAL_AUTH_KEY, JSON.stringify(creds));
+  } catch {
+    // ignora
+  }
+}
+
+export function signUpLocalAccount(username: string, password: string): AppDataState {
+  const cleanName = username.trim();
+  const slug = normalizeUsernameSlug(cleanName);
+  if (slug.length < 2) {
+    throw new Error('Digite um usuário com pelo menos 2 letras ou números.');
+  }
+  if (password.length < 4) {
+    throw new Error('A senha precisa ter pelo menos 4 caracteres.');
+  }
+
+  const creds = readLocalCredentials();
+  if (creds[slug]) {
+    throw new Error('Esse usuário já existe. Troque para "Entrar" para acessar sua conta.');
+  }
+
+  const created = createLocalTestUser(cleanName, '25-34', 10);
+  creds[slug] = {
+    userId: created.profile.id,
+    username: cleanName,
+    passwordHash: hashPasswordLocal(slug, password),
+  };
+  writeLocalCredentials(creds);
+  return created;
+}
+
+export function signInLocalAccount(username: string, password: string): AppDataState {
+  const slug = normalizeUsernameSlug(username);
+  if (slug.length < 2) {
+    throw new Error('Digite seu usuário.');
+  }
+  const creds = readLocalCredentials();
+  const cred = creds[slug];
+  if (!cred || cred.passwordHash !== hashPasswordLocal(slug, password)) {
+    throw new Error('Usuário ou senha incorretos.');
+  }
+
+  const state = setActiveLocalUserId(cred.userId) ?? getLocalUserState(cred.userId);
+  if (!state) {
+    throw new Error('Conta não encontrada neste aparelho. Crie novamente.');
+  }
+  return state;
+}
 
 export interface LocalUserDb {
   version: number;

@@ -117,14 +117,13 @@ export function SchulteOrderGame({
       }
       setWrongNum(null);
 
-      const clearedAll = onWaveHit();
-      if (clearedAll) {
-        emitLive(num);
-        finishNow();
-        return;
-      }
-
       if (nextNum >= board.total) {
+        const clearedAll = onWaveHit();
+        if (clearedAll) {
+          emitLive(num);
+          finishNow();
+          return;
+        }
         const nextBoard = buildBoard(configRef.current.stage);
         setBoard(nextBoard);
         setBoardId((id) => id + 1);

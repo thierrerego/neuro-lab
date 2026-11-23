@@ -1790,6 +1790,18 @@ function getTutorialInstruction(slug: GameSlug, config: StageConfig): string {
       return 'Seta azul: siga a direção. Seta laranja: toque na direção oposta.';
     case 'rule-switch':
       return 'Observe a regra ativa no topo e classifique o cartão corretamente.';
+    case 'conjunction-search':
+      return 'Encontre e toque apenas nos símbolos que têm a FORMA e a COR exatas do alvo.';
+    case 'reverse-digits':
+      return 'Memorize os números que aparecem e digite a sequência de TRÁS PRA FRENTE.';
+    case 'logic-balance':
+      return 'Use as pistas visuais para descobrir quanto vale o símbolo do "?".';
+    case 'quick-pair':
+      return 'Localize o único par de símbolos idênticos na grade e toque nos dois.';
+    case 'quick-estimate':
+      return 'Compare mentalmente as duas expressões e toque na que dá o MAIOR resultado.';
+    case 'inverted-signal':
+      return 'Sinal VERDE: siga a seta. Sinal VERMELHO: toque na direção OPOSTA.';
   }
 }
 
@@ -1843,6 +1855,18 @@ function TutorialStageVisual({ slug, config }: { slug: GameSlug; config: StageCo
       return <OppositeArrowDemo />;
     case 'rule-switch':
       return <RuleSwitchDemo />;
+    case 'conjunction-search':
+      return <VisualSearchDemo />;
+    case 'reverse-digits':
+      return <SpatialSpanDemo reverseOrder={true} />;
+    case 'logic-balance':
+      return <MissingOperatorDemo />;
+    case 'quick-pair':
+      return <FlashMatchDemo />;
+    case 'quick-estimate':
+      return <NumberComparisonDemo />;
+    case 'inverted-signal':
+      return <OppositeArrowDemo />;
   }
 }
 

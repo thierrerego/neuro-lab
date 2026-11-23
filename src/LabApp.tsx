@@ -32,8 +32,23 @@ function readLastSentAt(): string | null {
   }
 }
 import { sound } from './lib/audio';
+import {
+  formatTuningShort,
+  getAllLabTunings,
+  getAllPlateauAttempts,
+  getEffectiveLabTuning,
+  getLabTuningKey,
+  isLabTuningModified,
+  recordPlateauAttempt,
+  resetLabTuning,
+  resetPlateauAttempts,
+  saveLabTuning,
+  type LabLevelTuning,
+  type PlateauAttempt,
+} from './lib/labTuning';
 import { GameIcon } from './components/DomainIcon';
 import { GameShell } from './components/GameShell';
+import { LabTuningPanel } from './components/LabTuningPanel';
 
 function getLevelBandLabel(lvl: number): string {
   if (lvl <= 4) return 'Básico · foco em velocidade';
@@ -51,6 +66,10 @@ export default function LabApp() {
   const [activeTest, setActiveTest] = useState<{ slug: GameSlug; stage: number } | null>(null);
 
   const [logs, setLogs] = useState<CalibrationLogEntry[]>(() => getCalibrationLogs());
+  const [tunings, setTunings] = useState<Record<string, LabLevelTuning>>(() => getAllLabTunings());
+  const [plateauMap, setPlateauMap] = useState<Record<string, PlateauAttempt[]>>(() =>
+    getAllPlateauAttempts()
+  );
   const [copied, setCopied] = useState(false);
   const [lastSentAt, setLastSentAt] = useState<string | null>(() => readLastSentAt());
 
@@ -116,6 +135,29 @@ export default function LabApp() {
   const selectedGame = GAME_MAP[selectedSlug] ?? GAME_REGISTRY[0];
   const selectedDomain = DOMAIN_MAP[selectedGame.domain];
   const alertsCount = useMemo(() => logs.filter((l) => l.alerts.length > 0).length, [logs]);
+  const tunedCount = useMemo(() => Object.keys(tunings).length, [tunings]);
+
+  const currentTuning = useMemo(() => {
+    const slug = activeTest?.slug ?? selectedSlug;
+    const stage = activeTest?.stage ?? selectedLevel;
+    return tunings[getLabTuningKey(slug, stage)] ?? getEffectiveLabTuning(slug, stage);
+  }, [activeTest, selectedSlug, selectedLevel, tunings]);
+
+  const handleTuningChange = (slug: GameSlug, stage: number, next: LabLevelTuning) => {
+    saveLabTuning(slug, stage, next);
+    setTunings(getAllLabTunings());
+  };
+
+  const handleTuningReset = (slug: GameSlug, stage: number) => {
+    resetLabTuning(slug, stage);
+    setTunings(getAllLabTunings());
+  };
+
+  const handleResetPlateauAttempts = (slug: GameSlug) => {
+    resetPlateauAttempts(slug);
+    setPlateauMap(getAllPlateauAttempts());
+    setTunings(getAllLabTunings());
+  };
 
   const startTest = (slug: GameSlug, stage: number) => {
     const safeStage = Math.max(1, Math.min(20, Math.floor(stage)));
@@ -125,6 +167,10 @@ export default function LabApp() {
   };
 
   const handleTestComplete = async (result: ComputedSessionResult) => {
+    const effectiveUsed = getEffectiveLabTuning(result.gameSlug, result.stagePlayed);
+    const customTuning = isLabTuningModified(result.gameSlug, result.stagePlayed, effectiveUsed)
+      ? effectiveUsed
+      : undefined;
     appendCalibrationLog({
       userId: 'lab-adm',
       userName: 'Referência ADM',
@@ -132,12 +178,28 @@ export default function LabApp() {
       isSandbox: true,
       ageBracket,
       result,
+      tuning: customTuning,
     });
     setLogs(getCalibrationLogs());
+
+    // No Platô (Nv. 13), guarda até 3 tentativas e recalcula as barras automaticamente pela média
+    if (result.stagePlayed === 13) {
+      recordPlateauAttempt({
+        slug: result.gameSlug,
+        hits: result.hits ?? 0,
+        targetHits: result.targetHits ?? effectiveUsed.targetHits,
+        accuracyPct: result.accuracyPct,
+        timeRemainingMs: result.timeRemainingMs,
+        completedEarly: result.completedEarly,
+        tuningUsed: effectiveUsed,
+      });
+      setPlateauMap(getAllPlateauAttempts());
+      setTunings(getAllLabTunings());
+    }
   };
 
   const handleCopyLog = async () => {
-    if (logs.length === 0) return;
+    if (logs.length === 0 && tunedCount === 0) return;
     const text = formatCalibrationLogForChat(logs);
     try {
       await navigator.clipboard.writeText(text);
@@ -195,6 +257,13 @@ export default function LabApp() {
             : () => startTest(activeTest.slug, 20)
         }
         sandboxJumpLabel={activeTest.stage !== 13 ? 'Platô (Nv. 13)' : 'Último (Nv. 20)'}
+        labTuning={currentTuning}
+        onLabTuningChange={(next) => handleTuningChange(activeTest.slug, activeTest.stage, next)}
+        onLabTuningReset={() => handleTuningReset(activeTest.slug, activeTest.stage)}
+        plateauAttempts={activeTest.stage === 13 ? plateauMap[activeTest.slug] ?? [] : undefined}
+        onResetPlateauAttempts={
+          activeTest.stage === 13 ? () => handleResetPlateauAttempts(activeTest.slug) : undefined
+        }
         onComplete={handleTestComplete}
         onPlayNext={(nextStage) => startTest(activeTest.slug, nextStage)}
         onExit={() => {
@@ -228,7 +297,7 @@ export default function LabApp() {
                 NeuroLab · Laboratório
               </h1>
               <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
-                Balanceio dos 24 exercícios (1 a 20)
+                Balanceio dos 30 exercícios (1 a 20)
               </p>
             </div>
           </div>
@@ -276,7 +345,7 @@ export default function LabApp() {
                   domainFilter === 'all' ? 'btn-accent' : 'btn-soft'
                 }`}
               >
-                Todos (24)
+                Todos (30)
               </button>
               {DOMAIN_LIST.map((d) => (
                 <button
@@ -376,18 +445,36 @@ export default function LabApp() {
               </div>
             )}
 
-            {/* Grade de níveis 1..20 com ✓ verde (OK) ou ⚠️ amarelo (distorção) */}
+            {/* Grade de níveis 1..20 com ✓ verde (OK), ⚠️ amarelo (distorção) ou ponto roxo (calibrado) */}
             <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between text-xs">
+              <div className="flex items-center justify-between gap-2 text-xs flex-wrap">
                 <span className="font-bold">Nível: {selectedLevel}/20</span>
-                <span style={{ color: 'var(--text-muted)' }}>
-                  1 Piso · 13 Platô · 20 Extremo
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedLevel(1)}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer ${
+                      selectedLevel === 1 ? 'btn-accent' : 'btn-soft'
+                    }`}
+                  >
+                    Nv. 1 · Piso
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedLevel(13)}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer ${
+                      selectedLevel === 13 ? 'btn-accent' : 'btn-soft'
+                    }`}
+                  >
+                    Nv. 13 · Platô
+                  </button>
+                </div>
               </div>
               <div className="grid grid-cols-5 gap-1.5">
                 {Array.from({ length: 20 }, (_, i) => i + 1).map((lvl) => {
                   const isDone = selectedTestedInfo?.levels.has(lvl) ?? false;
                   const hasAlert = selectedTestedInfo?.alertLevels.has(lvl) ?? false;
+                  const isTuned = Boolean(tunings[getLabTuningKey(selectedSlug, lvl)]);
                   const isSelected = selectedLevel === lvl;
                   return (
                     <button
@@ -419,11 +506,33 @@ export default function LabApp() {
                       ) : isDone ? (
                         <Check size={11} strokeWidth={3} />
                       ) : null}
+                      {isTuned && (
+                        <span
+                          className="w-2 h-2 rounded-full absolute top-1 right-1"
+                          style={{ background: isSelected ? '#FFFFFF' : '#7C3AED' }}
+                          title="Nível com ajuste real salvo"
+                        />
+                      )}
                     </button>
                   );
                 })}
               </div>
             </div>
+
+            {/* 3 barras reais de ajuste (Dificuldade, Velocidade e Meta) */}
+            <LabTuningPanel
+              slug={selectedGame.slug}
+              stage={selectedLevel}
+              tuning={currentTuning}
+              onChange={(next) => handleTuningChange(selectedGame.slug, selectedLevel, next)}
+              onReset={() => handleTuningReset(selectedGame.slug, selectedLevel)}
+              plateauAttempts={selectedLevel === 13 ? plateauMap[selectedGame.slug] ?? [] : undefined}
+              onResetPlateauAttempts={
+                selectedLevel === 13
+                  ? () => handleResetPlateauAttempts(selectedGame.slug)
+                  : undefined
+              }
+            />
 
             {/* Ação principal */}
             <button
@@ -449,21 +558,31 @@ export default function LabApp() {
                 <FileText size={15} style={{ color: 'var(--accent)' }} />
                 <span>Log de Balanceio ({logs.length})</span>
               </div>
-              {alertsCount > 0 && (
-                <span
-                  className="px-2.5 py-1 rounded-full text-xs font-bold tabular inline-flex items-center gap-1"
-                  style={{ background: 'rgba(245, 158, 11, 0.16)', color: 'var(--warn)' }}
-                >
-                  <AlertTriangle size={12} />
-                  <span>{alertsCount}</span>
-                </span>
-              )}
+              <div className="flex items-center gap-1.5">
+                {tunedCount > 0 && (
+                  <span
+                    className="px-2.5 py-1 rounded-full text-xs font-bold tabular"
+                    style={{ background: 'rgba(139, 92, 246, 0.14)', color: '#7C3AED' }}
+                  >
+                    {tunedCount} {tunedCount === 1 ? 'ajuste' : 'ajustes'}
+                  </span>
+                )}
+                {alertsCount > 0 && (
+                  <span
+                    className="px-2.5 py-1 rounded-full text-xs font-bold tabular inline-flex items-center gap-1"
+                    style={{ background: 'rgba(245, 158, 11, 0.16)', color: 'var(--warn)' }}
+                  >
+                    <AlertTriangle size={12} />
+                    <span>{alertsCount}</span>
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-2.5">
               <button
                 type="button"
-                disabled={logs.length === 0}
+                disabled={logs.length === 0 && tunedCount === 0}
                 onClick={() => void handleCopyLog()}
                 className="min-h-[44px] py-2.5 px-4 rounded-xl text-xs font-bold btn-accent cursor-pointer disabled:opacity-40 flex items-center justify-center gap-1.5"
               >
@@ -512,6 +631,11 @@ export default function LabApp() {
                       {entry.hits}/{entry.targetHits} · {entry.accuracyPct}% · {entry.rtMeanMs}ms · sobra{' '}
                       {(entry.timeRemainingMs / 1000).toFixed(1)}s
                     </div>
+                    {entry.tuning && (
+                      <div className="text-[11px] font-bold tabular" style={{ color: '#7C3AED' }}>
+                        Ajuste: {formatTuningShort(entry.tuning)}
+                      </div>
+                    )}
                     {(entry.feedback?.difficulty || entry.feedback?.note) && (
                       <div className="font-semibold" style={{ color: 'var(--text)' }}>
                         {entry.feedback.difficulty

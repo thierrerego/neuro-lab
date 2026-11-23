@@ -15,8 +15,8 @@ export function getStageConfig(slug: GameSlug, effectiveLevel: number, easeBoost
   // Grade cresce ao longo dos 20 níveis: 1..3 -> 3x3 | 4..8 -> 4x4 | 9..13 -> 5x5 | 14..17 -> 6x6 | 18..20 -> 7x7
   const gridSize = lvl < 4 ? 3 : lvl < 9 ? 4 : lvl < 14 ? 5 : lvl < 18 ? 6 : 7;
 
-  // Janela de exposição (ms): confortável no Nível 1 (2300ms) e reduz suavemente até 480ms no Nível 20
-  const baseStimulus = Math.max(480, Math.round(2300 - d * 95));
+  // Janela de exposição (ms): confortável no Nível 1 (2400ms) até limite humano extremo (360ms) no Nível 20
+  const baseStimulus = Math.max(360, Math.round(2400 - d * 107));
   const stimulusMs = easy ? Math.round(baseStimulus * 1.15) : baseStimulus;
 
   // Quantidade de alvos / tamanho inicial: 1..2 -> 2 | 3..7 -> 3 | 8..13 -> 4 | 14..17 -> 5 | 18..20 -> 6
@@ -100,5 +100,17 @@ export function getStageShortBadge(slug: GameSlug, cfg: StageConfig): string {
       return lvl >= 4 ? '4 direções' : 'Esq / Dir';
     case 'rule-switch':
       return lvl >= 4 ? 'Alternância rápida' : '2 regras';
+    case 'conjunction-search':
+      return `${cfg.gridSize}×${cfg.gridSize} · Forma+Cor`;
+    case 'reverse-digits':
+      return `${lvl <= 2 ? 2 : lvl <= 6 ? 3 : lvl <= 10 ? 4 : lvl <= 14 ? 5 : lvl <= 17 ? 6 : lvl <= 19 ? 7 : 8} dígitos`;
+    case 'logic-balance':
+      return lvl <= 3 ? '1 equação' : lvl <= 8 ? '2 equações' : '3 símbolos';
+    case 'quick-pair':
+      return `${lvl <= 2 ? 6 : lvl <= 6 ? 9 : lvl <= 11 ? 12 : lvl <= 16 ? 16 : 20} cartas`;
+    case 'quick-estimate':
+      return `Faixa N${cfg.mathComplexity}`;
+    case 'inverted-signal':
+      return lvl >= 6 ? '4 direções' : 'Esq / Dir';
   }
 }

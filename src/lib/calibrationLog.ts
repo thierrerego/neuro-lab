@@ -6,6 +6,11 @@ import type {
   SessionMode,
 } from '../types/cognitive';
 import { GAME_MAP } from '../engine/gameRegistry';
+import {
+  formatAllLabTuningsForChat,
+  formatTuningShort,
+  type LabLevelTuning,
+} from './labTuning';
 
 const CALIBRATION_LOG_KEY = 'neurolab_calibration_log_v1';
 const MAX_LOG_ENTRIES = 300;
@@ -69,6 +74,7 @@ export interface CalibrationLogEntry {
   stageCleared: boolean;
   nextStage: number;
   alerts: CalibrationAlert[];
+  tuning?: LabLevelTuning;
   feedback?: SandboxFeedback;
 }
 
@@ -158,8 +164,9 @@ export function appendCalibrationLog(params: {
   isSandbox?: boolean;
   ageBracket: AgeBracket;
   result: ComputedSessionResult;
+  tuning?: LabLevelTuning;
 }): CalibrationLogEntry {
-  const { userId, userName, isAdmin, isSandbox = false, ageBracket, result } = params;
+  const { userId, userName, isAdmin, isSandbox = false, ageBracket, result, tuning } = params;
   const game = GAME_MAP[result.gameSlug];
   const targetRtMs = result.targetRtMs ?? 0;
   const rtRatio =
@@ -199,6 +206,7 @@ export function appendCalibrationLog(params: {
     stageCleared: result.stageCleared,
     nextStage: result.nextStage,
     alerts: evaluateCalibrationAlerts(result),
+    ...(tuning ? { tuning } : {}),
   };
 
   try {
@@ -252,14 +260,16 @@ export function formatCalibrationLogForChat(entries: CalibrationLogEntry[]): str
 
   const lines = entries.slice(0, 80).map((e) => {
     const remSec = (e.timeRemainingMs / 1000).toFixed(1);
+    const tun = e.tuning ? ` | [${formatTuningShort(e.tuning)}]` : '';
     const dif = e.feedback?.difficulty
       ? ` | Nota ${e.feedback.difficulty}/5 (${DIFFICULTY_LABELS[e.feedback.difficulty]})`
       : '';
     const obs = e.feedback?.note ? ` | "${e.feedback.note}"` : '';
-    return `- ${e.gameSlug} Nv.${e.stagePlayed} | ${e.hits}/${e.targetHits} · ${e.accuracyPct}% · ${e.rtMeanMs}ms (sobra ${remSec}s) · Sup ${e.levelPercentile}%${dif}${obs}`;
+    return `- ${e.gameSlug} Nv.${e.stagePlayed} | ${e.hits}/${e.targetHits} · ${e.accuracyPct}% · ${e.rtMeanMs}ms (sobra ${remSec}s) · Sup ${e.levelPercentile}%${tun}${dif}${obs}`;
   });
 
-  return [header, ...lines].join('\n');
+  const tuningSummary = formatAllLabTuningsForChat();
+  return [header, ...lines, tuningSummary].filter(Boolean).join('\n');
 }
 
 export function downloadCalibrationLogJson(entries: CalibrationLogEntry[]) {

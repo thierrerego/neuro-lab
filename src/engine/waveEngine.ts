@@ -15,36 +15,44 @@ export const TOTAL_WAVE_HITS = 10;
  */
 export function getTargetHitsForGame(slug?: GameSlug): number {
   switch (slug) {
+    case 'schulte-order':
+    case 'path-logic':
+      return 3;
     case 'spatial-span':
-      return 4;
     case 'sustained-tracking':
+    case 'reverse-digits':
+      return 4;
+    case 'visual-search':
+    case 'conjunction-search':
+      return 5;
     case 'raven-matrices':
     case 'photo-recall':
     case 'target-sum':
     case 'number-sequence':
+    case 'logic-balance':
       return 6;
     case 'dual-n-back':
     case 'memory-pairs':
     case 'chain-arithmetic':
     case 'missing-operator':
     case 'number-comparison':
+    case 'quick-pair':
       return 8;
-    case 'visual-search':
     case 'odd-one-out':
     case 'flash-match':
     case 'symbol-digit':
     case 'rule-switch':
     case 'stroop-conflict':
+    case 'quick-estimate':
       return 10;
     case 'logic-intruder':
       return 12;
     case 'opposite-arrow':
     case 'speed-match':
     case 'flanker-focus':
+    case 'inverted-signal':
       return 14;
     case 'go-nogo-reflex':
-    case 'path-logic':
-    case 'schulte-order':
       return 16;
     default:
       return 10;
@@ -63,19 +71,36 @@ function hitsToCompletedQuintiles(totalHits: number, targetHits: number, isClear
   return Math.min(TOTAL_WAVES - 1, Math.floor((totalHits / Math.max(1, targetHits)) * TOTAL_WAVES));
 }
 
+export interface WaveTuningOverride {
+  effectiveLevel?: number;
+  speedScale?: number;
+  targetHits?: number;
+}
+
 /** Inicializa o progresso contínuo da sessão (~30s) a partir do nível base (piso = Nível 1) */
-export function createWaveState(baseStage: number, slug?: GameSlug): WaveState {
+export function createWaveState(
+  baseStage: number,
+  slug?: GameSlug,
+  tuning?: WaveTuningOverride
+): WaveState {
   const safeBase = Math.max(1, Math.floor(baseStage));
-  const targetHits = getTargetHitsForGame(slug);
+  const effectiveBase =
+    tuning?.effectiveLevel !== undefined
+      ? Math.max(1, Math.min(20, Number(tuning.effectiveLevel)))
+      : safeBase;
+  const targetHits =
+    tuning?.targetHits !== undefined
+      ? Math.max(2, Math.min(25, Math.round(tuning.targetHits)))
+      : getTargetHitsForGame(slug);
   return {
-    baseStage: safeBase,
+    baseStage: effectiveBase,
     currentWave: 1,
     waveHits: 0,
     waveQuota: targetHits,
     wavesCompleted: 0,
     totalHits: 0,
     totalTargetHits: targetHits,
-    effectiveDifficulty: calcContinuousDiff(safeBase, 0, targetHits),
+    effectiveDifficulty: calcContinuousDiff(effectiveBase, 0, targetHits),
     isCleared: false,
   };
 }
@@ -133,12 +158,19 @@ export function regressWaveError(state: WaveState): {
 export function getWaveEffectiveConfig(
   slug: GameSlug,
   wave: WaveState,
-  easeBoost = false
+  easeBoost = false,
+  tuning?: WaveTuningOverride
 ): StageConfig {
   const baseDuration = getStageConfig(slug, wave.baseStage, easeBoost).durationSec;
   const cfg = getStageConfig(slug, wave.effectiveDifficulty, easeBoost && wave.totalHits < 3);
+  const speedScale = tuning?.speedScale ?? 1;
+  const stimulusMs =
+    Math.abs(speedScale - 1) > 0.001
+      ? Math.max(250, Math.min(4500, Math.round(cfg.stimulusMs / speedScale)))
+      : cfg.stimulusMs;
   return {
     ...cfg,
+    stimulusMs,
     durationSec: baseDuration,
     roundsTarget: wave.totalTargetHits,
   };

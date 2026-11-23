@@ -128,8 +128,8 @@ export default function App() {
     sandboxMode?: boolean;
   } | null>(null);
 
-  // Sessão local sempre tem acesso ADM para oscilar entre Teste ADM e os perfis fictícios (0 consumo Supabase)
-  const isAdminSession = Boolean(data?.profile.isLocalGuest || data?.profile.isAdmin);
+  // Apenas conta ADM exibe o painel de perfis de teste
+  const isAdminSession = Boolean(data?.profile.isAdmin);
   const impersonatingUserName =
     isAdminSession && data && data.profile.id !== ADMIN_USER_ID ? data.profile.name : null;
 
@@ -192,6 +192,15 @@ export default function App() {
     setData(admState);
     setTab('home');
     setView(resolveNextView(admState));
+  };
+
+  const handleLocalAccountLogin = (accountState: AppDataState) => {
+    accountState.profile.theme_preference = theme;
+    saveLocalState(accountState);
+    setData(accountState);
+    setJustCalibrated(false);
+    setTab('home');
+    setView(resolveNextView(accountState));
   };
 
   const handleRemoteLogin = async (userId: string, email?: string, displayName?: string) => {
@@ -405,6 +414,7 @@ export default function App() {
         theme={theme}
         onToggleTheme={handleToggleTheme}
         onGuestLogin={handleGuestLogin}
+        onLocalAccountLogin={handleLocalAccountLogin}
         onRemoteLogin={handleRemoteLogin}
       />
     );
