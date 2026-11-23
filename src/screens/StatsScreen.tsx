@@ -437,9 +437,88 @@ export function StatsScreen({
 
         {dossierExpanded && (
           <div className="flex flex-col gap-3">
+            {/* Insights rápidos fáceis de entender */}
+            {(() => {
+              const playedGamesCount = GAME_REGISTRY.filter(
+                (g) => (progress[g.slug]?.total_plays ?? 0) > 0
+              ).length;
+              const remainingGames = GAME_REGISTRY.length - playedGamesCount;
+              const measuredVals = DOMAIN_LIST.map((d) => scoreToPercent(scores[d.key] ?? 0)).filter(
+                (v) => v > 0
+              );
+              const spread =
+                measuredVals.length >= 2
+                  ? Math.max(...measuredVals) - Math.min(...measuredVals)
+                  : 0;
+
+              return (
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="rounded-2xl p-3.5" style={{ background: 'var(--bg-subtle)' }}>
+                    <div className="text-[11px] font-bold" style={{ color: 'var(--accent)' }}>
+                      Jogos descobertos
+                    </div>
+                    <div className="text-lg font-extrabold tabular mt-0.5">
+                      {playedGamesCount}/{GAME_REGISTRY.length}
+                    </div>
+                    <div className="text-[11px] mt-0.5 leading-snug" style={{ color: 'var(--text-muted)' }}>
+                      {remainingGames > 0
+                        ? `Faltam ${remainingGames} para conhecer todos`
+                        : 'Você já experimentou todo o catálogo!'}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl p-3.5" style={{ background: 'var(--bg-subtle)' }}>
+                    <div className="text-[11px] font-bold" style={{ color: 'var(--ok)' }}>
+                      Equilíbrio mental
+                    </div>
+                    <div className="text-lg font-extrabold tabular mt-0.5">
+                      {measuredVals.length < 2
+                        ? 'Em aberto'
+                        : spread <= 12
+                          ? 'Equilibrado'
+                          : `${spread}% de diferença`}
+                    </div>
+                    <div className="text-[11px] mt-0.5 leading-snug" style={{ color: 'var(--text-muted)' }}>
+                      {measuredVals.length < 2
+                        ? 'Jogue áreas diferentes para comparar'
+                        : spread <= 12
+                          ? 'Suas habilidades estão andando juntas'
+                          : 'Treinar a área mais baixa nivela tudo'}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl p-3.5" style={{ background: 'var(--bg-subtle)' }}>
+                    <div className="text-[11px] font-bold" style={{ color: 'var(--warn)' }}>
+                      Ritmo na semana
+                    </div>
+                    <div className="text-lg font-extrabold tabular mt-0.5">
+                      {weekly.activeDaysThisWeek} de 7 dias
+                    </div>
+                    <div className="text-[11px] mt-0.5 leading-snug" style={{ color: 'var(--text-muted)' }}>
+                      {weekly.activeDaysThisWeek >= 4
+                        ? 'Constância ótima — cérebro ativo!'
+                        : 'Treinos curtos todo dia rendem mais'}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl p-3.5" style={{ background: 'var(--bg-subtle)' }}>
+                    <div className="text-[11px] font-bold" style={{ color: 'var(--text-soft)' }}>
+                      Superação geral
+                    </div>
+                    <div className="text-lg font-extrabold tabular mt-0.5">
+                      {Math.round(dossier.globalPercentile)}%
+                    </div>
+                    <div className="text-[11px] mt-0.5 leading-snug" style={{ color: 'var(--text-muted)' }}>
+                      Pessoas superadas na faixa {ageLabel}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
             <div className="rounded-2xl p-4" style={{ background: 'var(--bg-subtle)' }}>
               <div className="text-xs font-bold tracking-wide mb-1.5" style={{ color: 'var(--accent)' }}>
-                1. Equilíbrio & Pontos Fortes
+                1. Onde você está mandando bem
               </div>
               <p className="text-sm leading-relaxed" style={{ color: 'var(--text)' }}>
                 {dossier.paragraphs.profileAndStrengths}
@@ -448,7 +527,7 @@ export function StatsScreen({
 
             <div className="rounded-2xl p-4" style={{ background: 'var(--bg-subtle)' }}>
               <div className="text-xs font-bold tracking-wide mb-1.5" style={{ color: 'var(--text-muted)' }}>
-                2. Estabilidade sob Pressão
+                2. Como você reage com o tempo correndo
               </div>
               <p className="text-sm leading-relaxed" style={{ color: 'var(--text)' }}>
                 {dossier.paragraphs.behaviorUnderPressure}
@@ -458,7 +537,7 @@ export function StatsScreen({
             <div className="rounded-2xl p-4 flex flex-col gap-3.5" style={{ background: 'var(--bg-subtle)' }}>
               <div>
                 <div className="text-xs font-bold tracking-wide mb-1.5" style={{ color: 'var(--ok)' }}>
-                  3. Área em Desenvolvimento & Recomendação
+                  3. O que vale treinar agora
                 </div>
                 <p className="text-sm leading-relaxed" style={{ color: 'var(--text)' }}>
                   {dossier.paragraphs.bottleneckAndPrescription}

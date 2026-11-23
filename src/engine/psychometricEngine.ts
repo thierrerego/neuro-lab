@@ -477,18 +477,18 @@ export function getProtocolReason(
     return 'Linha de base: primeira medição neste domínio (30s)';
   }
   if (role === 'maintenance') {
-    return 'Manutenção: consolidação de domínio já elevado';
+    return 'Manutenção: manter forte o que você já manda bem';
   }
   if (indexInQueue === 0) {
-    return 'Prioridade: área com maior margem de evolução';
+    return 'Foco principal: área onde você pode evoluir mais rápido';
   }
   if (indexInQueue === 1) {
-    return 'Prioridade: segundo menor percentual atual';
+    return 'Segundo foco: reforço para equilibrar sua mente';
   }
   if (domainScore < 500) {
-    return 'Treino de déficit: fortalecimento abaixo da mediana';
+    return 'Reforço: ajuda a subir essa habilidade hoje';
   }
-  return 'Equilíbrio adaptativo: estímulo de simetria cognitiva';
+  return 'Equilíbrio: mantém todas as habilidades no mesmo nível';
 }
 
 interface NeuroInsight {
@@ -498,63 +498,63 @@ interface NeuroInsight {
 
 const PAIR_INSIGHTS: Record<string, NeuroInsight> = {
   'inhibitory_control+selective_attention': {
-    tag: 'Neuroplasticidade · Pré-Frontal',
-    text: 'A alternância entre atenção seletiva e controle inibitório fortalece o córtex pré-frontal dorsolateral.',
+    tag: 'Foco & Autocontrole',
+    text: 'Treinar foco junto com autocontrole ajuda você a ignorar distrações e evitar decisões por impulso no dia a dia.',
   },
   'fluid_reasoning+working_memory': {
-    tag: 'Rede Frontoparietal',
-    text: 'Sustentar informações ativas na memória amplia a capacidade de inferência lógica sob pressão.',
+    tag: 'Memória & Lógica',
+    text: 'Guardar informações na cabeça enquanto resolve problemas deixa seu raciocínio mais rápido sob pressão.',
   },
   'processing_speed+selective_attention': {
-    tag: 'Eficiência Visuoespacial',
-    text: 'Discriminar alvos rapidamente entre distratores reduz a latência de triagem na rede atencional dorsal.',
+    tag: 'Olho Rápido',
+    text: 'Encontrar detalhes importantes no meio da bagunça treina seu cérebro a reagir mais rápido sem perder o foco.',
   },
   'numerical_cognition+working_memory': {
-    tag: 'Sulco Intraparietal',
-    text: 'O cálculo mental encadeado recruta o sulco intraparietal junto à memória, fortalecendo a retenção ativa.',
+    tag: 'Contas na Cabeça',
+    text: 'Fazer contas mentais exercita sua memória de curto prazo e deixa decisões com números bem mais fáceis.',
   },
   'inhibitory_control+processing_speed': {
-    tag: 'Controle Executivo',
-    text: 'Decidir com restrição de tempo diante de conflito calibra o giro frontal inferior direito, responsável pelo freio motor.',
+    tag: 'Freio Mental',
+    text: 'Decidir rápido sem cair em pegadinhas treina seu cérebro a pensar antes de agir mesmo na correria.',
   },
   'fluid_reasoning+inhibitory_control': {
-    tag: 'Flexibilidade Cognitiva',
-    text: 'Inibir respostas intuitivas incorretas libera recursos analíticos para detectar padrões estruturais inéditos.',
+    tag: 'Mente Flexível',
+    text: 'Segurar a primeira resposta automática abre espaço para enxergar soluções mais inteligentes.',
   },
   'numerical_cognition+processing_speed': {
-    tag: 'Fluidez Quantitativa',
-    text: 'Alternar estimativa de magnitude e ritmo rápido automatiza rotas numéricas e reduz o esforço mental em decisões cotidianas.',
+    tag: 'Agilidade com Números',
+    text: 'Treinar cálculos curtos deixa seu cérebro mais ágil para comparar preços, prazos e contas do dia a dia.',
   },
   'selective_attention+working_memory': {
-    tag: 'Estabilidade de Foco',
-    text: 'Filtrar estímulos irrelevantes protege a capacidade de memória contra interferência externa.',
+    tag: 'Foco Protegido',
+    text: 'Filtrar o que não importa evita que você esqueça o que estava fazendo no meio de uma tarefa.',
   },
 };
 
 const SINGLE_DOMAIN_INSIGHTS: Record<DomainKey, NeuroInsight> = {
   selective_attention: {
     tag: 'Atenção Seletiva',
-    text: 'Sessões curtas e frequentes de busca visual aumentam o ganho sinal-ruído na rede atencional frontoparietal.',
+    text: 'Treinos curtos todo dia ajudam você a manter o foco no que importa, mesmo com barulho ou distrações por perto.',
   },
   working_memory: {
-    tag: 'Memória Visual & Operacional',
-    text: 'Combinar recordação visual de pares e atualização sequencial estimula tanto o hipocampo quanto o córtex pré-frontal.',
+    tag: 'Memória',
+    text: 'Exercitar a memória de curto prazo ajuda a lembrar nomes, números, listas e tarefas sem depender tanto de anotações.',
   },
   fluid_reasoning: {
-    tag: 'Raciocínio Fluido',
-    text: 'Resolver relações abstratas inéditas exercita a integração de múltiplas variáveis sem depender de memória cristalizada.',
+    tag: 'Raciocínio Lógico',
+    text: 'Resolver padrões novos deixa seu cérebro mais afiado para achar soluções criativas em problemas inesperados.',
   },
   processing_speed: {
-    tag: 'Velocidade de Processamento',
-    text: 'Treinos de discriminação rápida com alta precisão promovem consolidação da velocidade de condução em circuitos decisórios.',
+    tag: 'Velocidade Mental',
+    text: 'Praticar decisões rápidas treina seu cérebro a entender informações e responder com mais agilidade.',
   },
   numerical_cognition: {
     tag: 'Cálculo Mental',
-    text: 'Manipular magnitudes e operações encadeadas sem apoio externo fortalece o eixo parietal-frontal de cognição numérica.',
+    text: 'Fazer contas de cabeça regularmente mantém a mente ativa e traz mais segurança para lidar com números.',
   },
   inhibitory_control: {
-    tag: 'Controle Inibitório',
-    text: 'Suprimir respostas automáticas em tarefas de conflito reforça a modulação top-down do córtex cingulado anterior.',
+    tag: 'Autocontrole',
+    text: 'Treinar o freio mental ajuda a não agir no piloto automático e manter a calma em situações de pressão.',
   },
 };
 

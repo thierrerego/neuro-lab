@@ -1,23 +1,25 @@
 import { useMemo } from 'react';
 import {
-  Activity,
   AlertCircle,
   Brain,
   Check,
   ChevronRight,
   Clock,
+  Compass,
   Flame,
   Play,
+  Sparkles,
+  Target,
+  TrendingUp,
 } from 'lucide-react';
 import type { AppDataState } from '../lib/dataService';
-import { DOMAIN_LIST, DOMAIN_MAP, GAME_MAP } from '../engine/gameRegistry';
+import { DOMAIN_LIST, DOMAIN_MAP, GAME_MAP, GAME_REGISTRY } from '../engine/gameRegistry';
 import {
   getDailyNeuroInsight,
   getProtocolReason,
   scoreToPercent,
 } from '../engine/psychometricEngine';
 import {
-  buildPersonalDailyNote,
   computeWeeklyEvolution,
 } from '../engine/cognitiveProfiler';
 import type { GameSlug, SessionMode } from '../types/cognitive';
@@ -55,9 +57,66 @@ export function HomeScreen({
     [dailyProtocol.completed_games]
   );
 
-  // Ordena priorizando os domínios com menor percentual atual (treino de déficit)
+  // Descobre quais jogos ainda nunca foram jogados para incentivar explorar todo o catálogo antes de repetir
+  const unplayedGames = useMemo(
+    () => GAME_REGISTRY.filter((g) => (progress[g.slug]?.total_plays ?? 0) === 0),
+    [progress]
+  );
+  const totalCatalogGames = GAME_REGISTRY.length;
+  const discoveredCount = totalCatalogGames - unplayedGames.length;
+  const discoveryPct = Math.round((discoveredCount / Math.max(1, totalCatalogGames)) * 100);
+
+  // Ordena a Sessão Guiada: enquanto existirem jogos nunca jogados, prioriza jogos inéditos distribuídos entre os domínios
   const sessionTasks = useMemo(() => {
     const items = dailyProtocol.recommended_games ?? [];
+    const targetCount = Math.max(3, items.length);
+
+    if (unplayedGames.length > 0) {
+      const doneItems = items.filter((it) => completedSet.has(it.slug));
+      const usedSlugs = new Set<GameSlug>(doneItems.map((it) => it.slug));
+      const picked: Array<{ slug: GameSlug; domain: (typeof DOMAIN_LIST)[number]['key']; role: 'weak' | 'priority' | 'maintenance'; isNew?: boolean }> =
+        doneItems.map((it) => ({ ...it, isNew: false }));
+
+      // Intercala jogos inéditos priorizando domínios mais fracos primeiro
+      const orderedDomains = [...DOMAIN_LIST].sort((a, b) => (scores[a.key] ?? 0) - (scores[b.key] ?? 0));
+      let round = 0;
+      while (picked.length < targetCount && round < 12) {
+        let addedInRound = false;
+        for (const dom of orderedDomains) {
+          if (picked.length >= targetCount) break;
+          const nextNew = unplayedGames.find((g) => g.domain === dom.key && !usedSlugs.has(g.slug));
+          if (nextNew) {
+            usedSlugs.add(nextNew.slug);
+            picked.push({ slug: nextNew.slug, domain: nextNew.domain, role: 'priority', isNew: true });
+            addedInRound = true;
+          }
+        }
+        if (!addedInRound) break;
+        round++;
+      }
+
+      // Completa se sobrou algum slot
+      for (const it of items) {
+        if (picked.length >= targetCount) break;
+        if (!usedSlugs.has(it.slug)) {
+          usedSlugs.add(it.slug);
+          picked.push({ ...it, isNew: false });
+        }
+      }
+
+      return picked.map((item, idx) => {
+        const game = GAME_MAP[item.slug];
+        const domain = DOMAIN_MAP[item.domain];
+        const stage = Math.max(1, progress[item.slug]?.current_stage ?? 1);
+        const done = completedSet.has(item.slug);
+        const reason = item.isNew
+          ? 'Jogo novo · experimente para mapear sua mente'
+          : getProtocolReason(item.role, idx, scores[item.domain] ?? 0);
+        return { ...item, game, domain, stage, done, reason };
+      });
+    }
+
+    // Todos os jogos já foram experimentados: foca nos domínios e jogos mais baixos para igualar a mente
     const sorted = [...items].sort((a, b) => {
       if (a.role === 'maintenance' && b.role !== 'maintenance') return 1;
       if (b.role === 'maintenance' && a.role !== 'maintenance') return -1;
@@ -69,9 +128,9 @@ export function HomeScreen({
       const stage = Math.max(1, progress[item.slug]?.current_stage ?? 1);
       const done = completedSet.has(item.slug);
       const reason = getProtocolReason(item.role, idx, scores[item.domain] ?? 0);
-      return { ...item, game, domain, stage, done, reason };
+      return { ...item, game, domain, stage, done, reason, isNew: false };
     });
-  }, [dailyProtocol.recommended_games, scores, progress, completedSet]);
+  }, [dailyProtocol.recommended_games, scores, progress, completedSet, unplayedGames]);
 
   const completedCount = sessionTasks.filter((t) => t.done).length;
   const totalTasks = sessionTasks.length;
@@ -79,18 +138,43 @@ export function HomeScreen({
   const nextPendingTask = sessionTasks.find((t) => !t.done) ?? sessionTasks[0];
   const queueSlugs = useMemo(() => sessionTasks.map((t) => t.slug), [sessionTasks]);
 
-  const personalNote = useMemo(
-    () =>
-      buildPersonalDailyNote({
-        profile,
-        scores,
-        sessions,
-        snapshots,
-        completedTodayCount: completedCount,
-        totalTodayCount: totalTasks,
-      }),
-    [profile, scores, sessions, snapshots, completedCount, totalTasks]
-  );
+  // Fila extra para quem quer continuar treinando além da meta do dia
+  const extraTrainingQueue = useMemo(() => {
+    if (unplayedGames.length > 0) {
+      return unplayedGames.slice(0, 4).map((g) => g.slug);
+    }
+    // Foca nos jogos com menor pontuação/nível para igualar a mente
+    const weakestGames = [...GAME_REGISTRY]
+      .sort((a, b) => {
+        const scoreA = progress[a.slug]?.highest_score ?? 0;
+        const scoreB = progress[b.slug]?.highest_score ?? 0;
+        if (scoreA !== scoreB) return scoreA - scoreB;
+        return (scores[a.domain] ?? 0) - (scores[b.domain] ?? 0);
+      })
+      .slice(0, 4)
+      .map((g) => g.slug);
+    return weakestGames;
+  }, [unplayedGames, progress, scores]);
+
+  // Pontos fortes e pontos a melhorar em linguagem direta
+  const { strongDomains, weakDomains } = useMemo(() => {
+    const measured = DOMAIN_LIST.map((d) => ({
+      meta: d,
+      pct: scoreToPercent(scores[d.key] ?? 0),
+      raw: scores[d.key] ?? 0,
+    })).filter((item) => item.raw > 0);
+
+    const byDesc = [...measured].sort((a, b) => b.raw - a.raw);
+    const strong = byDesc.slice(0, 2);
+    const strongKeys = new Set(strong.map((s) => s.meta.key));
+
+    const weak = [...measured]
+      .filter((m) => !strongKeys.has(m.meta.key))
+      .sort((a, b) => a.raw - b.raw)
+      .slice(0, 2);
+
+    return { strongDomains: strong, weakDomains: weak };
+  }, [scores]);
 
   const neuroInsight = useMemo(
     () =>
@@ -298,7 +382,9 @@ export function HomeScreen({
           <div>
             <h2 className="text-lg font-extrabold tracking-tight">Sessão Guiada do Dia</h2>
             <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
-              Foco automático nos seus domínios prioritários
+              {unplayedGames.length > 0
+                ? 'Vamos experimentar todos os jogos antes de montar treinos focados'
+                : 'Treino personalizado focado nos seus pontos mais fracos'}
             </p>
           </div>
           {allCompleted && (
@@ -310,6 +396,33 @@ export function HomeScreen({
             </span>
           )}
         </div>
+
+        {/* Barra de descoberta dos jogos enquanto ainda faltam jogos inéditos */}
+        {unplayedGames.length > 0 && (
+          <div
+            className="rounded-2xl px-4 py-3 flex flex-col gap-2"
+            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
+          >
+            <div className="flex items-center justify-between text-xs font-bold">
+              <span className="inline-flex items-center gap-1.5" style={{ color: 'var(--accent)' }}>
+                <Compass size={15} />
+                <span>Descoberta do catálogo</span>
+              </span>
+              <span className="tabular" style={{ color: 'var(--text-muted)' }}>
+                {discoveredCount}/{totalCatalogGames} jogos jogados
+              </span>
+            </div>
+            <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--bg-subtle)' }}>
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{ width: `${discoveryPct}%`, background: 'var(--accent-grad)' }}
+              />
+            </div>
+            <div className="text-[11px] leading-snug" style={{ color: 'var(--text-soft)' }}>
+              Faltam <strong>{unplayedGames.length}</strong> jogos novos. Jogue todos para o app conhecer 100% da sua mente.
+            </div>
+          </div>
+        )}
 
         {/* Ação principal de 1 toque */}
         {nextPendingTask && !allCompleted && (
@@ -381,33 +494,167 @@ export function HomeScreen({
             </button>
           ))}
         </div>
+        {/* Card de Treino Extra (para quem quer continuar jogando depois ou fora da meta) */}
+        {extraTrainingQueue.length > 0 && (
+          <div
+            className="surface-card p-5 flex flex-col gap-3"
+            style={{
+              borderColor: allCompleted ? 'var(--border-strong)' : 'var(--border)',
+            }}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div
+                  className="text-xs font-extrabold uppercase tracking-wider inline-flex items-center gap-1.5"
+                  style={{ color: 'var(--accent)' }}
+                >
+                  <Sparkles size={14} />
+                  <span>{allCompleted ? 'Quer treinar mais?' : 'Treino Extra'}</span>
+                </div>
+                <div className="text-base font-extrabold mt-1">
+                  {unplayedGames.length > 0
+                    ? 'Experimentar mais jogos novos'
+                    : 'Treino focado nas suas dificuldades'}
+                </div>
+                <p className="text-xs leading-relaxed mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                  {unplayedGames.length > 0
+                    ? `Puxa uma fila rápida com 4 jogos que você ainda não testou (${unplayedGames.length} disponíveis).`
+                    : 'Foca nos exercícios onde você está mais atrás até igualar todas as suas habilidades.'}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => onStartGame(extraTrainingQueue[0], 'free', extraTrainingQueue)}
+              className={`w-full min-h-[48px] py-3 px-4 rounded-2xl font-bold text-sm cursor-pointer flex items-center justify-center gap-2 ${
+                allCompleted ? 'btn-accent' : 'btn-soft'
+              }`}
+            >
+              <Play size={16} fill="currentColor" />
+              <span>
+                {unplayedGames.length > 0
+                  ? 'Jogar 4 jogos inéditos'
+                  : 'Iniciar treino focado'}
+              </span>
+            </button>
+          </div>
+        )}
       </section>
 
       {/* =====================================================================
-          3. NOTA PESSOAL CURTA (COMO VOCÊ ESTÁ HOJE)
+          3. RESUMO SIMPLES: PONTOS FORTES E PONTOS A MELHORAR
           ===================================================================== */}
-      <section className="surface-card p-5 flex items-start gap-3.5">
-        <div
-          className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"
-          style={{ background: 'rgba(16, 185, 129, 0.14)', color: 'var(--ok)' }}
-        >
-          <Activity size={20} />
-        </div>
-        <div className="min-w-0">
-          <div
-            className="text-xs font-bold tracking-wide"
-            style={{ color: 'var(--ok)' }}
-          >
-            {personalNote.tag}
-          </div>
-          <p className="text-sm leading-relaxed mt-1" style={{ color: 'var(--text)' }}>
-            {personalNote.text}
+      <section className="flex flex-col gap-3">
+        <div className="px-0.5">
+          <h2 className="text-base font-extrabold tracking-tight">Resumo da sua mente</h2>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+            Veja rapidinho onde você está indo bem e o que vale treinar agora
           </p>
         </div>
+
+        {/* Card 1: Pontos Fortes */}
+        <div className="surface-card p-4 sm:p-5 flex flex-col gap-3">
+          <div className="flex items-center gap-2.5">
+            <div
+              className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+              style={{ background: 'rgba(16, 185, 129, 0.14)', color: 'var(--ok)' }}
+            >
+              <TrendingUp size={18} />
+            </div>
+            <div>
+              <div className="text-sm font-extrabold" style={{ color: 'var(--ok)' }}>
+                Pontos fortes
+              </div>
+              <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                {strongDomains.length > 0
+                  ? 'Habilidades em que você está se saindo melhor'
+                  : 'Jogue sua primeira sessão para descobrir seus pontos fortes'}
+              </div>
+            </div>
+          </div>
+
+          {strongDomains.length > 0 && (
+            <div className="flex flex-col gap-2">
+              {strongDomains.map((item) => (
+                <div
+                  key={item.meta.key}
+                  className="rounded-xl px-3.5 py-2.5 flex items-center justify-between gap-2"
+                  style={{ background: 'var(--bg-subtle)' }}
+                >
+                  <span className="inline-flex items-center gap-2 text-sm font-bold">
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ background: item.meta.color }} />
+                    <span>{item.meta.name}</span>
+                  </span>
+                  <span className="text-xs font-extrabold tabular px-2.5 py-1 rounded-full" style={{ background: 'rgba(16, 185, 129, 0.14)', color: 'var(--ok)' }}>
+                    {item.pct}% · Mandando bem
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Card 2: Pontos a Melhorar */}
+        <div className="surface-card p-4 sm:p-5 flex flex-col gap-3">
+          <div className="flex items-center gap-2.5">
+            <div
+              className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+              style={{ background: 'rgba(245, 158, 11, 0.15)', color: 'var(--warn)' }}
+            >
+              <Target size={18} />
+            </div>
+            <div>
+              <div className="text-sm font-extrabold" style={{ color: 'var(--warn)' }}>
+                Pontos a melhorar
+              </div>
+              <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                {weakDomains.length > 0
+                  ? 'Áreas com mais espaço para evoluir agora'
+                  : 'Continue jogando exercícios diferentes para mapear todas as áreas'}
+              </div>
+            </div>
+          </div>
+
+          {weakDomains.length > 0 && (
+            <div className="flex flex-col gap-2">
+              {weakDomains.map((item) => {
+                const domainGames = GAME_REGISTRY.filter((g) => g.domain === item.meta.key);
+                const suggested =
+                  domainGames.find((g) => (progress[g.slug]?.total_plays ?? 0) === 0) ?? domainGames[0];
+                return (
+                  <div
+                    key={item.meta.key}
+                    className="rounded-xl px-3.5 py-2.5 flex items-center justify-between gap-2"
+                    style={{ background: 'var(--bg-subtle)' }}
+                  >
+                    <div className="min-w-0">
+                      <div className="inline-flex items-center gap-2 text-sm font-bold">
+                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: item.meta.color }} />
+                        <span className="truncate">{item.meta.name}</span>
+                      </div>
+                      <div className="text-xs font-semibold tabular mt-0.5" style={{ color: 'var(--text-soft)' }}>
+                        Atual: {item.pct}% · vale reforçar
+                      </div>
+                    </div>
+                    {suggested && (
+                      <button
+                        type="button"
+                        onClick={() => onStartGame(suggested.slug, 'free')}
+                        className="px-3 py-1.5 rounded-xl text-xs font-bold btn-accent shrink-0 cursor-pointer"
+                      >
+                        Treinar
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </section>
 
       {/* =====================================================================
-          4. INSIGHT CURTO DE NEUROCIÊNCIA (MICRO-CARD SERENO)
+          4. DICA RÁPIDA DO DIA
           ===================================================================== */}
       <aside className="surface-card p-5 flex items-start gap-3.5">
         <div
@@ -421,7 +668,7 @@ export function HomeScreen({
             className="text-xs font-bold tracking-wide"
             style={{ color: 'var(--accent)' }}
           >
-            Neurociência · {neuroInsight.tag}
+            Dica do dia · {neuroInsight.tag}
           </div>
           <p className="text-sm leading-relaxed mt-1" style={{ color: 'var(--text-muted)' }}>
             {neuroInsight.text}

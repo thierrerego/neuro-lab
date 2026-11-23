@@ -600,78 +600,78 @@ export function generateCognitiveDossier(params: {
   const stamina = profile.mental_stamina_baseline ?? 3;
   const speedBeatsPct = estimateSpeedBeatsPct(clinical.avgRtMs);
 
-  // --- Parágrafo 1: Equilíbrio entre os 6 domínios, Pontos Fortes e Faixa Etária ---
+  // --- Parágrafo 1: Pontos Fortes e Comparação Simples ---
   const balanceNote =
     spreadPct <= 8
-      ? `Seus 6 domínios apresentam equilíbrio elevado (variação de apenas ${spreadPct}% entre o maior e o menor índice)`
-      : `Há uma diferença de ${spreadPct}% entre seu domínio mais desenvolvido e a área prioritária`;
+      ? `Suas habilidades estão bem equilibradas (só ${spreadPct}% de diferença entre a mais forte e a mais fraca)`
+      : `Existe uma diferença de ${spreadPct}% entre sua melhor habilidade e a que mais precisa de treino`;
 
   const speedPhrase =
     clinical.avgRtMs > 0
-      ? `com tempo de resposta superior a ${speedBeatsPct}% da faixa ${ageLabel}`
-      : `com protocolo configurado para ${profile.daily_goal_minutes} minutos por dia`;
+      ? `com agilidade acima de ${speedBeatsPct}% das pessoas da sua idade (${ageLabel})`
+      : `com meta diária de ${profile.daily_goal_minutes} minutos`;
 
   const goalPhrase = formattedContexts
-    ? ` Alinhado ao foco em ${formattedContexts}, você ${def.trait}.`
-    : ` Na prática, você ${def.trait}.`;
+    ? ` Para o seu objetivo em ${formattedContexts}, você ${def.trait}.`
+    : ` No dia a dia, você ${def.trait}.`;
 
   const p1 =
     measuredKeys.length === 1
-      ? `Primeira medição registrada em ${top1.name} (${scoreToPercent(top1Score)}%), com estimativa normativa de ${top1Pct}% na faixa ${ageLabel}, ${speedPhrase}. Avalie os demais domínios para mapear seu equilíbrio completo.`
+      ? `Você já testou ${top1.name} (${scoreToPercent(top1Score)}%) e superou ${top1Pct}% das pessoas da sua idade (${ageLabel}). Jogue os outros tipos de exercício para montar seu mapa completo.`
       : def.title === BALANCED_ARCHETYPE.title
-        ? `No índice global (${scoreToPercent(profile.global_cognitive_index)}%), sua estimativa normativa supera ${Math.round(globalPct)}% na faixa ${ageLabel}. ${balanceNote}, com leve liderança em ${top1.name} (${scoreToPercent(top1Score)}%) e ${top2.name} (${scoreToPercent(top2Score)}%), ${speedPhrase}.${goalPhrase}`
-        : `Seus maiores pontos fortes hoje são ${top1.name} (${scoreToPercent(top1Score)}%, est. Top ${top1Top}% na faixa ${ageLabel}) e ${top2.name} (${scoreToPercent(top2Score)}%, est. ${top2Pct}%), ${speedPhrase}. ${balanceNote}.${goalPhrase}`;
+        ? `No geral (${scoreToPercent(profile.global_cognitive_index)}%), você superou ${Math.round(globalPct)}% das pessoas da sua idade (${ageLabel}). ${balanceNote}, com destaque para ${top1.name} (${scoreToPercent(top1Score)}%) e ${top2.name} (${scoreToPercent(top2Score)}%), ${speedPhrase}.${goalPhrase}`
+        : `Seus maiores pontos fortes hoje são ${top1.name} (${scoreToPercent(top1Score)}%, Top ${top1Top}% na faixa ${ageLabel}) e ${top2.name} (${scoreToPercent(top2Score)}%, superou ${top2Pct}%), ${speedPhrase}. ${balanceNote}.${goalPhrase}`;
 
-  // --- Parágrafo 2: Comportamento sob Pressão e Estabilidade ---
+  // --- Parágrafo 2: Como você vai sob pressão (linguagem simples) ---
   let p2: string;
   if (sessions.length === 0) {
     const staminaText =
       stamina <= 2
-        ? 'Como sua resistência à fadiga basal é inicial, o protocolo começa em cadência leve para construir constância.'
-        : 'Com boa resistência à carga contínua, a dificuldade progride de forma suave ao longo de cada sessão.';
-    p2 = `Conclua suas primeiras sessões para liberar a leitura de precisão e estabilidade sob pressão temporal. ${staminaText}`;
+        ? 'Como você está começando agora, o ritmo inicial é leve para criar o hábito sem cansar.'
+        : 'Os jogos vão ficando mais desafiadores aos poucos conforme você evolui.';
+    p2 = `Faça suas primeiras partidas para descobrir como você reage quando o tempo está correndo. ${staminaText}`;
   } else {
     const accRounded = Math.round(clinical.avgAccuracyPct);
     let precisionTone: string;
     if (accRounded >= 88 && clinical.impulsivityPerSession <= 1.2) {
-      precisionTone = `Sob pressão temporal, manteve precisão média de ${accRounded}% com baixo índice de erros por impulsividade`;
+      precisionTone = `Quando o relógio aperta, você mantém a calma e acerta ${accRounded}% das jogadas com pouquíssimos erros por pressa`;
     } else if (accRounded < 65) {
-      precisionTone = `Sua precisão média atual está em ${accRounded}%, indicando respostas apressadas — reduzir discretamente o ritmo tende a elevar rapidamente o índice final`;
+      precisionTone = `Você está acertando ${accRounded}% das jogadas — ir um pouquinho mais devagar já vai fazer sua nota subir rápido`;
     } else {
-      precisionTone = `Manteve equilíbrio consistente sob pressão, registrando ${accRounded}% de precisão média`;
+      precisionTone = `Você mantém um bom equilíbrio entre velocidade e calma, acertando ${accRounded}% das jogadas`;
     }
 
     const wavePhrase =
       clinical.earlyClearRatePct >= 45
-        ? `Concluiu integralmente a meta antes do tempo limite em ${clinical.earlyClearRatePct}% das sessões, sustentando ${clinical.consistencyIndex}% de estabilidade de foco.`
+        ? `Terminou a meta antes do tempo acabar em ${clinical.earlyClearRatePct}% dos jogos, mantendo ${clinical.consistencyIndex}% de constância.`
         : clinical.earlyClearRatePct > 0
-          ? `Alcançou 100% da meta contínua em ${clinical.earlyClearRatePct}% das sessões, com ${clinical.consistencyIndex}% de estabilidade atencional.`
-          : `Sua estabilidade de foco está em ${clinical.consistencyIndex}% — concluir a meta com precisão acima de 80% destravará os próximos níveis.`;
+          ? `Bateu 100% da meta em ${clinical.earlyClearRatePct}% das partidas, com ${clinical.consistencyIndex}% de constância.`
+          : `Sua constância está em ${clinical.consistencyIndex}% — bater a meta com boa calma libera as próximas fases rapidinho.`;
 
     p2 = `${precisionTone}. ${wavePhrase}`;
   }
 
-  // --- Parágrafo 3: Área em Desenvolvimento & Prescrição ---
+  // --- Parágrafo 3: O que melhorar agora (linguagem direta) ---
   let anamnesisLead = '';
   if (declaredBottlenecks.length > 0) {
     const matched = declaredBottlenecks.find((b) => b.meta.domains.includes(bottleneckKey));
     if (matched) {
-      anamnesisLead = `Os dados confirmam o atrito relatado na anamnese (${matched.meta.short}): `;
+      anamnesisLead = `Isso bate certinho com o que você marcou no início (${matched.meta.short}): `;
     } else {
       const firstDeclared = declaredBottlenecks[0];
       const declaredDomName = DOMAIN_MAP[firstDeclared.meta.domains[0]].shortName;
-      anamnesisLead = `Seu desempenho em ${declaredDomName} ficou acima da percepção inicial, enquanto `;
+      anamnesisLead = `Você foi melhor do que esperava em ${declaredDomName}, enquanto `;
     }
   }
 
   const trendPhrase =
     changePct > 2
-      ? `já evoluiu +${changePct}% desde a linha de base, mantendo cerca de ${growthRoomPct}% de margem adicional`
+      ? `já subiu +${changePct}% desde o começo e ainda tem ${growthRoomPct}% de espaço para crescer`
       : changePct < -2
-        ? `oscilou ${changePct}% em relação à linha de base e apresenta ${growthRoomPct}% de margem de recuperação`
-        : `apresenta ${growthRoomPct}% de margem de evolução em relação aos seus domínios mais fortes`;
+        ? `caiu ${changePct}% recentemente, mas tem ${growthRoomPct}% de espaço fácil para recuperar`
+        : `tem ${growthRoomPct}% de espaço para alcançar seus pontos mais fortes`;
 
-  const p3 = `${anamnesisLead}${anamnesisLead ? 'a' : 'A'} área com maior potencial de ganho é ${bottleneckMeta.name} (${scoreToPercent(bottleneckScore)}%), que ${trendPhrase}. Priorizar ${recommendedGameMeta.name} no protocolo diário é a intervenção mais direta para elevar o equilíbrio global.`;
+  const p3 = `${anamnesisLead}${anamnesisLead ? 'o' : 'O'} ponto que mais vale treinar agora é ${bottleneckMeta.name} (${scoreToPercent(bottleneckScore)}%), que ${trendPhrase}. Jogar ${recommendedGameMeta.name} hoje é o caminho mais rápido para equilibrar sua mente.`;
 
   const shareSummaryText = [
     `NeuroLab — Dossiê Cognitivo`,

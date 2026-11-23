@@ -151,6 +151,7 @@ export function GameShell({
   const [finishRequested, setFinishRequested] = useState(false);
   const [live, setLive] = useState<LiveMetrics>({ score: 0, accuracyPct: 100, combo: 0 });
   const [result, setResult] = useState<ComputedSessionResult | null>(null);
+  const [endFreeze, setEndFreeze] = useState<'time_up' | 'cleared' | null>(null);
   const [showWorkoutComplete, setShowWorkoutComplete] = useState(false);
   const [confirmExitOpen, setConfirmExitOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -191,6 +192,7 @@ export function GameShell({
     setTimeLeft(dur);
     setFinishRequested(false);
     setResult(null);
+    setEndFreeze(null);
     setShowWorkoutComplete(false);
     setConfirmExitOpen(false);
     setHelpOpen(false);
@@ -296,9 +298,13 @@ export function GameShell({
       });
 
       setResult(evaluated);
+      setEndFreeze(evaluated.completedEarly ? 'cleared' : 'time_up');
       if (evaluated.completedEarly || evaluated.stageCleared) sound.stageClear();
       else sound.stageFail();
       void onComplete(evaluated);
+      window.setTimeout(() => {
+        setEndFreeze(null);
+      }, 1250);
     },
     [game.domain, slug, mode, stage, effectiveConfig, totalDurationMs, weakestTwo, ageBracket, onComplete]
   );
@@ -320,17 +326,24 @@ export function GameShell({
     }
   };
 
-  const handleReplay = () => {
+  const handleReplaySameStage = () => {
     if (!result) return;
     setTutorialSlug(null);
     setShowWorkoutComplete(false);
+    setEndFreeze(null);
     setCountdown(3);
     setPlayRun((r) => r + 1);
-    if (sandboxMode) {
-      onPlayNext(stage, false);
-    } else {
-      onPlayNext(result.nextStage, result.adaptiveStatus === 'ease_mode');
-    }
+    onPlayNext(stage, false);
+  };
+
+  const handlePlayNextStage = () => {
+    if (!result) return;
+    setTutorialSlug(null);
+    setShowWorkoutComplete(false);
+    setEndFreeze(null);
+    setCountdown(3);
+    setPlayRun((r) => r + 1);
+    onPlayNext(result.nextStage, result.adaptiveStatus === 'ease_mode');
   };
 
   const timePct = Math.max(0, (timeLeft / totalDurationSec) * 100);
@@ -560,6 +573,30 @@ export function GameShell({
               onLiveUpdate={setLive}
               onFinish={handleFinish}
             />
+          ) : endFreeze ? (
+            /* =================================================================
+               TRAVA ANTI-CLIQUE ACIDENTAL (1,25s COM RELÓGIO ANTES DO RESULTADO)
+               ================================================================= */
+            <div className="w-full max-w-[360px] surface-card p-8 flex flex-col items-center text-center gap-4 animate-pop">
+              <div
+                className="w-20 h-20 rounded-3xl flex items-center justify-center"
+                style={{
+                  background:
+                    endFreeze === 'cleared'
+                      ? 'rgba(16, 185, 129, 0.16)'
+                      : 'rgba(245, 158, 11, 0.16)',
+                  color: endFreeze === 'cleared' ? 'var(--ok)' : 'var(--warn)',
+                }}
+              >
+                {endFreeze === 'cleared' ? <CheckCircle2 size={40} /> : <Timer size={40} />}
+              </div>
+              <div className="text-2xl font-extrabold tracking-tight">
+                {endFreeze === 'cleared' ? 'Fase concluída!' : 'Tempo esgotado!'}
+              </div>
+              <p className="text-sm font-medium" style={{ color: 'var(--text-muted)' }}>
+                Calculando sua posição no ranking...
+              </p>
+            </div>
           ) : showWorkoutComplete && workoutProgress ? (
             /* =================================================================
                RESUMO DE CONCLUSÃO DO TREINO DIÁRIO (CELEBRATIVO E SERENO)
@@ -635,408 +672,451 @@ export function GameShell({
             </div>
           ) : (
             /* =================================================================
-               TELA PÓS-EXERCÍCIO ESTILO IMPULSE (REFINADA E LEGÍVEL)
+               NOVA TELA DE CONCLUSÃO — OPÇÃO 1: CURVA DE SUPERAÇÃO
                ================================================================= */
-            <div className="w-full max-w-[420px] surface-card p-6 flex flex-col gap-5 animate-pop">
-              {/* Reforço objetivo + selo de recorde ou status */}
-              <div className="flex items-center justify-between gap-2">
-                <span
-                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold"
-                  style={{
-                    background: isNewRecord
-                      ? 'rgba(245, 158, 11, 0.16)'
-                      : result.completedEarly
+            (() => {
+              const beatsPct = Math.max(1, Math.min(99, Math.round(result.percentile)));
+              const topPct = Math.max(1, 100 - beatsPct);
+              const passedStage = result.stageCleared;
+              const nextStageUnlocked = passedStage && result.nextStage > result.stagePlayed;
+              const curveX = 14 + (beatsPct / 100) * 272;
+              const z = (beatsPct - 50) / 22;
+              const curveY = 98 - Math.exp(-0.5 * z * z) * 82;
+              const clampedTagX = Math.max(40, Math.min(260, curveX));
+
+              return (
+                <div className="w-full max-w-[420px] surface-card p-6 flex flex-col gap-5 animate-pop">
+                  {/* Banner claro de APROVADO / PASSOU DE FASE ou NÃO PASSOU */}
+                  <div
+                    className="rounded-2xl px-4 py-3 flex items-center justify-between gap-3"
+                    style={{
+                      background: passedStage
                         ? 'rgba(16, 185, 129, 0.14)'
-                        : 'var(--bg-subtle)',
-                    color: isNewRecord
-                      ? 'var(--warn)'
-                      : result.completedEarly
-                        ? 'var(--ok)'
-                        : 'var(--text-muted)',
-                  }}
-                >
-                  {isNewRecord ? (
-                    <Award size={14} />
-                  ) : result.completedEarly ? (
-                    <CheckCircle2 size={14} />
-                  ) : (
-                    <Timer size={14} />
-                  )}
-                  <span>{resultHeadline}</span>
-                </span>
-
-                <span className="text-xs font-semibold tabular" style={{ color: 'var(--text-soft)' }}>
-                  {wave.totalHits}/{wave.totalTargetHits} acertos
-                </span>
-              </div>
-
-              {/* Índice principal + comparação direta vs. última tentativa */}
-              <div className="text-center py-1">
-                <div className="text-xs font-bold tracking-wide" style={{ color: domainMeta.color }}>
-                  {game.name} · {domainMeta.name}
-                </div>
-
-                <div className="flex items-center justify-center gap-3 mt-2">
-                  <span className="text-5xl font-extrabold tabular tracking-tight leading-none">
-                    {result.performanceIndex}%
-                  </span>
-
-                  {deltaVsPrevPct !== null && (
-                    <span
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold tabular"
-                      style={{
-                        background:
-                          deltaVsPrevPct >= 0
-                            ? 'rgba(16, 185, 129, 0.14)'
-                            : 'rgba(239, 68, 68, 0.12)',
-                        color: deltaVsPrevPct >= 0 ? 'var(--ok)' : 'var(--err)',
-                      }}
-                    >
-                      {deltaVsPrevPct >= 0 ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
-                      <span>
-                        {deltaVsPrevPct >= 0 ? `+${deltaVsPrevPct}%` : `${deltaVsPrevPct}%`}
-                      </span>
-                    </span>
-                  )}
-                </div>
-
-                <div className="text-sm mt-2" style={{ color: 'var(--text-muted)' }}>
-                  {deltaVsPrevPct !== null ? (
-                    <>
-                      Você vs. última vez ({previousRef?.previousIndexPct}%) · Recorde{' '}
-                      <strong style={{ color: 'var(--text)' }}>
-                        {Math.max(previousRef?.bestIndexPct ?? 0, result.performanceIndex)}%
-                      </strong>
-                    </>
-                  ) : (
-                    <span>Linha de base pessoal registrada neste exercício</span>
-                  )}
-                </div>
-
-                <div className="text-xs mt-1.5" style={{ color: 'var(--text-soft)' }}>
-                  No <strong style={{ color: 'var(--text-muted)' }}>Nível {result.stagePlayed}</strong> deste exercício: superou{' '}
-                  <strong style={{ color: 'var(--text)' }}>{result.percentile}%</strong> ({ageLabel})
-                </div>
-              </div>
-
-              {/* Alerta automático no Log de Calibração (visível para o ADM de referência) */}
-              {isAdminSession && (() => {
-                const calAlerts = evaluateCalibrationAlerts(result);
-                if (calAlerts.length === 0) return null;
-                return (
-                  <div
-                    className="rounded-2xl px-3.5 py-3 flex items-start gap-2.5 text-left"
-                    style={{
-                      background: 'rgba(245, 158, 11, 0.12)',
-                      border: '1px solid rgba(245, 158, 11, 0.34)',
+                        : 'rgba(239, 68, 68, 0.12)',
+                      border: passedStage
+                        ? '1.5px solid rgba(16, 185, 129, 0.35)'
+                        : '1.5px solid rgba(239, 68, 68, 0.30)',
                     }}
                   >
-                    <AlertTriangle size={16} style={{ color: 'var(--warn)' }} className="shrink-0 mt-0.5" />
-                    <div className="min-w-0 text-xs leading-relaxed">
-                      <div className="font-bold" style={{ color: 'var(--warn)' }}>
-                        Alerta salvo no Log de Calibração (ADM)
-                      </div>
-                      <div style={{ color: 'var(--text-muted)' }}>
-                        {calAlerts.map((a) => a.label).join(' · ')}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* Barra de evolução do Domínio (normal) OU Telemetria + Feedback Rápido (Sandbox ADM) */}
-              {sandboxMode ? (
-                <div className="flex flex-col gap-3">
-                  <div
-                    className="rounded-2xl p-4 flex flex-col gap-2 text-xs"
-                    style={{ background: 'var(--bg-subtle)' }}
-                  >
-                    <div className="flex items-center justify-between font-bold">
-                      <span style={{ color: '#7C3AED' }}>Telemetria · Nível {result.stagePlayed}</span>
-                      <span className="tabular" style={{ color: 'var(--text-muted)' }}>
-                        Bruto {result.rawLevelScore ?? result.score}/1000
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between tabular" style={{ color: 'var(--text-muted)' }}>
-                      <span>RT-alvo: <strong style={{ color: 'var(--text)' }}>{result.targetRtMs ?? '—'} ms</strong></span>
-                      <span>Sobra: <strong style={{ color: 'var(--ok)' }}>{savedSecondsStr}s</strong></span>
-                    </div>
-                  </div>
-
-                  {/* 3 barras reais de calibração (Dificuldade, Velocidade e Meta) */}
-                  {labTuning && onLabTuningChange && onLabTuningReset && (
-                    <LabTuningPanel
-                      slug={slug}
-                      stage={stage}
-                      tuning={labTuning}
-                      onChange={onLabTuningChange}
-                      onReset={onLabTuningReset}
-                      plateauAttempts={plateauAttempts}
-                      onResetPlateauAttempts={onResetPlateauAttempts}
-                      compact
-                    />
-                  )}
-
-                  {/* Barrinha opcional (só mexe se achar que o nível não está certo) + Observação */}
-                  <div
-                    className="rounded-2xl p-4 flex flex-col gap-3 text-left"
-                    style={{
-                      background: 'var(--bg-subtle)',
-                      border: '1px solid var(--border-strong)',
-                    }}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-extrabold" style={{ color: 'var(--accent)' }}>
-                        Ajuste de Nível (opcional · Nv.{result.stagePlayed})
-                      </span>
+                    <div className="flex items-center gap-2.5 min-w-0">
                       <span
-                        className="text-[11px] font-bold"
-                        style={{ color: sandboxFbSaved ? 'var(--ok)' : 'var(--text-soft)' }}
-                      >
-                        {sandboxFbSaved ? '✓ Salvo' : 'Opcional'}
-                      </span>
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                      <div className="flex items-center justify-between text-xs gap-2">
-                        <span className="font-semibold" style={{ color: 'var(--text-muted)' }}>
-                          Se não estiver no nível certo:
-                        </span>
-                        <strong className="text-right" style={{ color: 'var(--text)' }}>
-                          {sandboxFb.difficulty
-                            ? `${DIFFICULTY_LABELS[sandboxFb.difficulty]} (${sandboxFb.difficulty}/5)`
-                            : 'Não marcado'}
-                        </strong>
-                      </div>
-                      <input
-                        type="range"
-                        min={1}
-                        max={5}
-                        step={1}
-                        value={sandboxFb.difficulty ?? 3}
-                        onChange={(e) => {
-                          sound.tap();
-                          handleSandboxFeedback({
-                            difficulty: Number(e.target.value) as 1 | 2 | 3 | 4 | 5,
-                          });
+                        className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 font-black text-sm"
+                        style={{
+                          background: passedStage ? 'var(--ok)' : 'var(--err)',
+                          color: '#FFFFFF',
                         }}
-                        style={{ accentColor: 'var(--accent)' }}
-                        className="w-full cursor-pointer"
-                      />
-                      <div className="grid grid-cols-5 gap-1">
-                        {([1, 2, 3, 4, 5] as const).map((lvl) => (
-                          <button
-                            key={lvl}
-                            type="button"
-                            onClick={() => {
-                              sound.tap();
-                              handleSandboxFeedback({ difficulty: lvl });
-                            }}
-                            className={`py-1.5 rounded-lg text-xs font-bold cursor-pointer ${
-                              sandboxFb.difficulty === lvl ? 'btn-accent' : 'btn-soft'
-                            }`}
-                          >
-                            {lvl}
-                          </button>
-                        ))}
-                      </div>
-                      <div className="flex items-center justify-between text-[11px]" style={{ color: 'var(--text-soft)' }}>
-                        <span>1 · Muito fácil</span>
-                        <span>3 · Ideal</span>
-                        <span>5 · Pesado demais</span>
+                      >
+                        {passedStage ? <Check size={17} strokeWidth={3} /> : '✕'}
+                      </span>
+                      <div className="min-w-0">
+                        <div
+                          className="text-sm font-extrabold leading-tight truncate"
+                          style={{ color: passedStage ? 'var(--ok)' : 'var(--err)' }}
+                        >
+                          {nextStageUnlocked
+                            ? `Passou! Nível ${result.nextStage} liberado`
+                            : passedStage
+                              ? 'Fase aprovada!'
+                              : 'Não passou desta vez'}
+                        </div>
+                        <div className="text-xs font-medium truncate" style={{ color: 'var(--text-muted)' }}>
+                          {game.name} · Nível {result.stagePlayed}
+                        </div>
                       </div>
                     </div>
 
-                    <input
-                      type="text"
-                      placeholder="Observação opcional sobre este nível..."
-                      value={sandboxFb.note ?? ''}
-                      onChange={(e) => handleSandboxFeedback({ note: e.target.value })}
-                      className="w-full px-3.5 py-2.5 rounded-xl text-xs outline-none"
-                      style={{
-                        background: 'var(--bg-card)',
-                        border: '1px solid var(--border)',
-                        color: 'var(--text)',
-                      }}
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div
-                  className="rounded-2xl p-4 flex flex-col gap-2.5"
-                  style={{ background: 'var(--bg-subtle)' }}
-                >
-                  <div className="flex items-center justify-between text-xs sm:text-sm font-semibold">
-                    <span className="inline-flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full" style={{ background: domainMeta.color }} />
-                      <span>{domainMeta.name}</span>
-                    </span>
-                    <span className="tabular flex items-center gap-1.5">
-                      <span style={{ color: 'var(--text-soft)' }}>{domainBeforePct}% →</span>
-                      <strong style={{ color: 'var(--text)' }}>{domainAfterPct}%</strong>
+                    {isNewRecord && (
                       <span
-                        className="text-xs font-bold"
-                        style={{ color: domainDeltaPct >= 0 ? 'var(--ok)' : 'var(--err)' }}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold shrink-0"
+                        style={{ background: 'rgba(245, 158, 11, 0.18)', color: 'var(--warn)' }}
                       >
-                        {isFirstDomainMeasurement
-                          ? '1ª medição'
-                          : domainDeltaPct >= 0
-                            ? `+${domainDeltaPct}%`
-                            : `${domainDeltaPct}%`}
+                        <Award size={12} />
+                        Recorde
                       </span>
-                    </span>
+                    )}
                   </div>
 
-                  <div className="h-2.5 rounded-full overflow-hidden" style={{ background: 'var(--bg-card)' }}>
+                  {/* Hero principal: Foco total na superação dos indivíduos */}
+                  <div className="text-center py-1">
                     <div
-                      className="h-full rounded-full transition-all duration-500"
-                      style={{ width: `${domainAfterPct}%`, background: domainMeta.color }}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between text-xs" style={{ color: 'var(--text-muted)' }}>
-                    <span>
-                      {result.stageCleared
-                        ? `Nível ${result.nextStage} pronto na próxima sessão`
-                        : result.adaptiveStatus === 'step_down'
-                          ? `Calibrado para Nível ${result.nextStage}`
-                          : `Nível atual: ${result.nextStage}`}
-                    </span>
-                    <span className="tabular font-semibold" style={{ color: 'var(--text-soft)' }}>
-                      Nv.{result.stagePlayed} · Top {Math.max(1, Math.round(100 - result.percentile))}%
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {/* Precisão e Velocidade lado a lado */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-2xl p-4" style={{ background: 'var(--bg-subtle)' }}>
-                  <div className="text-xs font-semibold" style={{ color: 'var(--text-soft)' }}>
-                    Precisão
-                  </div>
-                  <div className="text-2xl font-extrabold tabular mt-1" style={{ color: 'var(--ok)' }}>
-                    {result.accuracyPct}%
-                  </div>
-                  <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-                    {result.completedEarly && result.timeRemainingMs > 0
-                      ? `${savedSecondsStr}s de margem`
-                      : 'Meta: ≥80%'}
-                  </div>
-                </div>
-
-                <div className="rounded-2xl p-4" style={{ background: 'var(--bg-subtle)' }}>
-                  <div className="text-xs font-semibold" style={{ color: 'var(--text-soft)' }}>
-                    Reação média
-                  </div>
-                  <div className="text-2xl font-extrabold tabular mt-1">
-                    {result.rtMeanMs > 0 ? `${result.rtMeanMs} ms` : '—'}
-                  </div>
-                  <div
-                    className="text-xs font-semibold tabular mt-1"
-                    style={{
-                      color:
-                        rtDeltaVsPrevMs === null
-                          ? 'var(--text-muted)'
-                          : rtDeltaVsPrevMs <= 0
-                            ? 'var(--ok)'
-                            : 'var(--warn)',
-                    }}
-                  >
-                    {rtDeltaVsPrevMs === null
-                      ? 'Média da sessão'
-                      : rtDeltaVsPrevMs <= 0
-                        ? `${rtDeltaVsPrevMs} ms mais rápido`
-                        : `+${rtDeltaVsPrevMs} ms vs. ant.`}
-                  </div>
-                </div>
-              </div>
-
-              {/* Botões generosos no padrão Impulse (ou atalhos de calibração no Sandbox) */}
-              <div className="flex flex-col gap-2.5 pt-1">
-                {sandboxMode && onTestMaxLevel ? (
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <button
-                      type="button"
-                      onClick={onTestMaxLevel}
-                      className="min-h-[52px] py-3.5 px-3 rounded-2xl font-bold text-sm btn-accent flex items-center justify-center gap-1.5 cursor-pointer"
+                      className="text-xs font-extrabold uppercase tracking-widest"
+                      style={{ color: 'var(--text-soft)' }}
                     >
-                      <span>{sandboxJumpLabel}</span>
-                      <ArrowRight size={16} />
-                    </button>
-                    {onNextChallenge && nextChallengeLabel ? (
+                      Você superou
+                    </div>
+
+                    <div
+                      className="text-6xl font-extrabold tabular tracking-tight leading-none mt-2"
+                      style={{
+                        background: 'var(--accent-grad)',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                      }}
+                    >
+                      {beatsPct}%
+                    </div>
+
+                    <div className="text-[15px] font-bold mt-2" style={{ color: 'var(--text)' }}>
+                      das pessoas que fizeram este teste
+                    </div>
+
+                    <div className="text-xs font-medium mt-1" style={{ color: 'var(--text-soft)' }}>
+                      {beatsPct >= 50
+                        ? `Entre os Top ${topPct}% da faixa ${ageLabel}`
+                        : `Continue treinando para subir no ranking (${ageLabel})`}
+                    </div>
+
+                    {deltaVsPrevPct !== null && deltaVsPrevPct !== 0 && (
+                      <div className="mt-2.5 flex justify-center">
+                        <span
+                          className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold tabular"
+                          style={{
+                            background:
+                              deltaVsPrevPct > 0
+                                ? 'rgba(16, 185, 129, 0.14)'
+                                : 'rgba(239, 68, 68, 0.12)',
+                            color: deltaVsPrevPct > 0 ? 'var(--ok)' : 'var(--err)',
+                          }}
+                        >
+                          {deltaVsPrevPct > 0 ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
+                          <span>
+                            {deltaVsPrevPct > 0
+                              ? `+${deltaVsPrevPct}% melhor que sua última vez`
+                              : `${deltaVsPrevPct}% vs. sua última vez`}
+                          </span>
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Curva de Superação SVG */}
+                  <div className="rounded-2xl px-3.5 pt-3.5 pb-2.5" style={{ background: 'var(--bg-subtle)' }}>
+                    <svg viewBox="0 0 300 112" className="w-full h-[108px] block overflow-visible">
+                      <defs>
+                        <linearGradient id="neuroCurveGrad" x1="0" y1="0" x2="1" y2="0">
+                          <stop offset="0%" stopColor="#4F6EF7" stopOpacity="0.22" />
+                          <stop offset="100%" stopColor="#4F6EF7" stopOpacity="0.72" />
+                        </linearGradient>
+                        <clipPath id="neuroCurveClip">
+                          <rect x="0" y="0" width={curveX} height="112" />
+                        </clipPath>
+                      </defs>
+                      <path
+                        d="M 8 98 C 45 97, 72 86, 102 52 C 122 28, 136 16, 150 16 C 164 16, 178 28, 198 52 C 228 86, 255 97, 292 98 L 292 102 L 8 102 Z"
+                        fill="var(--border)"
+                        opacity="0.7"
+                      />
+                      <path
+                        d="M 8 98 C 45 97, 72 86, 102 52 C 122 28, 136 16, 150 16 C 164 16, 178 28, 198 52 C 228 86, 255 97, 292 98 L 292 102 L 8 102 Z"
+                        fill="url(#neuroCurveGrad)"
+                        clipPath="url(#neuroCurveClip)"
+                      />
+                      <path
+                        d="M 8 98 C 45 97, 72 86, 102 52 C 122 28, 136 16, 150 16 C 164 16, 178 28, 198 52 C 228 86, 255 97, 292 98"
+                        fill="none"
+                        stroke="var(--accent)"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                      />
+                      <line
+                        x1={curveX}
+                        y1="22"
+                        x2={curveX}
+                        y2="100"
+                        stroke="var(--ok)"
+                        strokeWidth="2"
+                        strokeDasharray="3 3"
+                      />
+                      <circle cx={curveX} cy={curveY} r="6" fill="var(--ok)" stroke="#FFFFFF" strokeWidth="2.5" />
+                      <g transform={`translate(${clampedTagX}, 14)`}>
+                        <rect x="-30" y="-11" width="60" height="20" rx="10" fill="var(--ok)" />
+                        <text
+                          x="0"
+                          y="2.5"
+                          textAnchor="middle"
+                          fill="#FFFFFF"
+                          fontSize="10"
+                          fontWeight="800"
+                        >
+                          VOCÊ
+                        </text>
+                      </g>
+                    </svg>
+                    <div
+                      className="flex items-center justify-between text-[11px] font-bold mt-1 px-0.5"
+                      style={{ color: 'var(--text-soft)' }}
+                    >
+                      <span>Início</span>
+                      <span>Média (50%)</span>
+                      <span>Topo (99%)</span>
+                    </div>
+                  </div>
+
+                  {/* Alerta automático no Log de Calibração (apenas ADM) */}
+                  {isAdminSession && (() => {
+                    const calAlerts = evaluateCalibrationAlerts(result);
+                    if (calAlerts.length === 0) return null;
+                    return (
+                      <div
+                        className="rounded-2xl px-3.5 py-3 flex items-start gap-2.5 text-left"
+                        style={{
+                          background: 'rgba(245, 158, 11, 0.12)',
+                          border: '1px solid rgba(245, 158, 11, 0.34)',
+                        }}
+                      >
+                        <AlertTriangle size={16} style={{ color: 'var(--warn)' }} className="shrink-0 mt-0.5" />
+                        <div className="min-w-0 text-xs leading-relaxed">
+                          <div className="font-bold" style={{ color: 'var(--warn)' }}>
+                            Alerta salvo no Log de Calibração (ADM)
+                          </div>
+                          <div style={{ color: 'var(--text-muted)' }}>
+                            {calAlerts.map((a) => a.label).join(' · ')}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Evolução do Domínio (normal) OU Telemetria (Sandbox ADM) */}
+                  {sandboxMode ? (
+                    <div className="flex flex-col gap-3">
+                      <div
+                        className="rounded-2xl p-4 flex flex-col gap-2 text-xs"
+                        style={{ background: 'var(--bg-subtle)' }}
+                      >
+                        <div className="flex items-center justify-between font-bold">
+                          <span style={{ color: '#7C3AED' }}>Telemetria · Nível {result.stagePlayed}</span>
+                          <span className="tabular" style={{ color: 'var(--text-muted)' }}>
+                            Precisão {result.accuracyPct}% · RT {result.rtMeanMs}ms
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between tabular" style={{ color: 'var(--text-muted)' }}>
+                          <span>RT-alvo: <strong style={{ color: 'var(--text)' }}>{result.targetRtMs ?? '—'} ms</strong></span>
+                          <span>Sobra: <strong style={{ color: 'var(--ok)' }}>{savedSecondsStr}s</strong></span>
+                        </div>
+                      </div>
+
+                      {labTuning && onLabTuningChange && onLabTuningReset && (
+                        <LabTuningPanel
+                          slug={slug}
+                          stage={stage}
+                          tuning={labTuning}
+                          onChange={onLabTuningChange}
+                          onReset={onLabTuningReset}
+                          plateauAttempts={plateauAttempts}
+                          onResetPlateauAttempts={onResetPlateauAttempts}
+                          compact
+                        />
+                      )}
+
+                      <div
+                        className="rounded-2xl p-4 flex flex-col gap-3 text-left"
+                        style={{
+                          background: 'var(--bg-subtle)',
+                          border: '1px solid var(--border-strong)',
+                        }}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-extrabold" style={{ color: 'var(--accent)' }}>
+                            Ajuste de Nível (opcional · Nv.{result.stagePlayed})
+                          </span>
+                          <span
+                            className="text-[11px] font-bold"
+                            style={{ color: sandboxFbSaved ? 'var(--ok)' : 'var(--text-soft)' }}
+                          >
+                            {sandboxFbSaved ? '✓ Salvo' : 'Opcional'}
+                          </span>
+                        </div>
+
+                        <div className="flex flex-col gap-1.5">
+                          <div className="flex items-center justify-between text-xs gap-2">
+                            <span className="font-semibold" style={{ color: 'var(--text-muted)' }}>
+                              Se não estiver no nível certo:
+                            </span>
+                            <strong className="text-right" style={{ color: 'var(--text)' }}>
+                              {sandboxFb.difficulty
+                                ? `${DIFFICULTY_LABELS[sandboxFb.difficulty]} (${sandboxFb.difficulty}/5)`
+                                : 'Não marcado'}
+                            </strong>
+                          </div>
+                          <input
+                            type="range"
+                            min={1}
+                            max={5}
+                            step={1}
+                            value={sandboxFb.difficulty ?? 3}
+                            onChange={(e) => {
+                              sound.tap();
+                              handleSandboxFeedback({
+                                difficulty: Number(e.target.value) as 1 | 2 | 3 | 4 | 5,
+                              });
+                            }}
+                            style={{ accentColor: 'var(--accent)' }}
+                            className="w-full cursor-pointer"
+                          />
+                          <div className="grid grid-cols-5 gap-1">
+                            {([1, 2, 3, 4, 5] as const).map((lvl) => (
+                              <button
+                                key={lvl}
+                                type="button"
+                                onClick={() => {
+                                  sound.tap();
+                                  handleSandboxFeedback({ difficulty: lvl });
+                                }}
+                                className={`py-1.5 rounded-lg text-xs font-bold cursor-pointer ${
+                                  sandboxFb.difficulty === lvl ? 'btn-accent' : 'btn-soft'
+                                }`}
+                              >
+                                {lvl}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <input
+                          type="text"
+                          placeholder="Observação opcional sobre este nível..."
+                          value={sandboxFb.note ?? ''}
+                          onChange={(e) => handleSandboxFeedback({ note: e.target.value })}
+                          className="w-full px-3.5 py-2.5 rounded-xl text-xs outline-none"
+                          style={{
+                            background: 'var(--bg-card)',
+                            border: '1px solid var(--border)',
+                            color: 'var(--text)',
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      className="rounded-2xl p-3.5 flex flex-col gap-2"
+                      style={{ background: 'var(--bg-subtle)' }}
+                    >
+                      <div className="flex items-center justify-between text-xs font-semibold">
+                        <span className="inline-flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full" style={{ background: domainMeta.color }} />
+                          <span>{domainMeta.name}</span>
+                        </span>
+                        <span className="tabular flex items-center gap-1.5">
+                          <span style={{ color: 'var(--text-soft)' }}>{domainBeforePct}% →</span>
+                          <strong style={{ color: 'var(--text)' }}>{domainAfterPct}%</strong>
+                        </span>
+                      </div>
+                      <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--bg-card)' }}>
+                        <div
+                          className="h-full rounded-full transition-all duration-500"
+                          style={{ width: `${domainAfterPct}%`, background: domainMeta.color }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Botões claros: Próxima fase (quando liberou), Jogar novamente e Continuar */}
+                  <div className="flex flex-col gap-2.5 pt-1">
+                    {sandboxMode && onTestMaxLevel ? (
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <button
+                          type="button"
+                          onClick={onTestMaxLevel}
+                          className="min-h-[52px] py-3.5 px-3 rounded-2xl font-bold text-sm btn-accent flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <span>{sandboxJumpLabel}</span>
+                          <ArrowRight size={16} />
+                        </button>
+                        {onNextChallenge && nextChallengeLabel ? (
+                          <button
+                            type="button"
+                            onClick={onNextChallenge}
+                            className="min-h-[52px] py-3.5 px-3 rounded-2xl font-bold text-sm btn-soft flex items-center justify-center gap-1.5 cursor-pointer"
+                          >
+                            <span>Nível {stage + 1}</span>
+                            <ArrowRight size={16} />
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <>
+                        {/* Botão 1: Próxima fase (destaque quando passou e liberou o próximo nível) */}
+                        {mode !== 'calibration' && nextStageUnlocked && (
+                          <button
+                            type="button"
+                            onClick={handlePlayNextStage}
+                            className="w-full min-h-[54px] py-4 px-5 rounded-2xl font-bold text-[15px] btn-accent flex items-center justify-center gap-2 cursor-pointer"
+                          >
+                            <span>Próxima fase (Nível {result.nextStage})</span>
+                            <ArrowRight size={18} />
+                          </button>
+                        )}
+
+                        {/* Botão 2: Continuar (próximo jogo da fila, resumo do dia ou início) */}
+                        <button
+                          type="button"
+                          onClick={
+                            workoutProgress?.isLastOfWorkout
+                              ? () => setShowWorkoutComplete(true)
+                              : onNextChallenge && nextChallengeLabel
+                                ? onNextChallenge
+                                : onExit
+                          }
+                          className={`w-full min-h-[50px] py-3.5 px-5 rounded-2xl font-bold text-[15px] flex items-center justify-center gap-2 cursor-pointer ${
+                            mode !== 'calibration' && nextStageUnlocked ? 'btn-soft' : 'btn-accent'
+                          }`}
+                        >
+                          <span>
+                            {workoutProgress?.isLastOfWorkout
+                              ? 'Continuar · Resumo do Dia'
+                              : onNextChallenge && nextChallengeLabel
+                                ? `Continuar · ${nextChallengeLabel}`
+                                : 'Continuar'}
+                          </span>
+                          <ArrowRight size={17} />
+                        </button>
+
+                        {/* Botão 3: Jogar novamente (repetir o nível atual) */}
+                        {mode !== 'calibration' && (
+                          <button
+                            type="button"
+                            onClick={handleReplaySameStage}
+                            className="w-full min-h-[48px] py-3 px-4 rounded-2xl text-sm font-semibold btn-soft flex items-center justify-center gap-2 cursor-pointer"
+                          >
+                            <RotateCcw size={16} />
+                            <span>Jogar novamente (Nível {stage})</span>
+                          </button>
+                        )}
+                      </>
+                    )}
+
+                    {sandboxMode && (
                       <button
                         type="button"
-                        onClick={onNextChallenge}
-                        className="min-h-[52px] py-3.5 px-3 rounded-2xl font-bold text-sm btn-soft flex items-center justify-center gap-1.5 cursor-pointer"
+                        onClick={handleReplaySameStage}
+                        className={`w-full min-h-[48px] py-3.5 px-4 rounded-2xl text-sm flex items-center justify-center gap-2 cursor-pointer ${
+                          hasPendingTuningChange ? 'font-bold btn-accent' : 'font-semibold btn-soft'
+                        }`}
                       >
-                        <span>Nível {stage + 1}</span>
-                        <ArrowRight size={16} />
+                        <RotateCcw size={16} />
+                        <span>
+                          {hasPendingTuningChange
+                            ? `Testar Nível ${stage} com novo ajuste`
+                            : `Repetir Nível ${stage}`}
+                        </span>
                       </button>
-                    ) : null}
+                    )}
+
+                    {(onNextChallenge || workoutProgress?.isLastOfWorkout) && mode !== 'calibration' && (
+                      <button
+                        type="button"
+                        onClick={onExit}
+                        className="mx-auto py-1.5 px-4 text-xs font-semibold cursor-pointer"
+                        style={{ color: 'var(--text-soft)' }}
+                      >
+                        {sandboxMode ? 'Voltar à Área de Testes' : 'Voltar ao início'}
+                      </button>
+                    )}
                   </div>
-                ) : workoutProgress?.isLastOfWorkout ? (
-                  <button
-                    type="button"
-                    onClick={() => setShowWorkoutComplete(true)}
-                    className="w-full min-h-[54px] py-4 px-5 rounded-2xl font-bold text-[15px] btn-accent flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <span>Ver Resumo do Dia</span>
-                    <ArrowRight size={18} />
-                  </button>
-                ) : onNextChallenge && nextChallengeLabel ? (
-                  <button
-                    type="button"
-                    onClick={onNextChallenge}
-                    className="w-full min-h-[54px] py-4 px-5 rounded-2xl font-bold text-[15px] btn-accent flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <span>{nextChallengeLabel}</span>
-                    <ArrowRight size={18} />
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={onExit}
-                    className="w-full min-h-[54px] py-4 px-5 rounded-2xl font-bold text-[15px] btn-accent flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <span>Continuar</span>
-                    <ArrowRight size={18} />
-                  </button>
-                )}
-
-                {mode !== 'calibration' && (
-                  <button
-                    type="button"
-                    onClick={handleReplay}
-                    className={`w-full min-h-[48px] py-3.5 px-4 rounded-2xl text-sm flex items-center justify-center gap-2 cursor-pointer ${
-                      hasPendingTuningChange ? 'font-bold btn-accent' : 'font-semibold btn-soft'
-                    }`}
-                  >
-                    <RotateCcw size={16} />
-                    <span>
-                      {sandboxMode
-                        ? hasPendingTuningChange
-                          ? `Testar Nível ${stage} com novo ajuste`
-                          : `Repetir Nível ${stage}`
-                        : result.stageCleared
-                          ? `Jogar novamente (Nível ${result.nextStage})`
-                          : `Tentar novamente (Nível ${result.nextStage})`}
-                    </span>
-                  </button>
-                )}
-
-                {(onNextChallenge || workoutProgress?.isLastOfWorkout) && mode !== 'calibration' && (
-                  <button
-                    type="button"
-                    onClick={onExit}
-                    className="mx-auto py-2 px-4 text-xs font-semibold cursor-pointer"
-                    style={{ color: 'var(--text-soft)' }}
-                  >
-                    {sandboxMode ? 'Voltar à Área de Testes' : 'Voltar ao início'}
-                  </button>
-                )}
-              </div>
-            </div>
+                </div>
+              );
+            })()
           )}
         </div>
 
