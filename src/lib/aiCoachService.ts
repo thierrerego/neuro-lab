@@ -1,10 +1,16 @@
 import type { AgeBracket, ComputedSessionResult } from '../types/cognitive';
 import { DOMAIN_MAP, GAME_MAP } from '../engine/gameRegistry';
 import { getAgeBracketMeta } from '../engine/psychometricEngine';
+import { getIntensityLabel } from '../engine/adaptiveEngine';
 
 export interface AdaptiveCoachInsight {
   source: 'gemini' | 'scientific_local';
   text: string;
+}
+
+function formatRtShort(rtMeanMs: number): string {
+  if (!rtMeanMs || rtMeanMs <= 0) return '';
+  return rtMeanMs >= 1000 ? `${(rtMeanMs / 1000).toFixed(1)}s` : `${Math.round(rtMeanMs)}ms`;
 }
 
 function buildLocalScientificInsight(
@@ -15,20 +21,26 @@ function buildLocalScientificInsight(
   const eq = result.equilibriumIndex ?? result.stagePlayed;
   const expected = result.ageExpectedEquilibrium ?? 6.0;
   const delta = eq - expected;
+  const intensity = getIntensityLabel(eq).toLowerCase();
+  const rtText = formatRtShort(result.rtMeanMs);
 
   let perfNote = '';
-  if (result.accuracyPct >= 92 && delta >= 0.8) {
-    perfNote = `Você sustentou carga ${eq.toFixed(1)} com ${result.accuracyPct}% de precisão — acima da média de ${expected.toFixed(1)} esperada para ${ageLabel}.`;
+  if (result.accuracyPct < 75 && delta >= 1.5) {
+    perfNote = `Mesmo com ${result.accuracyPct}% de precisão, você chegou a um ${intensity} que poucas pessoas de ${ageLabel} alcançam.`;
+  } else if (result.accuracyPct >= 92 && delta >= 0.8) {
+    perfNote = `Você manteve ${result.accuracyPct}% de precisão em ${intensity} — acima da média para ${ageLabel}.`;
   } else if (result.accuracyPct < 75) {
-    perfNote = `Sua precisão ficou em ${result.accuracyPct}% (carga ${eq.toFixed(1)}). O motor reduziu a pressão para encontrar seu ponto de estabilidade antes de acelerar novamente.`;
+    perfNote = `Sua precisão ficou em ${result.accuracyPct}%. Vale focar em acertar com calma antes de acelerar.`;
+  } else if (rtText) {
+    perfNote = `Bom controle em ${intensity}, com ${result.accuracyPct}% de precisão e resposta média de ${rtText}.`;
   } else {
-    perfNote = `Seu ponto de equilíbrio estabilizou em ${eq.toFixed(1)} (média ${expected.toFixed(1)} para ${ageLabel}), com tempo de reação de ${result.rtMeanMs}ms.`;
+    perfNote = `Bom controle em ${intensity}, com ${result.accuracyPct}% de precisão para a faixa ${ageLabel}.`;
   }
 
   const nextHint =
     result.rtMeanMs > 0 && result.targetRtMs && result.rtMeanMs <= result.targetRtMs
-      ? 'Na próxima rodada o sistema já parte de uma carga mais exigente.'
-      : 'Na próxima rodada o foco será ganhar agilidade mantendo a precisão acima de 80%.';
+      ? 'Seu tempo de resposta está rápido — ótimo ritmo para manter o desafio subindo.'
+      : 'Na próxima tentativa, tente ganhar um pouco mais de agilidade mantendo a precisão alta.';
 
   return {
     source: 'scientific_local',
@@ -55,14 +67,14 @@ export async function generateAdaptiveCoachInsight(
   const game = GAME_MAP[result.gameSlug];
   const domain = DOMAIN_MAP[result.domain];
   const ageLabel = getAgeBracketMeta(ageBracket).label;
+  const intensity = getIntensityLabel(result.equilibriumIndex ?? result.stagePlayed);
 
   const prompt = [
-    'Você é um neuropsicólogo analisando uma sessão adaptativa (sem níveis fixos) do app NeuroLab.',
-    'Escreva NO MÁXIMO 2 frases curtas em português do Brasil, diretas e motivadoras, sem markdown.',
+    'Você é um especialista em treino cognitivo comentando o resultado de um exercício do app NeuroLab.',
+    'Escreva NO MÁXIMO 2 frases curtas em português do Brasil, em linguagem simples e motivadora, sem markdown e sem termos técnicos como "carga", "equilíbrio numérico", "motor adaptativo" ou "calibração".',
     `Exercício: ${game?.name ?? result.gameSlug} (${domain?.name ?? result.domain})`,
     `Faixa etária: ${ageLabel}`,
-    `Ponto de equilíbrio atingido: ${(result.equilibriumIndex ?? result.stagePlayed).toFixed(1)} (média esperada da idade: ${(result.ageExpectedEquilibrium ?? 6).toFixed(1)})`,
-    `Precisão: ${result.accuracyPct}% | RT médio: ${result.rtMeanMs}ms | Percentil da idade: ${result.percentile}%`,
+    `Ritmo atingido: ${intensity} | Precisão: ${result.accuracyPct}% | Tempo médio: ${result.rtMeanMs}ms | Superou: ${result.percentile}% da faixa etária`,
   ].join('\n');
 
   try {

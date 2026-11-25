@@ -484,10 +484,7 @@ export default function App() {
     } else if (activePlay.flowMode) {
       const nextPick = pickNextFlowGame(data.progress, data.scores, activePlay.slug);
       const nextGameMeta = GAME_MAP[nextPick.slug];
-      nextChallengeLabel =
-        nextPick.slug === activePlay.slug
-          ? `Flow: subir fase (${nextGameMeta.name})`
-          : `Flow: ${nextGameMeta.name}`;
+      nextChallengeLabel = `Próximo exercício · ${nextGameMeta.name}`;
       onNextChallenge = () =>
         startGame(nextPick.slug, 'free', 'app', undefined, undefined, undefined, true);
     } else if (activePlay.domainFocusQueue) {

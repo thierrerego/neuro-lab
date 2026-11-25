@@ -19,6 +19,7 @@ import { TOTAL_WAVE_HITS } from './waveEngine';
 import {
   buildAgeComparisonNote,
   computeEquilibriumIndex,
+  estimateTriAbility,
   getEquilibriumBandLabel,
   getExpectedAgeEquilibrium,
 } from './adaptiveEngine';
@@ -306,21 +307,21 @@ export function evaluateSession(params: {
   const targetRt = getTargetRtMs(gameSlug, safeBaseStage, ageBracket);
   let speedPoints = 0;
   let earlyBonusPoints = 0;
+  let rtRatio = 0.45;
+
+  if (rtMeanMs > 0) {
+    // Curva sensível à velocidade real:
+    // - 0.50x do alvo -> 1.00 (extremo)
+    // - 1.00x do alvo -> ~0.50 (ritmo médio)
+    // - >= 1.95x do alvo -> 0.04 (muito lento)
+    const fastBound = targetRt * 0.5;
+    const slowBound = targetRt * 1.95;
+    const norm = (slowBound - rtMeanMs) / (slowBound - fastBound);
+    const clampedNorm = Math.max(0, Math.min(1, norm));
+    rtRatio = 0.04 + Math.pow(clampedNorm, 1.35) * 0.96;
+  }
 
   if (!failedAccuracyGate) {
-    let rtRatio = 0.45;
-    if (rtMeanMs > 0) {
-      // Curva sensível à velocidade real:
-      // - 0.50x do alvo -> 1.00 (extremo)
-      // - 1.00x do alvo -> ~0.50 (ritmo médio)
-      // - >= 1.95x do alvo -> 0.04 (muito lento)
-      const fastBound = targetRt * 0.5;
-      const slowBound = targetRt * 1.95;
-      const norm = (slowBound - rtMeanMs) / (slowBound - fastBound);
-      const clampedNorm = Math.max(0, Math.min(1, norm));
-      rtRatio = 0.04 + Math.pow(clampedNorm, 1.35) * 0.96;
-    }
-
     const rtShare = Math.round(maxSpdPts * 0.78);
     const earlyShare = maxSpdPts - rtShare;
 
@@ -365,13 +366,26 @@ export function evaluateSession(params: {
   const equilibriumBand = getEquilibriumBandLabel(equilibriumIndex);
   const ageComparisonNote = buildAgeComparisonNote(equilibriumIndex, ageNorm.expected, ageLabel);
 
-  // Combina o percentil psicométrico da execução (precisão + RT) com o percentil do ponto de equilíbrio frente à idade
-  const execPercentile = scoreToPercentile(rawCombined, safeBaseStage, accuracyPct, perf.correct, ageBracket);
-  const eqPercentile = Math.max(1.0, Math.min(99.5, normalCDF(equilibriumIndex, ageNorm.expected, ageNorm.sd) * 100));
+  // Percentil normativo estilo TRI (Teoria de Resposta ao Item):
+  // Considera principalmente a dificuldade realmente alcançada frente à curva da faixa etária,
+  // ajustada pela precisão e velocidade — assim, quem chega em ritmo extremo e erra mais
+  // continua bem posicionado frente à idade, e quem gabarita ritmo muito fácil sobe aos poucos.
+  const triAbility = estimateTriAbility({
+    equilibriumIndex,
+    trail: wave.difficultyTrail,
+    accuracyPct,
+    rtRatio,
+    correctCount: perf.correct,
+  });
   const percentile =
-    perf.correct <= 0 || accuracyPct < 50
-      ? execPercentile
-      : Number(Math.max(1.0, Math.min(99.5, execPercentile * 0.65 + eqPercentile * 0.35)).toFixed(1));
+    perf.correct <= 0
+      ? 1.0
+      : Number(
+          Math.max(
+            1.0,
+            Math.min(99.5, normalCDF(triAbility, ageNorm.expected, ageNorm.sd) * 100)
+          ).toFixed(1)
+        );
 
   const tier = getCognitiveTier(finalScore);
 

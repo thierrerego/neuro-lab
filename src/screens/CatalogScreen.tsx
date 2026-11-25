@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { AppDataState } from '../lib/dataService';
 import { fetchPopulationBenchmarks } from '../lib/dataService';
 import { DOMAIN_LIST, GAMES_BY_DOMAIN } from '../engine/gameRegistry';
+import { getIntensityLabel } from '../engine/adaptiveEngine';
 import { getWeakestDomains } from '../engine/psychometricEngine';
 import { buildGameMasteryList, NORMATIVE_BENCHMARKS } from '../engine/cognitiveProfiler';
 import type { DomainKey, GameSlug, PopulationBenchmarks, SessionMode } from '../types/cognitive';
@@ -150,7 +151,7 @@ export function CatalogScreen({ data, backendOnline, onStartGame }: CatalogScree
                           className="px-2.5 py-1 rounded-full text-xs font-semibold tabular"
                           style={{ background: 'var(--bg-subtle)', color: 'var(--text-muted)' }}
                         >
-                          Carga {Math.max(1, prog?.current_stage ?? 1)}
+                          {getIntensityLabel(Math.max(1, prog?.current_stage ?? 1))}
                         </span>
                       </div>
 

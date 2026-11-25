@@ -109,6 +109,42 @@ export function computeEquilibriumIndex(trail: number[], fallbackLoad: number): 
 }
 
 /**
+ * Estima a habilidade latente (theta, escala 1..20) no padrão TRI (Teoria de Resposta ao Item):
+ * - Parte da dificuldade realmente sustentada (equilíbrio + pico alcançado).
+ * - A precisão em torno do limiar psicofísico (78%) e a velocidade ajustam o theta para cima ou para baixo,
+ *   sem derrubar para o piso quem já chegou a uma dificuldade muito acima da média da faixa etária.
+ */
+export function estimateTriAbility(params: {
+  equilibriumIndex: number;
+  trail?: number[];
+  accuracyPct: number;
+  rtRatio: number; // 0..1 (0.5 = ritmo esperado para a idade)
+  correctCount: number;
+}): number {
+  const { equilibriumIndex, trail, accuracyPct, rtRatio, correctCount } = params;
+  if (correctCount <= 0) return MIN_ADAPTIVE_LOAD;
+
+  const peakLoad =
+    trail && trail.length > 0 ? Math.max(...trail, equilibriumIndex) : equilibriumIndex;
+  const baseDifficulty = equilibriumIndex * 0.78 + peakLoad * 0.22;
+
+  // Ajuste fino pela precisão em torno do limiar esperado da escada adaptativa (~78%)
+  const accAdj =
+    accuracyPct >= 78
+      ? ((accuracyPct - 78) / 22) * 1.35
+      : -((78 - Math.max(0, accuracyPct)) / 78) * 3.4;
+
+  // Ajuste fino pela velocidade (bloqueia bônus positivo se a precisão for baixa / chute)
+  const clampedRt = Math.max(0, Math.min(1, rtRatio));
+  const speedAdj =
+    accuracyPct >= 55
+      ? (clampedRt - 0.5) * 1.4
+      : Math.min(0, (clampedRt - 0.5) * 0.8);
+
+  return clampLoad(baseDifficulty + accAdj + speedAdj);
+}
+
+/**
  * Simula o ponto de equilíbrio médio esperado para uma pessoa da faixa etária informada
  * naquele domínio/exercício.
  */
@@ -129,11 +165,15 @@ export function getExpectedAgeEquilibrium(
 }
 
 export function getEquilibriumBandLabel(load: number): string {
-  if (load < 3.5) return 'Ritmo Base';
-  if (load < 7.0) return 'Equilíbrio Moderado';
-  if (load < 11.5) return 'Alta Carga';
-  if (load < 15.5) return 'Carga Avançada';
-  return 'Limite Cognitivo';
+  if (load < 3.5) return 'Ritmo leve';
+  if (load < 7.0) return 'Ritmo moderado';
+  if (load < 11.5) return 'Ritmo intenso';
+  if (load < 15.5) return 'Ritmo alto';
+  return 'Ritmo máximo';
+}
+
+export function getIntensityLabel(load: number): string {
+  return getEquilibriumBandLabel(load);
 }
 
 export function buildAgeComparisonNote(
@@ -143,10 +183,10 @@ export function buildAgeComparisonNote(
 ): string {
   const diff = Number((equilibrium - expected).toFixed(1));
   if (diff >= 1.2) {
-    return `Acima da curva esperada para ${ageLabel} (+${diff.toFixed(1)} de carga sobre a média).`;
+    return `Acima da média esperada para ${ageLabel}.`;
   }
   if (diff <= -1.2) {
-    return `Abaixo da média de ${ageLabel} (${diff.toFixed(1)}): o motor ajustou a carga para consolidar precisão.`;
+    return `Ritmo em construção para ${ageLabel}, focando em precisão.`;
   }
-  return `Dentro da faixa científica esperada para ${ageLabel} (média ${expected.toFixed(1)}).`;
+  return `Dentro do esperado para ${ageLabel}.`;
 }

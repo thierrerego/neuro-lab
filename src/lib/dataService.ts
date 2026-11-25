@@ -436,15 +436,20 @@ export async function recordSessionResult(
   };
 
   const curVal = nextScores[result.domain] ?? 0;
+  // Pontuação alvo real da sessão na escala 0..990 baseada no percentil TRI frente à idade
+  const triTargetScore = Math.max(80, Math.min(990, Math.round(result.percentile * 10)));
+
   if (result.mode === 'calibration' || curVal === 0) {
-    // 1ª medição real do domínio: registra diretamente a pontuação obtida como estado atual e linha de base!
-    const measuredScore = Math.max(50, Math.min(999, result.score));
-    nextScores[result.domain] = measuredScore;
+    // 1ª medição real do domínio: registra diretamente o desempenho TRI como estado atual e linha de base
+    nextScores[result.domain] = triTargetScore;
     if (!nextScores.baseline_scores[result.domain]) {
-      nextScores.baseline_scores[result.domain] = measuredScore;
+      nextScores.baseline_scores[result.domain] = triTargetScore;
     }
   } else {
-    nextScores[result.domain] = Math.max(80, Math.min(999, curVal + result.domainDelta));
+    // Média móvel suave rumo ao desempenho real (TRI): sobe quando evolui, sem travar em 100% por repetição
+    const blended = Math.round(curVal * 0.72 + triTargetScore * 0.28);
+    const boundedDelta = Math.max(-25, Math.min(35, blended - curVal));
+    nextScores[result.domain] = Math.max(80, Math.min(990, curVal + boundedDelta));
     if (!nextScores.baseline_scores[result.domain]) {
       nextScores.baseline_scores[result.domain] = curVal;
     }

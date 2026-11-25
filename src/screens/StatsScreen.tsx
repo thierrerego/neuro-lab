@@ -28,6 +28,7 @@ import type {
 } from '../types/cognitive';
 import { fetchPopulationBenchmarks, type AppDataState } from '../lib/dataService';
 import { DOMAIN_LIST, DOMAIN_MAP, GAME_MAP, GAME_REGISTRY } from '../engine/gameRegistry';
+import { getIntensityLabel } from '../engine/adaptiveEngine';
 import { getAgeBracketMeta, scoreToPercent } from '../engine/psychometricEngine';
 import {
   adjustDistributionForAge,
@@ -1121,7 +1122,7 @@ export function StatsScreen({
                             {domMeta.shortName}
                           </span>
                           <span>·</span>
-                          <span>Carga {item.currentStage}</span>
+                          <span>{getIntensityLabel(item.currentStage)}</span>
                           <span>·</span>
                           <span>{item.totalPlays} sessões</span>
                         </div>
@@ -1208,7 +1209,7 @@ export function StatsScreen({
                         onClick={() => onStartGame(item.slug, 'free')}
                         className="w-full min-h-[48px] py-3.5 px-4 rounded-2xl font-bold text-sm btn-accent cursor-pointer flex items-center justify-center gap-2"
                       >
-                        <span>Treinar {gameMeta.name} (Adaptativo)</span>
+                        <span>Treinar {gameMeta.name}</span>
                         <ArrowRight size={16} />
                       </button>
                     </div>
@@ -1307,7 +1308,7 @@ export function StatsScreen({
                               <span className="font-semibold" style={{ color: domMeta.color }}>
                                 {domMeta.shortName}
                               </span>
-                              <span>· Carga {entry.stagePlayed}</span>
+                              <span>· {getIntensityLabel(entry.stagePlayed)}</span>
                               <span>· {entry.accuracyPct}%</span>
                               {entry.rtMeanMs > 0 && <span>· {entry.rtMeanMs}ms</span>}
                               {entry.timeLabel && <span>· {entry.timeLabel}</span>}

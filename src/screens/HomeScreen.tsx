@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import type { AppDataState } from '../lib/dataService';
 import { DOMAIN_LIST, DOMAIN_MAP, GAME_MAP, GAME_REGISTRY } from '../engine/gameRegistry';
+import { getIntensityLabel } from '../engine/adaptiveEngine';
 import {
   getDailyNeuroInsight,
   getProtocolReason,
@@ -517,7 +518,7 @@ export function HomeScreen({
                     className="text-xs font-semibold tabular px-2.5 py-1 rounded-full shrink-0"
                     style={{ background: 'var(--bg-subtle)', color: 'var(--text-muted)' }}
                   >
-                    Carga {task.stage}
+                    {getIntensityLabel(task.stage)}
                   </span>
                 </div>
 

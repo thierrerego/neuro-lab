@@ -25,6 +25,7 @@ import type {
 } from '../types/cognitive';
 import { DOMAIN_MAP, GAME_MAP } from '../engine/gameRegistry';
 import { getStageShortBadge } from '../engine/stageEngine';
+import { getIntensityLabel } from '../engine/adaptiveEngine';
 import {
   advanceWaveHit,
   createWaveState,
@@ -552,7 +553,7 @@ export function GameShell({
             <div className="text-xs font-medium truncate mt-0.5 tabular" style={{ color: 'var(--text-muted)' }}>
               {sandboxMode
                 ? `Nível ${stage} · ${getStageShortBadge(slug, effectiveConfig)}`
-                : `Adaptativo · Carga ${wave.effectiveDifficulty.toFixed(1)}`}
+                : `${domainMeta.shortName} · ${getIntensityLabel(wave.effectiveDifficulty)}`}
             </div>
           </div>
 
@@ -800,12 +801,12 @@ export function GameShell({
                               : passedStage
                                 ? 'Fase aprovada!'
                                 : 'Não passou desta vez'
-                            : `Equilíbrio ${(result.equilibriumIndex ?? result.stagePlayed).toFixed(1)} · ${result.equilibriumBand ?? 'Adaptativo'}`}
+                            : resultHeadline}
                         </div>
                         <div className="text-xs font-medium truncate" style={{ color: 'var(--text-muted)' }}>
                           {sandboxMode
                             ? `${game.name} · Nível ${result.stagePlayed}`
-                            : `${game.name} · Média ${ageLabel}: ${(result.ageExpectedEquilibrium ?? 6.0).toFixed(1)}`}
+                            : `${game.name} · ${getIntensityLabel(result.equilibriumIndex ?? result.stagePlayed)}`}
                         </div>
                       </div>
                     </div>
@@ -852,10 +853,17 @@ export function GameShell({
                       >
                         <div className="flex items-center justify-between text-[11px] font-bold">
                           <span style={{ color: 'var(--accent)' }}>
-                            {coachInsight.source === 'gemini' ? 'Análise IA · Gemini' : 'Análise Científica Adaptativa'}
+                            {coachInsight.source === 'gemini' ? 'Análise IA' : 'Resumo do desempenho'}
                           </span>
                           <span className="tabular" style={{ color: 'var(--text-soft)' }}>
-                            Carga {(result.equilibriumIndex ?? result.stagePlayed).toFixed(1)} / Ref {(result.ageExpectedEquilibrium ?? 6).toFixed(1)}
+                            Precisão {result.accuracyPct}%
+                            {result.rtMeanMs > 0
+                              ? ` · ${
+                                  result.rtMeanMs >= 1000
+                                    ? `${(result.rtMeanMs / 1000).toFixed(1)}s`
+                                    : `${Math.round(result.rtMeanMs)}ms`
+                                }`
+                              : ''}
                           </span>
                         </div>
                         <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
@@ -1140,41 +1148,72 @@ export function GameShell({
                       </div>
                     ) : (
                       <>
-                        {/* Botão 1: Próxima rodada adaptativa */}
-                        {mode !== 'calibration' && (
+                        {mode === 'calibration' ? (
                           <button
                             type="button"
-                            onClick={handlePlayNextStage}
+                            onClick={
+                              onNextChallenge && nextChallengeLabel ? onNextChallenge : onExit
+                            }
                             className="w-full min-h-[54px] py-4 px-5 rounded-2xl font-bold text-[15px] btn-accent flex items-center justify-center gap-2 cursor-pointer"
                           >
-                            <span>Continuar calibração adaptativa</span>
+                            <span>
+                              {onNextChallenge && nextChallengeLabel
+                                ? nextChallengeLabel
+                                : 'Voltar ao início'}
+                            </span>
                             <ArrowRight size={18} />
                           </button>
-                        )}
+                        ) : workoutProgress?.isLastOfWorkout || (onNextChallenge && nextChallengeLabel) ? (
+                          <>
+                            {/* Botão principal (azul): Próximo exercício ou Resumo do Dia */}
+                            <button
+                              type="button"
+                              onClick={
+                                workoutProgress?.isLastOfWorkout
+                                  ? () => setShowWorkoutComplete(true)
+                                  : onNextChallenge
+                              }
+                              className="w-full min-h-[54px] py-4 px-5 rounded-2xl font-bold text-[15px] btn-accent flex items-center justify-center gap-2 cursor-pointer"
+                            >
+                              <span>
+                                {workoutProgress?.isLastOfWorkout
+                                  ? 'Ver resumo do dia'
+                                  : nextChallengeLabel}
+                              </span>
+                              <ArrowRight size={18} />
+                            </button>
 
-                        {/* Botão 2: Continuar (próximo jogo da fila, resumo do dia ou início) */}
-                        <button
-                          type="button"
-                          onClick={
-                            workoutProgress?.isLastOfWorkout
-                              ? () => setShowWorkoutComplete(true)
-                              : onNextChallenge && nextChallengeLabel
-                                ? onNextChallenge
-                                : onExit
-                          }
-                          className={`w-full min-h-[50px] py-3.5 px-5 rounded-2xl font-bold text-[15px] flex items-center justify-center gap-2 cursor-pointer ${
-                            mode !== 'calibration' ? 'btn-soft' : 'btn-accent'
-                          }`}
-                        >
-                          <span>
-                            {workoutProgress?.isLastOfWorkout
-                              ? 'Continuar · Resumo do Dia'
-                              : onNextChallenge && nextChallengeLabel
-                                ? `Continuar · ${nextChallengeLabel}`
-                                : 'Voltar ao início'}
-                          </span>
-                          <ArrowRight size={17} />
-                        </button>
+                            {/* Botão secundário: Repetir exercício (ajusta dificuldade por baixo dos panos) */}
+                            <button
+                              type="button"
+                              onClick={handlePlayNextStage}
+                              className="w-full min-h-[50px] py-3.5 px-5 rounded-2xl font-bold text-[15px] btn-soft flex items-center justify-center gap-2 cursor-pointer"
+                            >
+                              <RotateCcw size={16} />
+                              <span>Repetir exercício</span>
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            {/* Sem próximo na fila: Repetir em destaque e Voltar ao início */}
+                            <button
+                              type="button"
+                              onClick={handlePlayNextStage}
+                              className="w-full min-h-[54px] py-4 px-5 rounded-2xl font-bold text-[15px] btn-accent flex items-center justify-center gap-2 cursor-pointer"
+                            >
+                              <RotateCcw size={17} />
+                              <span>Repetir exercício</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={onExit}
+                              className="w-full min-h-[50px] py-3.5 px-5 rounded-2xl font-bold text-[15px] btn-soft flex items-center justify-center gap-2 cursor-pointer"
+                            >
+                              <span>Voltar ao início</span>
+                            </button>
+                          </>
+                        )}
                       </>
                     )}
 
