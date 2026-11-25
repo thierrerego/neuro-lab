@@ -41,8 +41,11 @@ interface Cell {
 
 function buildBoard(stage: number) {
   const lvl = Math.max(1, Math.min(20, Math.floor(stage)));
-  const gridSize = lvl <= 2 ? 3 : lvl <= 6 ? 4 : lvl <= 12 ? 5 : lvl <= 17 ? 6 : 7;
-  const total = gridSize * gridSize;
+  // Grade vertical otimizada para celular: no máximo 5 colunas, crescendo em altura (até 5x7 = 35 itens)
+  // Assim os símbolos continuam grandes e confortáveis para o dedo mesmo no ritmo máximo!
+  const cols = lvl <= 2 ? 3 : lvl <= 8 ? 4 : 5;
+  const rows = lvl <= 2 ? 3 : lvl <= 5 ? 4 : lvl <= 8 ? 5 : lvl <= 13 ? 5 : lvl <= 17 ? 6 : 7;
+  const total = cols * rows;
   const targetCount = lvl <= 2 ? 1 : lvl <= 7 ? 2 : lvl <= 14 ? 3 : 4;
 
   const shapePool = SHAPES.slice(0, lvl <= 3 ? 3 : lvl <= 9 ? 4 : lvl <= 15 ? 5 : 6);
@@ -98,7 +101,7 @@ function buildBoard(stage: number) {
     };
   });
 
-  return { targetShape, targetColor, gridSize, cells };
+  return { targetShape, targetColor, gridSize: cols, cols, rows, cells };
 }
 
 export function ConjunctionSearchGame({
@@ -201,37 +204,31 @@ export function ConjunctionSearchGame({
 
   const remainingCount = board.cells.filter((c) => c.isTarget && !c.found).length;
   const fontSize =
-    board.gridSize >= 7
-      ? 'text-lg'
-      : board.gridSize >= 6
-        ? 'text-xl'
-        : board.gridSize >= 5
-          ? 'text-2xl'
-          : 'text-3xl';
+    board.cols >= 5 ? 'text-2xl sm:text-3xl' : board.cols === 4 ? 'text-3xl' : 'text-4xl';
 
   return (
     <div className="w-full flex flex-col items-center gap-4">
       <div
-        className="flex items-center gap-3 px-4 py-2 rounded-full"
+        className="flex items-center gap-3 px-5 py-2.5 rounded-full"
         style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)' }}
       >
         <span className="text-xs font-bold uppercase" style={{ color: 'var(--text-muted)' }}>
           Alvo exato
         </span>
         <span
-          className="text-2xl leading-none font-black"
+          className="text-3xl leading-none font-black"
           style={{ color: board.targetColor.hex }}
         >
           {board.targetShape.symbol}
         </span>
-        <span className="text-xs font-bold tabular" style={{ color: 'var(--accent)' }}>
+        <span className="text-sm font-extrabold tabular" style={{ color: 'var(--accent)' }}>
           ×{remainingCount}
         </span>
       </div>
 
       <div
-        className="grid gap-1.5 w-full max-w-[340px]"
-        style={{ gridTemplateColumns: `repeat(${board.gridSize}, minmax(0, 1fr))` }}
+        className="grid gap-2 w-full max-w-[430px]"
+        style={{ gridTemplateColumns: `repeat(${board.cols}, minmax(0, 1fr))` }}
       >
         {board.cells.map((cell) => {
           const isWrong = wrongId === cell.id;

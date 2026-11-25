@@ -155,7 +155,7 @@ export function TreasureHuntGame({
       </div>
 
       <div
-        className="w-full max-w-[348px] min-h-[190px] rounded-3xl p-4 flex flex-wrap items-center justify-center gap-2.5"
+        className="w-full max-w-[430px] min-h-[210px] rounded-3xl p-4 flex flex-wrap items-center justify-center gap-3"
         style={{ background: 'var(--bg-card)', border: '1.5px solid var(--border)' }}
       >
         {round.tokens.map((tok, i) => (

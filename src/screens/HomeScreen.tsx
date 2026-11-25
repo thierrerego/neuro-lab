@@ -147,24 +147,6 @@ export function HomeScreen({
   const nextPendingTask = sessionTasks.find((t) => !t.done) ?? sessionTasks[0];
   const queueSlugs = useMemo(() => sessionTasks.map((t) => t.slug), [sessionTasks]);
 
-  // Fila extra para quem quer continuar treinando além da meta do dia
-  const extraTrainingQueue = useMemo(() => {
-    if (unplayedGames.length > 0) {
-      return unplayedGames.slice(0, 4).map((g) => g.slug);
-    }
-    // Foca nos jogos com menor pontuação/nível para igualar a mente
-    const weakestGames = [...GAME_REGISTRY]
-      .sort((a, b) => {
-        const scoreA = progress[a.slug]?.highest_score ?? 0;
-        const scoreB = progress[b.slug]?.highest_score ?? 0;
-        if (scoreA !== scoreB) return scoreA - scoreB;
-        return (scores[a.domain] ?? 0) - (scores[b.domain] ?? 0);
-      })
-      .slice(0, 4)
-      .map((g) => g.slug);
-    return weakestGames;
-  }, [unplayedGames, progress, scores]);
-
   // Pontos fortes e pontos a melhorar em linguagem direta
   const { strongDomains, weakDomains } = useMemo(() => {
     const measured = DOMAIN_LIST.map((d) => ({
@@ -539,51 +521,6 @@ export function HomeScreen({
             </button>
           ))}
         </div>
-        {/* Card de Treino Extra (para quem quer continuar jogando depois ou fora da meta) */}
-        {extraTrainingQueue.length > 0 && (
-          <div
-            className="surface-card p-5 flex flex-col gap-3"
-            style={{
-              borderColor: allCompleted ? 'var(--border-strong)' : 'var(--border)',
-            }}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div
-                  className="text-xs font-extrabold uppercase tracking-wider inline-flex items-center gap-1.5"
-                  style={{ color: 'var(--accent)' }}
-                >
-                  <Sparkles size={14} />
-                  <span>{allCompleted ? 'Quer treinar mais?' : 'Treino Extra'}</span>
-                </div>
-                <div className="text-base font-extrabold mt-1">
-                  {unplayedGames.length > 0
-                    ? 'Experimentar mais jogos novos'
-                    : 'Treino focado nas suas dificuldades'}
-                </div>
-                <p className="text-xs leading-relaxed mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                  {unplayedGames.length > 0
-                    ? `Puxa uma fila rápida com 4 jogos que você ainda não testou (${unplayedGames.length} disponíveis).`
-                    : 'Foca nos exercícios onde você está mais atrás até igualar todas as suas habilidades.'}
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => onStartGame(extraTrainingQueue[0], 'free', extraTrainingQueue)}
-              className={`w-full min-h-[48px] py-3 px-4 rounded-2xl font-bold text-sm cursor-pointer flex items-center justify-center gap-2 ${
-                allCompleted ? 'btn-accent' : 'btn-soft'
-              }`}
-            >
-              <Play size={16} fill="currentColor" />
-              <span>
-                {unplayedGames.length > 0
-                  ? 'Jogar 4 jogos inéditos'
-                  : 'Iniciar treino focado'}
-              </span>
-            </button>
-          </div>
-        )}
       </section>
 
       {/* =====================================================================

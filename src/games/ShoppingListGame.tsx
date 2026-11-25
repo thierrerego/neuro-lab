@@ -244,7 +244,7 @@ export function ShoppingListGame({
         </div>
       ) : (
         <div
-          className="grid gap-2.5 w-full max-w-[350px] animate-pop"
+          className="grid gap-2.5 w-full max-w-[430px] animate-pop"
           style={{ gridTemplateColumns: `repeat(${round.cols}, minmax(0, 1fr))` }}
         >
           {round.shelf.map((item) => {

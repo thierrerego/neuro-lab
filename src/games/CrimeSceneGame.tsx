@@ -203,7 +203,7 @@ export function CrimeSceneGame({
       </div>
 
       <div
-        className={`grid gap-2.5 w-full ${scene.cols === 3 ? 'max-w-[300px]' : 'max-w-[350px]'}`}
+        className={`grid gap-2.5 w-full ${scene.cols === 3 ? 'max-w-[370px]' : 'max-w-[430px]'}`}
         style={{ gridTemplateColumns: `repeat(${scene.cols}, minmax(0, 1fr))` }}
       >
         {scene.items.map((item) => {

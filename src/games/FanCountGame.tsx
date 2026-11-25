@@ -175,7 +175,7 @@ export function FanCountGame({
       </div>
 
       <div
-        className={`grid gap-2 w-full ${round.cols === 3 ? 'max-w-[270px]' : 'max-w-[336px]'}`}
+        className={`grid gap-2.5 w-full ${round.cols === 3 ? 'max-w-[360px]' : 'max-w-[430px]'}`}
         style={{ gridTemplateColumns: `repeat(${round.cols}, minmax(0, 1fr))` }}
       >
         {round.crowd.map((fan, idx) => (

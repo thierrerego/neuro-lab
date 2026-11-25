@@ -662,7 +662,7 @@ export function GameShell({
         )}
 
         {/* Tutorial, Contagem Inicial (3, 2, 1, Vai!), Exercício Contínuo ou Pós-Exercício Impulse */}
-        <div className="flex-1 flex flex-col items-center justify-center px-5 py-5 relative">
+        <div className="flex-1 flex flex-col items-center justify-center px-3 sm:px-5 py-3.5 relative">
           {showTutorial ? (
             <GameTutorial
               key={`tut-${slug}-${stage}`}

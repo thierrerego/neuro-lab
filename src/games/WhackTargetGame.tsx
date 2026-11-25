@@ -192,7 +192,7 @@ export function WhackTargetGame({
       </div>
 
       <div
-        className={`grid gap-2.5 w-full ${gridSize === 3 ? 'max-w-[300px]' : 'max-w-[340px]'}`}
+        className={`grid gap-2.5 w-full ${gridSize === 3 ? 'max-w-[370px]' : 'max-w-[430px]'}`}
         style={{ gridTemplateColumns: `repeat(${gridSize}, minmax(0, 1fr))` }}
       >
         {Array.from({ length: totalCells }, (_, idx) => {

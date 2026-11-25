@@ -204,7 +204,7 @@ export function ExactChangeGame({
   };
 
   return (
-    <div className="w-full max-w-[350px] flex flex-col items-center gap-5">
+    <div className="w-full max-w-[420px] flex flex-col items-center gap-5">
       <div
         className="text-xs font-extrabold uppercase tracking-wider px-4 py-1.5 rounded-full"
         style={{ background: 'var(--bg-subtle)', color: 'var(--accent)', border: '1px solid var(--border)' }}

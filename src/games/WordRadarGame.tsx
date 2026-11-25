@@ -141,7 +141,7 @@ export function WordRadarGame({
   };
 
   return (
-    <div className="w-full max-w-[350px] flex flex-col items-center gap-5">
+    <div className="w-full max-w-[430px] flex flex-col items-center gap-6">
       <div className="flex flex-col items-center gap-1.5">
         <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: 'var(--text-soft)' }}>
           Encontre a palavra exata

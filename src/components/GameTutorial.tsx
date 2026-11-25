@@ -2025,7 +2025,7 @@ export function GameTutorial({
 
       {/* Palco da demonstração visual em loop */}
       <div
-        className="w-full h-[228px] rounded-[20px] relative overflow-hidden"
+        className="w-full min-h-[228px] rounded-[20px] relative flex items-center justify-center px-3 pt-9 pb-4 overflow-x-hidden"
         style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)' }}
       >
         <span
@@ -2034,7 +2034,9 @@ export function GameTutorial({
         >
           Exemplo
         </span>
-        <TutorialStageVisual slug={slug} config={config} />
+        <div className="w-full flex items-center justify-center">
+          <TutorialStageVisual slug={slug} config={config} />
+        </div>
       </div>
 
       <button

@@ -140,7 +140,7 @@ export function ParityDashGame({
   };
 
   return (
-    <div className="w-full max-w-[340px] flex flex-col items-center gap-6">
+    <div className="w-full max-w-[420px] flex flex-col items-center gap-6">
       <div
         className="text-xs font-extrabold uppercase tracking-wider px-4 py-1.5 rounded-full"
         style={{ background: 'var(--bg-subtle)', color: 'var(--accent)', border: '1px solid var(--border)' }}

@@ -164,7 +164,7 @@ export function DoubleHalfGame({
   };
 
   return (
-    <div className="w-full max-w-[340px] flex flex-col items-center gap-5">
+    <div className="w-full max-w-[420px] flex flex-col items-center gap-5">
       <div
         className="px-4 py-1.5 rounded-full text-xs font-extrabold uppercase tracking-wider"
         style={{
