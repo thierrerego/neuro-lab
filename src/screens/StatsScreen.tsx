@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { ResetCalibrationButton } from '../components/ResetCalibrationButton';
 import {
   Activity,
   ArrowRight,
@@ -57,6 +58,7 @@ interface StatsScreenProps {
   onDismissCalibratedBanner?: () => void;
   onStartGame: (slug: GameSlug, mode: SessionMode) => void;
   onImproveDomain: (domain: DomainKey) => void;
+  onResetCalibration?: () => void;
 }
 
 type HubTab = 'brain' | 'exercises' | 'history';
@@ -188,6 +190,7 @@ export function StatsScreen({
   onDismissCalibratedBanner,
   onStartGame,
   onImproveDomain,
+  onResetCalibration,
 }: StatsScreenProps) {
   const { profile, scores, sessions, snapshots, progress } = data;
   const theme = profile.theme_preference;
@@ -1639,6 +1642,7 @@ export function StatsScreen({
           </div>
         </div>
       )}
+      {onResetCalibration && <ResetCalibrationButton variant="link" onConfirm={onResetCalibration} />}
     </div>
   );
 }

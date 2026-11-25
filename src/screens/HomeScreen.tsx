@@ -19,6 +19,7 @@ import { getIntensityLabel } from '../engine/adaptiveEngine';
 import {
   getCalibrationPlan,
   getCalibrationProgress,
+  getCalibrationResetAt,
   getDailyNeuroInsight,
   getProtocolReason,
   isRankingReady,
@@ -52,9 +53,10 @@ export function HomeScreen({
     () =>
       getCalibrationProgress(
         getCalibrationPlan(profile.selected_domains, profile.cognitive_bottlenecks),
-        sessions
+        sessions,
+        getCalibrationResetAt(profile)
       ),
-    [profile.selected_domains, profile.cognitive_bottlenecks, sessions]
+    [profile, sessions]
   );
   // Some quando o teste termina (ou quando a pessoa já liberou o ranking jogando normalmente)
   const showCalibrationCard =

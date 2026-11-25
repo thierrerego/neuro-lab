@@ -825,11 +825,18 @@ export function getCalibrationPlan(
   return [0, 1].flatMap((i) => domains.map((d) => ({ domain: d, slug: CALIBRATION_GAMES[d][i] })));
 }
 
+/** Data em que a pessoa pediu para refazer o teste inicial (partidas antes disso não contam) */
+export function getCalibrationResetAt(profile: { onboarding_answers?: Record<string, unknown> } | null | undefined): string | null {
+  const v = profile?.onboarding_answers?.calibration_reset_at;
+  return typeof v === 'string' && v ? v : null;
+}
+
 export function getCalibrationProgress(
   plan: CalibrationStep[],
-  sessions: { game_slug: GameSlug; mode: SessionMode }[]
+  sessions: { game_slug: GameSlug; mode: SessionMode; created_at?: string }[],
+  sinceIso?: string | null
 ): { doneCount: number; total: number; next: CalibrationStep | null; nextIndex: number; isDone: (s: CalibrationStep) => boolean } {
-  const doneSlugs = new Set(sessions.filter((s) => s.mode === 'calibration').map((s) => s.game_slug));
+  const doneSlugs = new Set(sessions.filter((s) => s.mode === 'calibration' && (!sinceIso || (s.created_at ?? '') >= sinceIso)).map((s) => s.game_slug));
   const isDone = (s: CalibrationStep) => doneSlugs.has(s.slug);
   const nextIndex = plan.findIndex((s) => !isDone(s));
   return {
@@ -846,12 +853,20 @@ export function getCalibrationProgress(
  * pelo menos 2 partidas em cada habilidade escolhida (o teste é só o atalho).
  */
 export function isRankingReady(
-  profile: { calibrated: boolean; selected_domains?: DomainKey[]; cognitive_bottlenecks?: string[] },
-  sessions: { domain: DomainKey }[]
+  profile: {
+    calibrated: boolean;
+    selected_domains?: DomainKey[];
+    cognitive_bottlenecks?: string[];
+    onboarding_answers?: Record<string, unknown>;
+  },
+  sessions: { domain: DomainKey; created_at?: string }[]
 ): boolean {
   if (profile.calibrated) return true;
+  // Se pediu para refazer o teste, só contam as partidas depois disso
+  const since = getCalibrationResetAt(profile);
+  const recent = since ? sessions.filter((s) => (s.created_at ?? '') >= since) : sessions;
   const domains = getCalibrationDomains(profile.selected_domains, profile.cognitive_bottlenecks);
-  return domains.every((d) => sessions.filter((s) => s.domain === d).length >= 2);
+  return domains.every((d) => recent.filter((s) => s.domain === d).length >= 2);
 }
 
 export function getDailyGamesCount(dailyGoalMinutes?: number): number {

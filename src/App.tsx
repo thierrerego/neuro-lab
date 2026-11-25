@@ -31,6 +31,7 @@ import {
 import {
   advanceSimulatedDay,
   formatShortDateBr,
+  getAppNowIso,
   getAppTodayIso,
   getSimulatedDayOffset,
   resetSimulatedDayOffset,
@@ -42,6 +43,7 @@ import {
   getCalibrationDomains,
   getCalibrationPlan,
   getCalibrationProgress,
+  getCalibrationResetAt,
   isRankingReady,
   getWeakestDomains,
   scoreToPercent,
@@ -324,11 +326,30 @@ export default function App() {
     setView('app');
   };
 
+  /**
+   * Refazer o teste inicial: zera só o progresso do teste (marca a data do recomeço).
+   * Histórico, gráficos e fases continuam; as notas são atualizadas quando o teste novo terminar.
+   */
+  const handleResetCalibration = async () => {
+    if (!data) return;
+    const updated = await updateProfilePreferences(data, {
+      calibrated: false,
+      calibration_skipped: false,
+      onboarding_answers: {
+        ...(data.profile.onboarding_answers ?? {}),
+        calibration_reset_at: getAppNowIso(),
+      },
+    });
+    setData(updated);
+    setJustCalibrated(false);
+    startNextCalibration(updated);
+  };
+
   /** Abre o próximo jogo pendente do teste inicial (continua de onde parou) */
   const startNextCalibration = (state: AppDataState | null = data) => {
     if (!state) return;
     const plan = getCalibrationPlan(state.profile.selected_domains, state.profile.cognitive_bottlenecks);
-    const prog = getCalibrationProgress(plan, state.sessions);
+    const prog = getCalibrationProgress(plan, state.sessions, getCalibrationResetAt(state.profile));
     if (!prog.next) {
       setTab('stats');
       setView('app');
@@ -444,7 +465,7 @@ export default function App() {
 
     if (activePlay.mode === 'calibration') {
       const calPlan = getCalibrationPlan(data.profile.selected_domains, data.profile.cognitive_bottlenecks);
-      const calProg = getCalibrationProgress(calPlan, data.sessions);
+      const calProg = getCalibrationProgress(calPlan, data.sessions, getCalibrationResetAt(data.profile));
       if (calProg.next) {
         nextChallengeLabel = `Próximo jogo do teste (${calProg.nextIndex + 1}/${calProg.total})`;
         onNextChallenge = () => startNextCalibration(data);
@@ -611,6 +632,7 @@ export default function App() {
           bottlenecks={data.profile.cognitive_bottlenecks}
           scores={data.scores}
           sessions={data.sessions}
+          calibrationResetAt={getCalibrationResetAt(data.profile)}
           onStartGame={(slug, idx, total, domainName) =>
             startGame(slug, 'calibration', 'calibration', {
               currentIndex: idx,
@@ -688,6 +710,7 @@ export default function App() {
           onChangeTheme={(t) => void handleThemeChange(t)}
           onRedoOnboarding={() => setView('onboarding')}
           onOpenCalibration={() => setView('calibration')}
+          onResetCalibration={() => void handleResetCalibration()}
           onClose={() => setView('app')}
           onLogout={() => void handleLogout()}
         />
@@ -734,6 +757,7 @@ export default function App() {
           onDismissCalibratedBanner={() => setJustCalibrated(false)}
           onStartGame={(slug, mode) => startGame(slug, mode, 'app')}
           onImproveDomain={handleImproveDomain}
+          onResetCalibration={() => void handleResetCalibration()}
         />
       )}
     </Layout>

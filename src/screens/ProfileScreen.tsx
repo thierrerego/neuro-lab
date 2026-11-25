@@ -13,6 +13,7 @@ import {
   Sun,
   Trash2,
 } from 'lucide-react';
+import { ResetCalibrationButton } from '../components/ResetCalibrationButton';
 import type { AppDataState } from '../lib/dataService';
 import { getAgeBracketMeta, scoreToPercent } from '../engine/psychometricEngine';
 import type { ThemeMode } from '../types/cognitive';
@@ -33,6 +34,7 @@ interface ProfileScreenProps {
   onChangeTheme: (theme: ThemeMode) => void;
   onRedoOnboarding: () => void;
   onOpenCalibration: () => void;
+  onResetCalibration: () => void;
   onClose: () => void;
   onLogout: () => void;
 }
@@ -45,6 +47,7 @@ export function ProfileScreen({
   onChangeTheme,
   onRedoOnboarding,
   onOpenCalibration,
+  onResetCalibration,
   onClose,
   onLogout,
 }: ProfileScreenProps) {
@@ -296,14 +299,7 @@ export function ProfileScreen({
           <SlidersHorizontal size={16} /> Ajustar anamnese, faixa e meta diária
         </button>
 
-        <button
-          type="button"
-          onClick={onOpenCalibration}
-          className="w-full min-h-[48px] py-3.5 px-4 rounded-2xl font-semibold text-sm btn-soft flex items-center justify-center gap-2 cursor-pointer"
-        >
-          <RefreshCw size={16} />{' '}
-          {profile.calibration_skipped ? 'Fazer avaliação inicial' : 'Refazer avaliação de linha de base'}
-        </button>
+        <ResetCalibrationButton onConfirm={onResetCalibration} />
 
         <button
           type="button"

@@ -9,6 +9,7 @@ interface CalibrationScreenProps {
   bottlenecks?: string[];
   scores: DomainScoresRecord;
   sessions: CognitiveSessionRecord[];
+  calibrationResetAt?: string | null;
   onStartGame: (slug: GameSlug, idx: number, total: number, domainName: string) => void;
   onSkipCalibration: () => void;
   onFinishCalibration: () => void;
@@ -23,12 +24,13 @@ export function CalibrationScreen({
   bottlenecks,
   scores,
   sessions,
+  calibrationResetAt,
   onStartGame,
   onSkipCalibration,
   onFinishCalibration,
 }: CalibrationScreenProps) {
   const plan = getCalibrationPlan(selectedDomains, bottlenecks);
-  const progress = getCalibrationProgress(plan, sessions);
+  const progress = getCalibrationProgress(plan, sessions, calibrationResetAt ?? null);
   const { doneCount, total, next, nextIndex } = progress;
   const allDone = next === null;
   const domainsInPlan = Array.from(new Set(plan.map((s) => s.domain)));

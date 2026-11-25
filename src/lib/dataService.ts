@@ -19,6 +19,7 @@ import {
   getCalibrationDomains,
   getCalibrationPlan,
   getCalibrationProgress,
+  getCalibrationResetAt,
   getCognitiveTier,
   nextDomainScore,
   percentileToNormScore,
@@ -494,6 +495,8 @@ export async function recordSessionResult(
 ): Promise<AppDataState> {
   const now = getAppNowIso();
   const today = todayIso();
+  // Se a pessoa pediu para refazer o teste inicial, só contam os jogos do teste feitos depois disso
+  const calResetAt = getCalibrationResetAt(state.profile);
 
   const prevProg = state.progress[result.gameSlug] ?? {
     game_slug: result.gameSlug,
@@ -525,7 +528,7 @@ export async function recordSessionResult(
     const levels = [
       calLevel,
       ...state.sessions
-        .filter((s) => s.mode === 'calibration' && s.domain === result.domain && s.norm_v === NORM_VERSION)
+        .filter((s) => s.mode === 'calibration' && s.domain === result.domain && s.norm_v === NORM_VERSION && (!calResetAt || s.created_at >= calResetAt))
         .map((s) => s.stage_played),
     ];
     const avgLevel = levels.reduce((a, b) => a + b, 0) / levels.length;
@@ -563,7 +566,10 @@ export async function recordSessionResult(
 
   const isCalibration = result.mode === 'calibration';
   const priorCalGames = state.sessions.filter(
-    (s) => s.mode === 'calibration' && s.domain === result.domain
+    (s) =>
+      s.mode === 'calibration' &&
+      s.domain === result.domain &&
+      (!calResetAt || s.created_at >= calResetAt)
   ).length;
   const upd = nextDomainScore(curVal, triTargetScore, isCalibration, priorCalGames);
   nextScores[result.domain] = upd.score;
@@ -575,10 +581,11 @@ export async function recordSessionResult(
   // Teste inicial completo = os 2 jogos de cada habilidade escolhida foram feitos
   const calPlan = getCalibrationPlan(state.profile.selected_domains, state.profile.cognitive_bottlenecks);
   const calSessionsAfter = [
-    { game_slug: result.gameSlug, mode: result.mode },
+    { game_slug: result.gameSlug, mode: result.mode, created_at: now },
     ...state.sessions,
   ];
-  const allCalibratedNow = getCalibrationProgress(calPlan, calSessionsAfter).next === null;
+  const allCalibratedNow =
+    getCalibrationProgress(calPlan, calSessionsAfter, calResetAt).next === null;
   const calibrated = state.profile.calibrated || allCalibratedNow;
 
   const icg = calculateGlobalCognitiveIndex(nextScores);
