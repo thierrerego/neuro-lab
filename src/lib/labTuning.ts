@@ -27,11 +27,11 @@ export interface PlateauAttempt {
 }
 
 export function getLabTuningKey(slug: GameSlug, stage: number): string {
-  return `${slug}:${Math.max(1, Math.min(20, Math.floor(stage)))}`;
+  return `${slug}:${Math.max(1, Math.min(30, Math.floor(stage)))}`;
 }
 
 export function getDefaultLabTuning(slug: GameSlug, stage: number): LabLevelTuning {
-  const safeStage = Math.max(1, Math.min(20, Math.floor(stage)));
+  const safeStage = Math.max(1, Math.min(30, Math.floor(stage)));
   return {
     effectiveLevel: safeStage,
     speedScale: 1,
@@ -143,7 +143,7 @@ export function formatAllLabTuningsForChat(): string {
 
 function clampLevel(v: number): number {
   const rounded = Math.round(v * 2) / 2;
-  return Math.max(1, Math.min(20, Number(rounded.toFixed(1))));
+  return Math.max(1, Math.min(30, Number(rounded.toFixed(1))));
 }
 
 function clampSpeed(v: number): number {

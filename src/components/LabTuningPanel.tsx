@@ -46,7 +46,7 @@ export function LabTuningPanel({
 
   const stepLevel = (delta: number) => {
     sound.tap();
-    const next = Math.max(1, Math.min(20, Math.round((tuning.effectiveLevel + delta) * 2) / 2));
+    const next = Math.max(1, Math.min(30, Math.round((tuning.effectiveLevel + delta) * 2) / 2));
     update({ effectiveLevel: Number(next.toFixed(1)) });
   };
 
@@ -216,7 +216,7 @@ export function LabTuningPanel({
           <input
             type="range"
             min={1}
-            max={20}
+            max={30}
             step={0.5}
             value={tuning.effectiveLevel}
             onChange={(e) => update({ effectiveLevel: Number(e.target.value) })}

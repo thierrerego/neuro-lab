@@ -518,7 +518,7 @@ export async function recordSessionResult(
   // de TODOS os jogos daquela habilidade (1 fase abaixo, para ter onde gabaritar).
   const isCalRun = result.mode === 'calibration';
   const calLevel = isCalRun
-    ? Math.max(1, Math.min(20, Math.round(result.equilibriumIndex ?? result.stagePlayed)))
+    ? Math.max(1, Math.min(30, Math.round(result.equilibriumIndex ?? result.stagePlayed)))
     : 0;
   const domainProgressUpdates: GameProgressRecord[] = [];
   if (isCalRun) {

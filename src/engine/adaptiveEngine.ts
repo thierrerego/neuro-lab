@@ -1,7 +1,7 @@
 import type { AgeBracket, DomainKey, GameSlug } from '../types/cognitive';
 
 export const MIN_ADAPTIVE_LOAD = 1.0;
-export const MAX_ADAPTIVE_LOAD = 20.0;
+export const MAX_ADAPTIVE_LOAD = 30.0;
 
 /**
  * Curva normativa de ponto de equilíbrio esperado por faixa etária (escala contínua 1..20).

@@ -57,8 +57,8 @@ export function scoreToPercent(score: number): number {
  * - Sobe ~20 pontos por nível até 1000 (100%) no Nível 20.
  */
 export function getStageScoreCeiling(level: number): number {
-  const safe = Math.max(1, Math.min(20, Math.floor(level)));
-  return Math.min(1000, Math.round(600 + ((safe - 1) / 19) * 400));
+  const safe = Math.max(1, Math.min(30, Math.floor(level)));
+  return Math.min(1000, Math.round(600 + ((safe - 1) / 29) * 400));
 }
 
 /** As 7 faixas de classificação cognitiva (0 a 1000 pontos) */
@@ -373,7 +373,7 @@ export function computeCalibrationPercentile(params: {
 }): number {
   const { accuracyPct, rtMeanMs, targetRtMs, equilibriumIndex, ageExpected, ageSd, domain } = params;
   const bias = params.staircaseBias ?? 0;
-  if (accuracyPct < 50) {
+  if (accuracyPct < 35) {
     return Number(Math.max(1.0, Math.min(5.0, 1.0 + (Math.max(0, accuracyPct) / 50) * 4.0)).toFixed(1));
   }
   const maxSpeedZ = domain ? DOMAIN_SCORING_WEIGHTS[domain].maxSpeedZ : 1.0;
@@ -579,10 +579,10 @@ export function evaluateSession(params: {
   const performanceIndex = scoreToPercent(finalScore);
 
   // Ponto de equilíbrio contínuo atingido + simulação científica frente à faixa etária
-  const equilibriumIndex = computeEquilibriumIndex(
-    wave.difficultyTrail ?? [wave.effectiveDifficulty],
-    wave.effectiveDifficulty
-  );
+  // Teste inicial: o nível é o maior nível vencido na busca (dobra + meio)
+  const equilibriumIndex = wave.calibrationRun
+    ? Math.max(1, wave.calLow ?? 1)
+    : computeEquilibriumIndex(wave.difficultyTrail ?? [wave.effectiveDifficulty], wave.effectiveDifficulty);
   const ageNorm = getExpectedAgeEquilibrium(ageBracket, domain, gameSlug);
   const ageLabel = getAgeBracketMeta(ageBracket).label;
   const equilibriumBand = getEquilibriumBandLabel(equilibriumIndex);
@@ -602,7 +602,6 @@ export function evaluateSession(params: {
             ageExpected: ageNorm.expected,
             ageSd: ageNorm.sd,
             domain,
-            staircaseBias: (wave.stepTargetHits ?? targetHits) > 5 ? 0.7 : 0,
           })
       : isCompletionGame(gameSlug)
         ? computeCompletionPercentile({
@@ -650,7 +649,7 @@ export function evaluateSession(params: {
 
   if (gabaritou) {
     stageCleared = true;
-    nextStage = Math.min(20, safeBaseStage + 1);
+    nextStage = Math.min(30, safeBaseStage + 1);
     adaptiveDelta = nextStage - safeBaseStage;
     adaptiveStatus = adaptiveDelta > 0 ? 'level_up' : 'hold';
   } else if (struggled) {

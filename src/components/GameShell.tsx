@@ -38,7 +38,13 @@ import {
   getWaveEffectiveConfig,
   regressWaveError,
 } from '../engine/waveEngine';
-import { evaluateSession, getAgeBracketMeta } from '../engine/psychometricEngine';
+import {
+  evaluateSession,
+  getAgeBracketMeta,
+  getTargetRtMs,
+  isCompletionGame,
+} from '../engine/psychometricEngine';
+import { CALIBRATION_DURATION_SEC } from '../engine/waveEngine';
 import {
   DIFFICULTY_LABELS,
   evaluateCalibrationAlerts,
@@ -147,8 +153,34 @@ export function GameShell({
   labTuningRef.current = labTuning;
   const [appliedTuning, setAppliedTuning] = useState<LabLevelTuning | undefined>(labTuning);
 
+  // Teste inicial: limite fixo por jogada ≈ 2,2× o tempo típico do jogo (memória e "achar e
+  // completar": 4×, porque cada jogada envolve vários toques)
+  const calItemFactor = game.domain === 'working_memory' || isCompletionGame(slug) ? 4 : 2.2;
+  // Jogos em que o próprio jogo dita o ritmo (estímulos que aparecem sozinhos, sequências para
+  // assistir) não usam limite fixo — só a comparação com o seu ritmo do início.
+  const pacedGames: GameSlug[] = [
+    'go-nogo-reflex', 'speed-match', 'spatial-span', 'dual-n-back', 'sustained-tracking',
+    'photo-recall', 'reverse-digits', 'phone-number', 'shopping-list', 'secret-code',
+    'whack-target', 'bomb-defuse', 'simon-says', 'flash-match',
+  ];
+  const calOpts = {
+    calibration: mode === 'calibration',
+    itemLimitMs: pacedGames.includes(slug)
+      ? undefined
+      : Math.round(getTargetRtMs(slug, 1, ageBracket) * calItemFactor),
+  };
+
+  // Tempo de cada jogada (do fim da anterior até esta resposta), descontando pausas
+  const lastItemAtRef = useRef<number>(performance.now());
+  const takeItemMs = (): number => {
+    const now = performance.now();
+    const ms = Math.max(0, now - lastItemAtRef.current);
+    lastItemAtRef.current = now;
+    return ms;
+  };
+
   const [wave, setWave] = useState<WaveState>(() =>
-    createWaveState(stage, slug, labTuning, { calibration: mode === 'calibration' })
+    createWaveState(stage, slug, labTuning, calOpts)
   );
   const waveRef = useRef<WaveState>(wave);
   waveRef.current = wave;
@@ -167,7 +199,8 @@ export function GameShell({
         labTuning.targetHits !== appliedTuning.targetHits)
   );
 
-  const totalDurationSec = effectiveConfig.durationSec;
+  // Teste inicial: no máximo 1 minuto por jogo (acaba antes se achar o nível)
+  const totalDurationSec = mode === 'calibration' ? CALIBRATION_DURATION_SEC : effectiveConfig.durationSec;
   const totalDurationMs = totalDurationSec * 1000;
 
   const [timeLeft, setTimeLeft] = useState(totalDurationSec);
@@ -232,10 +265,13 @@ export function GameShell({
   useEffect(() => {
     const nextTuning = labTuningRef.current;
     setAppliedTuning(nextTuning);
-    const freshWave = createWaveState(stage, slug, nextTuning, { calibration: mode === 'calibration' });
+    const freshWave = createWaveState(stage, slug, nextTuning, calOpts);
     waveRef.current = freshWave;
     setWave(freshWave);
-    const dur = getWaveEffectiveConfig(slug, freshWave, easeBoost, nextTuning).durationSec;
+    const dur =
+      mode === 'calibration'
+        ? CALIBRATION_DURATION_SEC
+        : getWaveEffectiveConfig(slug, freshWave, easeBoost, nextTuning).durationSec;
     setTimeLeft(dur);
     setFinishRequested(false);
     setResult(null);
@@ -270,6 +306,7 @@ export function GameShell({
     sound.hit(4);
     const id = window.setTimeout(() => {
       matchStartMsRef.current = performance.now();
+      lastItemAtRef.current = performance.now();
       pausedAccumMsRef.current = 0;
       pauseStartedAtRef.current = null;
       setCountdown(null);
@@ -284,13 +321,14 @@ export function GameShell({
       }
     } else if (pauseStartedAtRef.current !== null) {
       pausedAccumMsRef.current += performance.now() - pauseStartedAtRef.current;
+      lastItemAtRef.current += performance.now() - pauseStartedAtRef.current;
       pauseStartedAtRef.current = null;
     }
   }, [confirmExitOpen, helpOpen]);
 
   useEffect(() => {
     // Teste inicial é sem relógio: termina quando a dificuldade estabiliza
-    if (isPaused || finishRequested || mode === 'calibration') return;
+    if (isPaused || finishRequested) return;
     const id = window.setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
@@ -312,7 +350,7 @@ export function GameShell({
 
   const handleWaveHit = useCallback((): boolean => {
     if (finishedRef.current) return true;
-    const { next, matchCleared } = advanceWaveHit(waveRef.current);
+    const { next, matchCleared } = advanceWaveHit(waveRef.current, takeItemMs());
     waveRef.current = next;
     setWave(next);
     return matchCleared;
@@ -320,7 +358,7 @@ export function GameShell({
 
   const handleWaveError = useCallback(() => {
     if (finishedRef.current) return;
-    const { next } = regressWaveError(waveRef.current);
+    const { next } = regressWaveError(waveRef.current, takeItemMs());
     waveRef.current = next;
     setWave(next);
     // Teste inicial: se o nível estabilizou num erro, encerra o jogo
@@ -576,7 +614,7 @@ export function GameShell({
           <div
             className="h-full transition-all duration-1000 linear"
             style={{
-              width: mode === 'calibration' ? '100%' : `${timePct}%`,
+              width: `${timePct}%`,
               background: mode !== 'calibration' && timeLeft <= 7 ? 'var(--err)' : 'var(--accent-grad)',
             }}
           />
@@ -642,7 +680,7 @@ export function GameShell({
               }}
               title={mode === 'calibration' ? 'Teste inicial: sem tempo' : undefined}
             >
-              {mode === 'calibration' ? 'Livre' : `${timeLeft}s`}
+              {timeLeft}s
             </div>
           </div>
         </div>

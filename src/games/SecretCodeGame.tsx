@@ -15,7 +15,10 @@ function getSpec(stage: number): { size: number; count: number; previewMs: numbe
   if (lvl <= 5) return { size: 3, count: 4, previewMs: 2100 };
   if (lvl <= 9) return { size: 4, count: 5, previewMs: 2300 };
   if (lvl <= 14) return { size: 4, count: 6, previewMs: 2500 };
-  return { size: 5, count: 7, previewMs: 2700 };
+  if (lvl <= 20) return { size: 5, count: 7, previewMs: 2700 };
+  // Fases 21–30: sequências mais longas com menos tempo para memorizar
+  if (lvl <= 25) return { size: 5, count: 8, previewMs: 2500 };
+  return { size: 5, count: 9, previewMs: 2300 };
 }
 
 function createCodeBoard(stage: number): CodeBoard {

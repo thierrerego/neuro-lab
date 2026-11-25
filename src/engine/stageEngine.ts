@@ -1,6 +1,6 @@
 import type { GameSlug, StageConfig } from '../types/cognitive';
 
-export const MAX_EXERCISE_LEVEL = 20;
+export const MAX_EXERCISE_LEVEL = 30;
 
 export const MEMORY_GAMES_60S: GameSlug[] = [
   'photo-recall',
@@ -24,17 +24,21 @@ export function getStageConfig(slug: GameSlug, effectiveLevel: number, easeBoost
   const easy = lvl < 2 && easeBoost;
 
   // Grade cresce ao longo dos 20 níveis: 1..3 -> 3x3 | 4..8 -> 4x4 | 9..13 -> 5x5 | 14..17 -> 6x6 | 18..20 -> 7x7
-  const gridSize = lvl < 4 ? 3 : lvl < 9 ? 4 : lvl < 14 ? 5 : lvl < 18 ? 6 : 7;
+  // Fases 21–30 ("além do limite"): cada fase extra acelera os estímulos e aumenta os itens
+  const extra = Math.max(0, Math.floor(lvl) - 20);
 
-  // Janela de exposição (ms): confortável no Nível 1 (2400ms) até limite humano extremo (360ms) no Nível 20
-  const baseStimulus = Math.max(360, Math.round(2400 - d * 107));
+  const gridSize = lvl < 4 ? 3 : lvl < 9 ? 4 : lvl < 14 ? 5 : lvl < 18 ? 6 : lvl < 26 ? 7 : 8;
+
+  // Janela de exposição (ms): 2400ms no Nível 1 → 360ms no Nível 20 → 240ms no Nível 30
+  const baseStimulus =
+    extra > 0 ? Math.max(240, 360 - extra * 12) : Math.max(360, Math.round(2400 - d * 107));
   const stimulusMs = easy ? Math.round(baseStimulus * 1.15) : baseStimulus;
 
-  // Quantidade de alvos / tamanho inicial: 1..2 -> 2 | 3..7 -> 3 | 8..13 -> 4 | 14..17 -> 5 | 18..20 -> 6
-  const targetCount = lvl < 3 ? 2 : lvl < 8 ? 3 : lvl < 14 ? 4 : lvl < 18 ? 5 : 6;
+  // Quantidade de alvos: 1..2 -> 2 | 3..7 -> 3 | 8..13 -> 4 | 14..17 -> 5 | 18..22 -> 6 | 23..26 -> 7 | 27..30 -> 8
+  const targetCount = lvl < 3 ? 2 : lvl < 8 ? 3 : lvl < 14 ? 4 : lvl < 18 ? 5 : lvl < 23 ? 6 : lvl < 27 ? 7 : 8;
 
-  // N-Back: 1-Back (1..6), 2-Back (7..13), 3-Back (14..18), 4-Back (19..20)
-  const nBackLevel = lvl < 7 ? 1 : lvl < 14 ? 2 : lvl < 19 ? 3 : 4;
+  // N-Back: 1-Back (1..6), 2-Back (7..13), 3-Back (14..18), 4-Back (19..24), 5-Back (25..30)
+  const nBackLevel = lvl < 7 ? 1 : lvl < 14 ? 2 : lvl < 19 ? 3 : lvl < 25 ? 4 : 5;
 
   // Complexidade matemática gradual ao longo dos 20 níveis
   const mathComplexity: 1 | 2 | 3 | 4 = lvl < 5 ? 1 : lvl < 10 ? 2 : lvl < 15 ? 3 : 4;

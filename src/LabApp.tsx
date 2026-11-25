@@ -160,7 +160,7 @@ export default function LabApp() {
   };
 
   const startTest = (slug: GameSlug, stage: number) => {
-    const safeStage = Math.max(1, Math.min(20, Math.floor(stage)));
+    const safeStage = Math.max(1, Math.min(30, Math.floor(stage)));
     setSelectedSlug(slug);
     setSelectedLevel(safeStage);
     setActiveTest({ slug, stage: safeStage });
@@ -254,7 +254,7 @@ export default function LabApp() {
         onTestMaxLevel={
           activeTest.stage !== 13
             ? () => startTest(activeTest.slug, 13)
-            : () => startTest(activeTest.slug, 20)
+            : () => startTest(activeTest.slug, 30)
         }
         sandboxJumpLabel={activeTest.stage !== 13 ? 'Platô (Nv. 13)' : 'Último (Nv. 20)'}
         labTuning={currentTuning}
@@ -448,7 +448,7 @@ export default function LabApp() {
             {/* Grade de níveis 1..20 com ✓ verde (OK), ⚠️ amarelo (distorção) ou ponto roxo (calibrado) */}
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between gap-2 text-xs flex-wrap">
-                <span className="font-bold">Nível: {selectedLevel}/20</span>
+                <span className="font-bold">Nível: {selectedLevel}/30</span>
                 <div className="flex items-center gap-1.5">
                   <button
                     type="button"

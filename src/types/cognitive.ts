@@ -122,6 +122,18 @@ export interface WaveState {
   trials?: number;
   /** Meta original do jogo (define o passo da escada adaptativa) */
   stepTargetHits?: number;
+  /** Teste inicial: maior nível já vencido (acertou rápido) */
+  calLow?: number;
+  /** Teste inicial: menor nível em que travou (errou ou demorou) */
+  calHigh?: number | null;
+  /** Teste inicial: quantas vezes travou no nível "travou" (2 = confirmado) */
+  calHighFails?: number;
+  /** Teste inicial: já travou alguma vez (para de dobrar) */
+  calHadFail?: boolean;
+  /** Teste inicial: tempos das primeiras jogadas boas (define o seu ritmo) */
+  calFastTimes?: number[];
+  /** Teste inicial: limite fixo por jogada (ms) */
+  calItemLimitMs?: number;
 }
 
 export type AdaptiveStatus = 'fast_track' | 'level_up' | 'hold' | 'step_down' | 'ease_mode';

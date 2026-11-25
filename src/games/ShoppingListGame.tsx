@@ -79,7 +79,7 @@ interface ShoppingRound {
 
 function createRound(stage: number): ShoppingRound {
   const lvl = Math.max(1, Math.floor(stage));
-  const listSize = lvl <= 2 ? 3 : lvl <= 5 ? 4 : lvl <= 9 ? 5 : lvl <= 13 ? 6 : lvl <= 17 ? 7 : 8;
+  const listSize = lvl <= 2 ? 3 : lvl <= 5 ? 4 : lvl <= 9 ? 5 : lvl <= 13 ? 6 : lvl <= 17 ? 7 : lvl <= 20 ? 8 : lvl <= 25 ? 9 : 10;
   const shelfSize = lvl <= 2 ? 9 : lvl <= 6 ? 12 : lvl <= 12 ? 16 : 20;
   const cols = shelfSize <= 9 ? 3 : 4;
   const previewMs = 1900 + listSize * 360;

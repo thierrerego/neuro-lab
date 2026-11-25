@@ -3,11 +3,12 @@ import { sound } from '../lib/audio';
 import type { MinigameProps } from './GameProps';
 
 function getSpanParams(stage: number) {
-  const lvl = Math.max(1, Math.min(20, Math.floor(stage)));
+  const lvl = Math.max(1, Math.min(30, Math.floor(stage)));
   // Digit Span Inverso (WAIS-IV): Nv.1=2 dígitos | Nv.5=3 | Nv.9=4 | Nv.13=5 | Nv.16=6 | Nv.18=7 | Nv.20=8
   const length =
-    lvl <= 2 ? 2 : lvl <= 6 ? 3 : lvl <= 10 ? 4 : lvl <= 14 ? 5 : lvl <= 17 ? 6 : lvl <= 19 ? 7 : 8;
-  const showMs = Math.max(420, Math.round(1050 - (lvl - 1) * 32));
+    lvl <= 2 ? 2 : lvl <= 6 ? 3 : lvl <= 10 ? 4 : lvl <= 14 ? 5 : lvl <= 17 ? 6 : lvl <= 19 ? 7 : lvl <= 20 ? 8 : lvl <= 24 ? 9 : 10;
+  // Fases 21–30: mais dígitos e exibição ainda mais curta
+  const showMs = lvl <= 20 ? Math.max(420, Math.round(1050 - (lvl - 1) * 32)) : Math.max(300, 420 - (lvl - 20) * 12);
   return { length, showMs };
 }
 

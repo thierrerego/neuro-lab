@@ -55,7 +55,9 @@ function getBoardSpec(stage: number): BoardSpec {
   // Nível 4–6: 6 pares (4x3), preview 1.0s no N4 e 0.7s no N5–6
   if (lvl <= 6) return { pairs: 6, cols: 4, previewMs: lvl === 4 ? 1000 : 700 };
   // Nível 7+: 8 pares (4x4), sem preview
-  return { pairs: 8, cols: 4, previewMs: 0 };
+  if (lvl <= 20) return { pairs: 8, cols: 4, previewMs: 0 };
+  // Fases 21–30: tabuleiro maior (4×5, todos os 10 símbolos)
+  return { pairs: 10, cols: 4, previewMs: 0 };
 }
 
 function shuffle<T>(arr: T[]): T[] {
