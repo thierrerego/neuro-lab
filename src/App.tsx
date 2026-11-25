@@ -40,6 +40,9 @@ import {
   generateDailyProtocol,
   pickNextFlowGame,
   getCalibrationDomains,
+  getCalibrationPlan,
+  getCalibrationProgress,
+  isRankingReady,
   getWeakestDomains,
   scoreToPercent,
 } from './engine/psychometricEngine';
@@ -69,7 +72,7 @@ type FlowView = 'auth' | 'onboarding' | 'calibration' | 'app' | 'playing' | 'set
 function resolveNextView(state: AppDataState): FlowView {
   const hasOnboarding = (state.profile.selected_domains?.length ?? 0) > 0;
   if (!hasOnboarding) return 'onboarding';
-  if (!state.profile.calibrated) return 'calibration';
+  // O teste inicial não é obrigatório: o app abre normal com o cartão do teste no Início
   return 'app';
 }
 
@@ -316,34 +319,36 @@ export default function App() {
     });
     setData(updated);
 
-    if (updated.profile.calibrated) {
+    // Depois do questionário o app abre normal; o cartão "Fazer o teste inicial?" fica no Início
+    setTab('home');
+    setView('app');
+  };
+
+  /** Abre o próximo jogo pendente do teste inicial (continua de onde parou) */
+  const startNextCalibration = (state: AppDataState | null = data) => {
+    if (!state) return;
+    const plan = getCalibrationPlan(state.profile.selected_domains, state.profile.cognitive_bottlenecks);
+    const prog = getCalibrationProgress(plan, state.sessions);
+    if (!prog.next) {
+      setTab('stats');
       setView('app');
       return;
     }
-
-    if (ob.startCalibrationNow) {
-      const calDomains = getCalibrationDomains(updated.profile.selected_domains, updated.profile.cognitive_bottlenecks);
-      const firstDom = DOMAIN_MAP[calDomains[0]];
-      if (firstDom) {
-        setActivePlay({
-          slug: firstDom.calibrationGame,
-          stage: 1,
-          easeBoost: false,
-          mode: 'calibration',
-          returnView: 'calibration',
-          previousRef: capturePreviousReference(updated, firstDom.calibrationGame),
-          calibrationInfo: {
-            currentIndex: 1,
-            total: calDomains.length,
-            domainName: firstDom.shortName,
-          },
-        });
-        setView('playing');
-        return;
-      }
-    }
-
-    setView('calibration');
+    const dom = DOMAIN_MAP[prog.next.domain];
+    setActivePlay({
+      slug: prog.next.slug,
+      stage: 1,
+      easeBoost: false,
+      mode: 'calibration',
+      returnView: 'app',
+      previousRef: capturePreviousReference(state, prog.next.slug),
+      calibrationInfo: {
+        currentIndex: prog.nextIndex + 1,
+        total: prog.total,
+        domainName: dom.shortName,
+      },
+    });
+    setView('playing');
   };
 
   const startGame = (
@@ -438,17 +443,11 @@ export default function App() {
     let workoutProgress: DailyWorkoutProgressInfo | undefined;
 
     if (activePlay.mode === 'calibration') {
-      const calDomains = getCalibrationDomains(data.profile.selected_domains, data.profile.cognitive_bottlenecks);
-      const pendingIdx = calDomains.findIndex((d) => !data.scores.baseline_scores?.[d]);
-      if (pendingIdx !== -1) {
-        const nextDom = DOMAIN_MAP[calDomains[pendingIdx]];
-        nextChallengeLabel = `Próxima avaliação (${pendingIdx + 1}/${calDomains.length})`;
-        onNextChallenge = () =>
-          startGame(nextDom.calibrationGame, 'calibration', 'calibration', {
-            currentIndex: pendingIdx + 1,
-            total: calDomains.length,
-            domainName: nextDom.shortName,
-          });
+      const calPlan = getCalibrationPlan(data.profile.selected_domains, data.profile.cognitive_bottlenecks);
+      const calProg = getCalibrationProgress(calPlan, data.sessions);
+      if (calProg.next) {
+        nextChallengeLabel = `Próximo jogo do teste (${calProg.nextIndex + 1}/${calProg.total})`;
+        onNextChallenge = () => startNextCalibration(data);
       } else {
         nextChallengeLabel = 'Abrir Dossiê Cognitivo';
         onNextChallenge = () => {
@@ -523,6 +522,7 @@ export default function App() {
         weakestTwo={weakest2}
         previousRef={activePlay.previousRef}
         gameSessions={data.sessions.filter((s) => s.game_slug === activePlay.slug)}
+        rankingReady={isRankingReady(data.profile, data.sessions)}
         calibrationInfo={activePlay.calibrationInfo}
         workoutProgress={workoutProgress}
         nextChallengeLabel={nextChallengeLabel}
@@ -610,6 +610,7 @@ export default function App() {
           selectedDomains={data.profile.selected_domains}
           bottlenecks={data.profile.cognitive_bottlenecks}
           scores={data.scores}
+          sessions={data.sessions}
           onStartGame={(slug, idx, total, domainName) =>
             startGame(slug, 'calibration', 'calibration', {
               currentIndex: idx,
@@ -617,9 +618,9 @@ export default function App() {
               domainName,
             })
           }
-          onSkipCalibration={async () => {
-            const updated = await skipCalibrationToLowestLevel(data);
-            setData(updated);
+          onSkipCalibration={() => {
+            // Sai do teste sem perder nada: o cartão no Início mostra "Toque para continuar"
+            setTab('home');
             setView('app');
           }}
           onFinishCalibration={async () => {
@@ -715,6 +716,7 @@ export default function App() {
           onStartGame={(slug, mode, queue) => startGame(slug, mode, 'app', undefined, queue)}
           onStartFlow={() => handleStartFlow()}
           onOpenCalibration={() => setView('calibration')}
+          onContinueCalibration={() => startNextCalibration(data)}
         />
       )}
       {tab === 'catalog' && (

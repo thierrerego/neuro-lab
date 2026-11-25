@@ -469,7 +469,7 @@ function buildSeededUserState(bp: SeedBlueprint): AppDataState {
   const icg = calculateGlobalCognitiveIndex(scores);
   const tier = getCognitiveTier(icg);
 
-  // Inicializa progresso dos 24 exercícios (todos começam a partir do Nível 1)
+  // Inicializa progresso dos 48 exercícios (todos começam a partir do Nível 1)
   const progress = GAME_REGISTRY.reduce((acc, g) => {
     const domScore = bp.currentScores[g.domain];
     const stage = Math.max(1, Math.min(6, 1 + Math.floor((domScore - 420) / 95)));

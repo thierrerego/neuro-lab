@@ -221,6 +221,48 @@ export const AGE_NORM_PARAMS = {
 };
 
 /**
+ * Quanto cada parte pesa no ranking, por habilidade.
+ * Memória, raciocínio e cálculo medem CAPACIDADE: acerto e tamanho do desafio valem 80%,
+ * velocidade 20% (e o bônus de velocidade é limitado, para tocar rápido não virar "boa memória").
+ * Velocidade, atenção e autocontrole medem RAPIDEZ COM PRECISÃO: meio a meio.
+ */
+export const DOMAIN_SCORING_WEIGHTS: Record<DomainKey, { acc: number; speed: number; maxSpeedZ: number }> = {
+  working_memory: { acc: 0.8, speed: 0.2, maxSpeedZ: 1.0 },
+  fluid_reasoning: { acc: 0.8, speed: 0.2, maxSpeedZ: 1.0 },
+  numerical_cognition: { acc: 0.8, speed: 0.2, maxSpeedZ: 1.0 },
+  processing_speed: { acc: 0.5, speed: 0.5, maxSpeedZ: 2.8 },
+  selective_attention: { acc: 0.5, speed: 0.5, maxSpeedZ: 2.8 },
+  inhibitory_control: { acc: 0.5, speed: 0.5, maxSpeedZ: 2.8 },
+};
+
+/**
+ * Referência de acerto de cada jogo (média e variação de um adulto típico).
+ * Jogos de reação são naturalmente fáceis de acertar (média ~90%); jogos de lembrar sequências,
+ * lógica e contas são naturalmente mais difíceis (~78–80%). Assim um jogo fácil não infla a
+ * habilidade e um difícil não derruba.
+ */
+const ACC_NORM_REACTION = { mean: 90, sd: 8 };
+const ACC_NORM_MEMORY = { mean: 78, sd: 13 };
+const ACC_NORM_REASONING = { mean: 80, sd: 13 };
+
+export function getGameAccuracyNorm(slug: GameSlug | undefined, domain: DomainKey | undefined) {
+  const memoryGames: GameSlug[] = [
+    'memory-pairs', 'photo-recall', 'spatial-span', 'dual-n-back', 'reverse-digits',
+    'pass-the-ball', 'shopping-list', 'phone-number', 'secret-code',
+  ];
+  const reasoningGames: GameSlug[] = [
+    'complex-patterns', 'logic-balance', 'logic-intruder', 'number-sequence', 'path-logic',
+    'raven-matrices', 'secret-anagrams', 'chain-arithmetic', 'double-half', 'exact-change',
+    'math-verdict', 'missing-operator', 'target-sum', 'crime-scene', 'fan-count', 'missing-number',
+  ];
+  if (slug && memoryGames.includes(slug)) return ACC_NORM_MEMORY;
+  if (slug && reasoningGames.includes(slug)) return ACC_NORM_REASONING;
+  if (!slug && domain === 'working_memory') return ACC_NORM_MEMORY;
+  if (!slug && (domain === 'fluid_reasoning' || domain === 'numerical_cognition')) return ACC_NORM_REASONING;
+  return ACC_NORM_REACTION;
+}
+
+/**
  * Percentil frente à faixa etária a partir de 3 sinais objetivos:
  * 1) precisão vs. esperado para a idade; 2) velocidade vs. tempo-alvo da idade (log-normal);
  * 3) bônus por sustentar um ritmo acima do esperado para a idade (níveis avançados).
@@ -234,8 +276,10 @@ export function computeAgeNormPercentile(params: {
   ageSd: number;
   ageBracket?: AgeBracket | string | null;
   trials: number;
+  slug?: GameSlug;
+  domain?: DomainKey;
 }): number {
-  const { accuracyPct, rtMeanMs, targetRtMs, equilibriumIndex, ageExpected, ageSd, ageBracket, trials } = params;
+  const { accuracyPct, rtMeanMs, targetRtMs, equilibriumIndex, ageExpected, ageSd, ageBracket, trials, slug, domain } = params;
   const P = AGE_NORM_PARAMS;
 
   // Regra anti-chute: menos de 50% de acerto fica sempre na faixa mais baixa
@@ -243,21 +287,31 @@ export function computeAgeNormPercentile(params: {
     return Number(Math.max(1.0, Math.min(5.0, 1.0 + (Math.max(0, accuracyPct) / 50) * 4.0)).toFixed(1));
   }
 
+  const weights = domain
+    ? DOMAIN_SCORING_WEIGHTS[domain]
+    : { acc: P.accWeight, speed: P.speedWeight, maxSpeedZ: 2.8 };
+  const accNorm = slug || domain ? getGameAccuracyNorm(slug, domain) : { mean: P.expectedAccuracy, sd: P.accuracySd };
+
   const ageOffset = getAgeBracketMeta(ageBracket).meanOffset;
-  const expectedAcc = P.expectedAccuracy + ageOffset * 0.05;
-  const zAcc = Math.max(-3, Math.min(2.5, (accuracyPct - expectedAcc) / P.accuracySd));
+  const expectedAcc = Math.min(97, accNorm.mean + ageOffset * 0.05);
+  const zAcc = Math.max(-3, Math.min(2.5, (accuracyPct - expectedAcc) / accNorm.sd));
 
   const zSpd =
     rtMeanMs > 0 && targetRtMs > 0
-      ? Math.max(-3, Math.min(2.8, -Math.log(rtMeanMs / targetRtMs) / P.logRtSd))
+      ? Math.max(-3, Math.min(weights.maxSpeedZ, -Math.log(rtMeanMs / targetRtMs) / P.logRtSd))
       : 0;
 
+  // Bônus por jogar numa fase acima da típica da idade (a fase é fixa durante a partida)
   const zLevel = Math.max(0, (equilibriumIndex - ageExpected) / Math.max(1, ageSd)) * P.levelWeight;
 
   // Poucas jogadas = medida menos confiável (encolhe levemente rumo à média, sem achatar)
   const reliability = 0.8 + 0.2 * Math.min(1, Math.max(0, trials) / 8);
 
-  const z = ((P.accWeight * zAcc + P.speedWeight * zSpd) / P.compositeSd) * reliability + zLevel;
+  // Desvio do composto (acerto e velocidade são parcialmente correlacionados, r ≈ 0,3)
+  const compositeSd = Math.sqrt(
+    weights.acc ** 2 + weights.speed ** 2 + 2 * weights.acc * weights.speed * 0.3
+  );
+  const z = ((weights.acc * zAcc + weights.speed * zSpd) / compositeSd) * reliability + zLevel;
   const pct = normalCDF(z, 0, 1) * 100;
   return Number(Math.max(1.0, Math.min(99.5, pct)).toFixed(1));
 }
@@ -353,6 +407,7 @@ export function evaluateSession(params: {
   perf: RawGamePerformance;
   weakestTwoDomains: DomainKey[];
   ageBracket?: AgeBracket | string | null;
+  previousSameStageAccuracyPct?: number | null;
 }): ComputedSessionResult {
   const {
     domain,
@@ -477,34 +532,33 @@ export function evaluateSession(params: {
           ageSd: ageNorm.sd,
           ageBracket,
           trials: totalAttempts,
+          slug: gameSlug,
+          domain,
         });
 
   const tier = getCognitiveTier(finalScore);
 
-  // Evolução justa: só sobe de ritmo quando realmente conclui com boa precisão;
-  // se perder por tempo (pouco progresso) ou errar demais, mantém ou reduz o ritmo!
+  // Regra de fase (dificuldade fixa durante a partida):
+  // - SOBE 1 fase só quando GABARITA: completa a meta com 100% de acerto (nenhum erro).
+  // - DESCE 1 fase só com 2 partidas ruins seguidas na mesma fase (acerto abaixo de 60%).
+  // - Fora disso, continua na mesma fase.
   let adaptiveDelta = 0;
   let adaptiveStatus: AdaptiveStatus = 'hold';
   let stageCleared = false;
 
-  const passedBasicComfort =
-    safeBaseStage <= 2 && wave.totalHits >= Math.ceil(targetHits * 0.75) && accuracyPct >= 80;
-  const passedFull = (wavesCompleted === 5 || wave.isCleared) && accuracyPct >= 80;
-  const struggled = failedAccuracyGate || accuracyPct < 65 || progressRatio < 0.55;
+  const gabaritou =
+    wave.isCleared && perf.correct > 0 && perf.commissionErrors === 0 && perf.omissionErrors === 0;
+  const badNow = failedAccuracyGate || accuracyPct < 60;
+  const prevAcc = params.previousSameStageAccuracyPct;
+  const struggled = badNow && prevAcc !== null && prevAcc !== undefined && prevAcc < 60;
 
   let nextStage = safeBaseStage;
 
-  if (passedFull || passedBasicComfort) {
+  if (gabaritou) {
     stageCleared = true;
-    if (accuracyPct >= 95 && completedEarly && speedScore >= 82) {
-      nextStage = Math.min(20, safeBaseStage + 2);
-      adaptiveDelta = nextStage - safeBaseStage;
-      adaptiveStatus = adaptiveDelta > 0 ? 'fast_track' : 'hold';
-    } else {
-      nextStage = Math.min(20, safeBaseStage + 1);
-      adaptiveDelta = nextStage - safeBaseStage;
-      adaptiveStatus = adaptiveDelta > 0 ? 'level_up' : 'hold';
-    }
+    nextStage = Math.min(20, safeBaseStage + 1);
+    adaptiveDelta = nextStage - safeBaseStage;
+    adaptiveStatus = adaptiveDelta > 0 ? 'level_up' : 'hold';
   } else if (struggled) {
     stageCleared = false;
     nextStage = Math.max(1, safeBaseStage - 1);
@@ -578,8 +632,16 @@ export function evaluateSession(params: {
 export function nextDomainScore(
   current: number,
   target: number,
-  isCalibration: boolean
+  isCalibration: boolean,
+  /** Quantos jogos do teste inicial já foram feitos nesta habilidade (o teste usa 2 jogos) */
+  priorCalibrationGames = 0
 ): { score: number; baseline: number } {
+  if (isCalibration && priorCalibrationGames > 0 && current > 0) {
+    // 2º jogo do teste inicial: média entre os jogos
+    const n = priorCalibrationGames + 1;
+    const avg = Math.round((current * priorCalibrationGames + target) / n);
+    return { score: avg, baseline: avg };
+  }
   if (isCalibration || current <= 0) {
     return { score: target, baseline: target };
   }
@@ -641,6 +703,62 @@ export function getCalibrationDomains(
     return [...valid, complement];
   }
   return valid.slice(0, 6);
+}
+
+/**
+ * Teste inicial: 2 jogos DIFERENTES por habilidade (a nota inicial é a média dos dois),
+ * o que deixa a medida bem mais confiável que uma única partida de 30s.
+ */
+export const CALIBRATION_GAMES: Record<DomainKey, [GameSlug, GameSlug]> = {
+  selective_attention: ['visual-search', 'flanker-focus'],
+  working_memory: ['spatial-span', 'memory-pairs'],
+  fluid_reasoning: ['number-sequence', 'raven-matrices'],
+  processing_speed: ['speed-match', 'symbol-digit'],
+  numerical_cognition: ['chain-arithmetic', 'number-comparison'],
+  inhibitory_control: ['stroop-conflict', 'go-nogo-reflex'],
+};
+
+export interface CalibrationStep {
+  domain: DomainKey;
+  slug: GameSlug;
+}
+
+export function getCalibrationPlan(
+  selectedDomains?: DomainKey[],
+  bottleneckIds?: string[] | null
+): CalibrationStep[] {
+  const domains = getCalibrationDomains(selectedDomains, bottleneckIds);
+  // Primeiro 1 jogo de cada habilidade, depois o 2º de cada (se sair no meio, já tem um mapa de tudo)
+  return [0, 1].flatMap((i) => domains.map((d) => ({ domain: d, slug: CALIBRATION_GAMES[d][i] })));
+}
+
+export function getCalibrationProgress(
+  plan: CalibrationStep[],
+  sessions: { game_slug: GameSlug; mode: SessionMode }[]
+): { doneCount: number; total: number; next: CalibrationStep | null; nextIndex: number; isDone: (s: CalibrationStep) => boolean } {
+  const doneSlugs = new Set(sessions.filter((s) => s.mode === 'calibration').map((s) => s.game_slug));
+  const isDone = (s: CalibrationStep) => doneSlugs.has(s.slug);
+  const nextIndex = plan.findIndex((s) => !isDone(s));
+  return {
+    doneCount: plan.filter(isDone).length,
+    total: plan.length,
+    next: nextIndex >= 0 ? plan[nextIndex] : null,
+    nextIndex,
+    isDone,
+  };
+}
+
+/**
+ * O ranking da faixa etária libera quando o teste inicial termina, OU quando a pessoa já jogou
+ * pelo menos 2 partidas em cada habilidade escolhida (o teste é só o atalho).
+ */
+export function isRankingReady(
+  profile: { calibrated: boolean; selected_domains?: DomainKey[]; cognitive_bottlenecks?: string[] },
+  sessions: { domain: DomainKey }[]
+): boolean {
+  if (profile.calibrated) return true;
+  const domains = getCalibrationDomains(profile.selected_domains, profile.cognitive_bottlenecks);
+  return domains.every((d) => sessions.filter((s) => s.domain === d).length >= 2);
 }
 
 export function getDailyGamesCount(dailyGoalMinutes?: number): number {

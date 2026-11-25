@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { AlertTriangle, CircleDot, Flag, Flame } from 'lucide-react';
 import { sound } from '../lib/audio';
 import type { MinigameProps } from './GameProps';
@@ -186,6 +186,35 @@ export function PassTheBallGame({
     }
   };
 
+  // Arrastar o dedo: ao passar por uma casa vizinha, a bola anda (o toque casa a casa continua valendo)
+  const draggingRef = useRef(false);
+  const lastDragCellRef = useRef<number | null>(null);
+  const cellFromPoint = (x: number, y: number): number | null => {
+    const el = document.elementFromPoint(x, y) as HTMLElement | null;
+    const cell = el?.closest('[data-cell]') as HTMLElement | null;
+    if (!cell) return null;
+    const idx = Number(cell.dataset.cell);
+    return Number.isFinite(idx) ? idx : null;
+  };
+  const handlePointerDown = (e: ReactPointerEvent) => {
+    if (phase !== 'play') return;
+    draggingRef.current = true;
+    lastDragCellRef.current = cellFromPoint(e.clientX, e.clientY);
+  };
+  const handlePointerMove = (e: ReactPointerEvent) => {
+    if (!draggingRef.current || phase !== 'play') return;
+    const idx = cellFromPoint(e.clientX, e.clientY);
+    if (idx === null || idx === lastDragCellRef.current) return;
+    lastDragCellRef.current = idx;
+    if (idx !== currentCell && isAdjacent(currentCell, idx, board.size)) {
+      handleCellTap(idx);
+    }
+  };
+  const stopDrag = () => {
+    draggingRef.current = false;
+    lastDragCellRef.current = null;
+  };
+
   const maxW = board.size <= 3 ? 'max-w-[280px]' : board.size <= 4 ? 'max-w-[320px]' : 'max-w-[356px]';
 
   return (
@@ -207,7 +236,12 @@ export function PassTheBallGame({
 
       <div
         className={`grid gap-2 w-full ${maxW}`}
-        style={{ gridTemplateColumns: `repeat(${board.size}, minmax(0, 1fr))` }}
+        style={{ gridTemplateColumns: `repeat(${board.size}, minmax(0, 1fr))`, touchAction: 'none' }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={stopDrag}
+        onPointerCancel={stopDrag}
+        onPointerLeave={stopDrag}
       >
         {Array.from({ length: board.size * board.size }, (_, idx) => {
           const isBall = idx === currentCell;
@@ -221,6 +255,7 @@ export function PassTheBallGame({
             <button
               key={idx}
               type="button"
+              data-cell={idx}
               onClick={() => handleCellTap(idx)}
               disabled={phase !== 'play'}
               className={`aspect-square rounded-2xl flex items-center justify-center transition-all duration-150 cursor-pointer select-none ${

@@ -18,6 +18,7 @@ import { DOMAIN_LIST, DOMAIN_MAP, GAME_MAP } from '../engine/gameRegistry';
 import {
   AGE_BRACKET_OPTIONS,
   getAgeBracketMeta,
+  CALIBRATION_GAMES,
   getCalibrationDomains,
   getDailyGamesCount,
 } from '../engine/psychometricEngine';
@@ -948,12 +949,13 @@ export function OnboardingScreen({
 
             <div>
               <div className="text-xs font-semibold mb-2.5" style={{ color: 'var(--text-soft)' }}>
-                Avaliação de Linha de Base ({calibrationDomains.length} exercícios · Nível 1)
+                Teste inicial (opcional, no Início) · {calibrationDomains.length * 2} jogos · 2 por habilidade
               </div>
               <div className="grid grid-cols-2 gap-2.5">
-                {calibrationDomains.map((dk, idx) => {
+                {calibrationDomains.map((dk) => {
                   const dom = DOMAIN_MAP[dk];
-                  const game = GAME_MAP[dom.calibrationGame];
+                  const games = CALIBRATION_GAMES[dk].map((s) => GAME_MAP[s]);
+                  const game = games[0];
                   return (
                     <div
                       key={dk}
@@ -967,11 +969,9 @@ export function OnboardingScreen({
                         <GameIcon slug={game.slug} size={17} />
                       </div>
                       <div className="min-w-0">
-                        <div className="text-xs font-bold truncate">
-                          {idx + 1}. {game.name}
-                        </div>
+                        <div className="text-xs font-bold truncate">{dom.shortName}</div>
                         <div className="text-xs truncate" style={{ color: 'var(--text-soft)' }}>
-                          {dom.shortName}
+                          {games.map((g) => g.name).join(' + ')}
                         </div>
                       </div>
                     </div>
@@ -987,16 +987,7 @@ export function OnboardingScreen({
             className="w-full min-h-[54px] py-4 rounded-2xl font-bold text-[15px] btn-accent cursor-pointer flex items-center justify-center gap-2.5"
           >
             <Play size={18} fill="currentColor" />
-            <span>Iniciar Avaliação Inicial</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleConfirmProtocol(false)}
-            className="mx-auto py-2 px-4 text-xs font-semibold cursor-pointer"
-            style={{ color: 'var(--text-soft)' }}
-          >
-            Revisar bateria antes de começar
+            <span>Concluir e abrir o app</span>
           </button>
         </div>
       )}

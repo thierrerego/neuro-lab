@@ -17,8 +17,11 @@ import type { AppDataState } from '../lib/dataService';
 import { DOMAIN_LIST, DOMAIN_MAP, GAME_MAP, GAME_REGISTRY } from '../engine/gameRegistry';
 import { getIntensityLabel } from '../engine/adaptiveEngine';
 import {
+  getCalibrationPlan,
+  getCalibrationProgress,
   getDailyNeuroInsight,
   getProtocolReason,
+  isRankingReady,
   pickNextFlowGame,
   scoreToPercent,
 } from '../engine/psychometricEngine';
@@ -33,6 +36,7 @@ interface HomeScreenProps {
   onStartGame: (slug: GameSlug, mode: SessionMode, queue?: GameSlug[]) => void;
   onStartFlow: () => void;
   onOpenCalibration: () => void;
+  onContinueCalibration: () => void;
 }
 
 export function HomeScreen({
@@ -40,8 +44,21 @@ export function HomeScreen({
   onStartGame,
   onStartFlow,
   onOpenCalibration,
+  onContinueCalibration,
 }: HomeScreenProps) {
   const { profile, scores, progress, dailyProtocol, sessions, snapshots } = data;
+
+  const calProgress = useMemo(
+    () =>
+      getCalibrationProgress(
+        getCalibrationPlan(profile.selected_domains, profile.cognitive_bottlenecks),
+        sessions
+      ),
+    [profile.selected_domains, profile.cognitive_bottlenecks, sessions]
+  );
+  // Some quando o teste termina (ou quando a pessoa já liberou o ranking jogando normalmente)
+  const showCalibrationCard =
+    calProgress.next !== null && !isRankingReady(profile, sessions);
 
   const globalPct = scoreToPercent(profile.global_cognitive_index);
   const { basePct, hasBaseline } = useMemo(() => {
@@ -190,6 +207,65 @@ export function HomeScreen({
 
   return (
     <div className="flex flex-col gap-6 animate-pop">
+      {/* Cartão do teste inicial: opcional, dá para sair e continuar de onde parou */}
+      {showCalibrationCard && (
+        <section
+          className="surface-card p-5 flex flex-col gap-3.5"
+          style={{ borderColor: 'var(--border-strong)' }}
+        >
+          <div className="flex items-start gap-3">
+            <div
+              className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0"
+              style={{ background: 'var(--accent-glow)', color: 'var(--accent)' }}
+            >
+              {calProgress.doneCount > 0 ? <AlertCircle size={22} /> : <Target size={22} />}
+            </div>
+            <div className="min-w-0">
+              <div className="text-base font-extrabold tracking-tight">
+                {calProgress.doneCount > 0 ? 'Teste inicial incompleto' : 'Fazer o teste inicial?'}
+              </div>
+              <p className="text-sm leading-relaxed mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                {calProgress.doneCount > 0
+                  ? `Você fez ${calProgress.doneCount} de ${calProgress.total} jogos. Toque para continuar de onde parou.`
+                  : `${calProgress.total} jogos curtos (2 por habilidade que você escolheu) para medir onde você está frente à sua idade. Pode sair quando quiser.`}
+              </p>
+            </div>
+          </div>
+          {calProgress.total > 0 && (
+            <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: 'var(--bg-subtle)' }}>
+              <div
+                className="h-full rounded-full"
+                style={{
+                  width: `${(calProgress.doneCount / calProgress.total) * 100}%`,
+                  background: 'var(--accent-grad)',
+                }}
+              />
+            </div>
+          )}
+          <div className="flex gap-2.5">
+            <button
+              type="button"
+              onClick={onContinueCalibration}
+              className="flex-1 min-h-[46px] rounded-2xl font-bold text-sm btn-accent cursor-pointer flex items-center justify-center gap-2"
+            >
+              <Play size={16} fill="currentColor" />
+              <span>
+                {calProgress.doneCount > 0
+                  ? `Continuar (${calProgress.doneCount + 1}/${calProgress.total})`
+                  : 'Sim, começar'}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={onOpenCalibration}
+              className="min-h-[46px] px-4 rounded-2xl font-semibold text-sm btn-soft cursor-pointer"
+            >
+              Ver jogos
+            </button>
+          </div>
+        </section>
+      )}
+
       {/* =====================================================================
           1. CARD HERO DE ESTADO COGNITIVO + CONSISTÊNCIA SEMANAL
           ===================================================================== */}
@@ -211,7 +287,7 @@ export function HomeScreen({
                   className="text-xs font-semibold px-2.5 py-1 rounded-full"
                   style={{ background: 'var(--bg-subtle)', color: 'var(--text-muted)' }}
                 >
-                  Inicie seu 1º teste de 30s
+                  Faça o teste inicial
                 </span>
               ) : (
                 hasBaseline &&
@@ -354,22 +430,6 @@ export function HomeScreen({
         </div>
       </section>
 
-      {/* Aviso suave se o rastreio inicial foi pulado */}
-      {profile.calibration_skipped && (
-        <button
-          type="button"
-          onClick={onOpenCalibration}
-          className="surface-card surface-card-click w-full px-5 py-4 flex items-center justify-between gap-3 text-left cursor-pointer"
-        >
-          <span className="inline-flex items-center gap-3 text-sm font-semibold min-w-0">
-            <AlertCircle size={20} style={{ color: 'var(--warn)' }} className="shrink-0" />
-            <span style={{ color: 'var(--text)' }}>Avaliação inicial pendente</span>
-          </span>
-          <span className="text-sm font-bold shrink-0" style={{ color: 'var(--accent)' }}>
-            Calibrar →
-          </span>
-        </button>
-      )}
 
       {/* =====================================================================
           1.5. BOTÃO MODO FLOW (RITMO CONTÍNUO INTELIGENTE)

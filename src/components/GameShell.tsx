@@ -30,7 +30,7 @@ import type {
 } from '../types/cognitive';
 import { DOMAIN_MAP, GAME_MAP } from '../engine/gameRegistry';
 import { getStageShortBadge } from '../engine/stageEngine';
-import { getIntensityLabel } from '../engine/adaptiveEngine';
+import { getIntensityLabel, getStageReachPercent } from '../engine/adaptiveEngine';
 import {
   advanceWaveHit,
   createWaveState,
@@ -90,6 +90,8 @@ interface GameShellProps {
   weakestTwo: DomainKey[];
   previousRef?: PreviousExerciseReference;
   gameSessions?: CognitiveSessionRecord[];
+  /** Falso enquanto o ranking da idade ainda está "calibrando" */
+  rankingReady?: boolean;
   calibrationInfo?: CalibrationBannerInfo;
   workoutProgress?: DailyWorkoutProgressInfo;
   nextChallengeLabel?: string;
@@ -120,6 +122,7 @@ export function GameShell({
   weakestTwo,
   previousRef,
   gameSessions = [],
+  rankingReady = true,
   calibrationInfo,
   workoutProgress,
   nextChallengeLabel,
@@ -345,6 +348,11 @@ export function GameShell({
         perf,
         weakestTwoDomains: weakestTwo,
         ageBracket,
+        // Última partida deste jogo na MESMA fase (para a regra "2 partidas ruins seguidas = desce")
+        previousSameStageAccuracyPct:
+          gameSessions[0] && gameSessions[0].stage_played === stage
+            ? Number(gameSessions[0].accuracy_pct)
+            : null,
       });
 
       setResult(evaluated);
@@ -806,7 +814,7 @@ export function GameShell({
               const beatsPct = Math.max(1, Math.min(99, Math.round(result.percentile)));
               const topPct = Math.max(1, 100 - beatsPct);
               // Durante o teste inicial o ranking da idade fica "calibrando" (só aparece no Dossiê ao final)
-              const showRanking = mode !== 'calibration';
+              const showRanking = mode !== 'calibration' && rankingReady;
               const effectiveChartTab = showRanking ? resultChartTab : 'evolution';
               const passedStage = result.stageCleared;
               const nextStageUnlocked = passedStage && result.nextStage > result.stagePlayed;
@@ -871,13 +879,35 @@ export function GameShell({
                     )}
                   </div>
 
+                  {/* Quantas pessoas da idade chegam a esta fase (estimativa normativa) */}
+                  {!sandboxMode && (() => {
+                    const shownStage = nextStageUnlocked ? result.nextStage : result.stagePlayed;
+                    const reachPct = getStageReachPercent(shownStage, ageBracket, game.domain);
+                    return (
+                      <div
+                        className="rounded-2xl px-4 py-2.5 text-xs font-semibold flex items-center gap-2"
+                        style={{
+                          background: nextStageUnlocked ? 'rgba(16, 185, 129, 0.12)' : 'var(--bg-subtle)',
+                          color: nextStageUnlocked ? 'var(--ok)' : 'var(--text-muted)',
+                        }}
+                      >
+                        <Award size={14} className="shrink-0" />
+                        <span>
+                          {nextStageUnlocked
+                            ? `Fase ${shownStage} liberada! Só ${reachPct}% das pessoas de ${ageLabel} chegam até ela.`
+                            : `Fase ${shownStage}: ${reachPct}% das pessoas de ${ageLabel} chegam até aqui.`}
+                        </span>
+                      </div>
+                    );
+                  })()}
+
                   {/* Hero principal: Foco total na superação dos indivíduos */}
                   <div className="text-center py-1">
                     <div
                       className="text-xs font-extrabold uppercase tracking-widest"
                       style={{ color: 'var(--text-soft)' }}
                     >
-                      {showRanking ? 'Você superou' : 'Teste inicial'}
+                      {showRanking ? 'Você superou' : mode === 'calibration' ? 'Teste inicial' : 'Ranking da idade'}
                     </div>
 
                     <div
@@ -894,7 +924,7 @@ export function GameShell({
                     <div className="text-[15px] font-bold mt-2" style={{ color: 'var(--text)' }}>
                       {showRanking
                         ? `das pessoas da sua faixa etária (${ageLabel})`
-                        : `Sua posição na faixa ${ageLabel} aparece no Dossiê quando o teste terminar`}
+                        : `Sua posição na faixa ${ageLabel} aparece ao terminar o teste inicial (ou após 2 partidas de cada habilidade)`}
                     </div>
 
                     {!sandboxMode && coachInsight && (

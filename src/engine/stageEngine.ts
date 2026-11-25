@@ -2,6 +2,18 @@ import type { GameSlug, StageConfig } from '../types/cognitive';
 
 export const MAX_EXERCISE_LEVEL = 20;
 
+export const MEMORY_GAMES_60S: GameSlug[] = [
+  'memory-pairs',
+  'photo-recall',
+  'spatial-span',
+  'dual-n-back',
+  'reverse-digits',
+  'pass-the-ball',
+  'shopping-list',
+  'phone-number',
+  'secret-code',
+];
+
 /**
  * Motor de Dificuldade em Curva de Flow (1 a 20 níveis):
  * - Nível 1 é ultrabásico: foco em velocidade e prazer inicial.
@@ -29,7 +41,8 @@ export function getStageConfig(slug: GameSlug, effectiveLevel: number, easeBoost
   const mathComplexity: 1 | 2 | 3 | 4 = lvl < 5 ? 1 : lvl < 10 ? 2 : lvl < 15 ? 3 : 4;
 
   // Duração padronizada em 30 segundos por exercício
-  const durationSec = 30;
+  // Jogos de memória precisam de tempo para memorizar e lembrar: 60s. Os demais seguem com 30s.
+  const durationSec = MEMORY_GAMES_60S.includes(slug) ? 60 : 30;
 
   return {
     stage: Number(lvl.toFixed(2)),

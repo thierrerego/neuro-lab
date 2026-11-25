@@ -164,6 +164,28 @@ export function getExpectedAgeEquilibrium(
   };
 }
 
+/**
+ * Estimativa normativa: quantos % das pessoas da faixa etária chegam a esta fase
+ * (curva normal do nível sustentável esperado para a idade naquela habilidade).
+ */
+export function getStageReachPercent(
+  stage: number,
+  ageBracket: AgeBracket | string | null | undefined,
+  domain: DomainKey
+): number {
+  const { expected, sd } = getExpectedAgeEquilibrium(ageBracket, domain);
+  const safe = Math.max(1, stage);
+  if (safe <= 1) return 99;
+  // Chegar à fase N = sustentar pelo menos o nível N - 0,5
+  const z = (safe - 0.5 - expected) / Math.max(0.5, sd);
+  const t = 1 / (1 + 0.2316419 * Math.abs(z));
+  const d = 0.3989423 * Math.exp((-z * z) / 2);
+  const tail = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
+  const cdf = z >= 0 ? 1 - tail : tail;
+  const pct = (1 - cdf) * 100;
+  return pct >= 10 ? Math.round(pct) : Math.max(0.1, Number(pct.toFixed(1)));
+}
+
 export function getEquilibriumBandLabel(load: number): string {
   if (load < 3.5) return 'Ritmo leve';
   if (load < 7.0) return 'Ritmo moderado';

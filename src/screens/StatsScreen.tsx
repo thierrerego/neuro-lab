@@ -46,6 +46,7 @@ import {
   GameSparkline,
   LongitudinalEvolutionChart,
   SessionEvolutionChart,
+  DomainAbilityChart,
 } from '../components/StatsCharts';
 import { GameIcon } from '../components/DomainIcon';
 
@@ -575,7 +576,7 @@ export function StatsScreen({
                   </div>
                   <p className="text-sm leading-relaxed" style={{ color: 'var(--text-muted)' }}>
                     {dossier.untestedDeclaredDomains.length > 0
-                      ? 'Você marcou estas habilidades no questionário, mas ainda não testou. Um teste de 30s já entra no seu mapa.'
+                      ? 'Você marcou estas habilidades no questionário, mas ainda não testou. Um teste curto já entra no seu mapa.'
                       : 'Estas habilidades ainda não foram medidas, então ficam fora das recomendações. Quer testar?'}
                   </p>
                 </div>
@@ -1065,7 +1066,7 @@ export function StatsScreen({
                         className="px-3.5 pb-4 pt-3 flex flex-col gap-3 animate-pop"
                         style={{ borderTop: '1px solid var(--border)' }}
                       >
-                        <SessionEvolutionChart
+                        <DomainAbilityChart
                           sessions={domainSessions}
                           color={d.color}
                           title={`Evolução · ${d.shortName}`}

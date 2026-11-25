@@ -18,12 +18,12 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       includeAssets: ['icon.svg'],
       manifest: {
         name: 'NeuroLab — Treinamento Cognitivo',
         short_name: 'NeuroLab',
-        description: 'Treinamento cognitivo científico adaptativo em 6 domínios e 24 exercícios',
+        description: 'Treinamento cognitivo científico adaptativo em 6 domínios e 48 exercícios',
         theme_color: '#F3F6FA',
         background_color: '#F3F6FA',
         display: 'standalone',

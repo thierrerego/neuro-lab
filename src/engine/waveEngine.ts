@@ -86,7 +86,9 @@ export function getTargetHitsForGame(slug?: GameSlug): number {
 function calcContinuousDiff(baseStage: number, totalHits: number, targetHits: number): number {
   const safeBase = Math.max(1, baseStage);
   const ratio = Math.min(1, Math.max(0, totalHits) / Math.max(1, targetHits));
-  return Number((safeBase + ratio * 0.4).toFixed(2));
+  // Sem rampa: a fase fica igual do começo ao fim da partida
+  void ratio;
+  return Number(safeBase.toFixed(2));
 }
 
 function hitsToCompletedQuintiles(totalHits: number, targetHits: number, isCleared: boolean): number {
@@ -107,10 +109,12 @@ export function createWaveState(
   tuning?: WaveTuningOverride
 ): WaveState {
   const safeBase = Math.max(1, Number(baseStage) || 1);
-  const locked = tuning?.effectiveLevel !== undefined;
-  const effectiveBase = locked
-    ? Math.max(1, Math.min(20, Number(tuning!.effectiveLevel)))
-    : safeBase;
+  // Dificuldade FIXA durante a partida: só muda de uma partida para a outra (regra de fase).
+  const locked = true;
+  const effectiveBase =
+    tuning?.effectiveLevel !== undefined
+      ? Math.max(1, Math.min(20, Number(tuning.effectiveLevel)))
+      : safeBase;
   const targetHits =
     tuning?.targetHits !== undefined
       ? Math.max(2, Math.min(25, Math.round(tuning.targetHits)))

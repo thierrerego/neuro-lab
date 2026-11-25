@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import {
   Area,
+  ComposedChart,
+  Scatter,
   AreaChart,
   Line,
   LineChart,
@@ -32,7 +34,13 @@ import {
   percentileFromBenchmark,
   percentileToTopPercent,
 } from '../engine/cognitiveProfiler';
-import { getAgeBracketMeta, scoreToPercent } from '../engine/psychometricEngine';
+import {
+  getAgeBracketMeta,
+  nextDomainScore,
+  normScoreToPercentile,
+  percentileToNormScore,
+  scoreToPercent,
+} from '../engine/psychometricEngine';
 import { getAppNow } from '../lib/appClock';
 
 /* ============================================================================
@@ -805,6 +813,157 @@ export function SessionEvolutionChart({
           1ª sessão registrada — faça mais sessões para acompanhar a linha subindo!
         </div>
       )}
+    </div>
+  );
+}
+
+/* ============================================================================
+   GRÁFICO DA HABILIDADE: linha = sua nota da habilidade ao longo do tempo
+   (mesma conta do app: média suave entre os jogos), pontinhos = cada partida.
+   Assim trocar de jogo não parece uma "queda" da habilidade.
+   ============================================================================ */
+export function DomainAbilityChart({
+  sessions,
+  color,
+  title,
+  theme,
+  height = 140,
+  emptyText = 'Conclua 1 sessão para iniciar seu gráfico de evolução.',
+}: {
+  sessions: CognitiveSessionRecord[];
+  color: string;
+  title: string;
+  theme: ThemeMode;
+  height?: number;
+  emptyText?: string;
+}) {
+  const isLight = theme === 'light';
+  const axisColor = isLight ? '#6B7280' : '#8B9BB4';
+
+  const chartData = useMemo(() => {
+    const ordered = [...sessions].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+    let ability = 0;
+    let calGames = 0;
+    return ordered.map((s, idx) => {
+      const target = percentileToNormScore(Number(s.percentile || 1));
+      const isCal = s.mode === 'calibration';
+      ability = nextDomainScore(ability, target, isCal, calGames).score;
+      if (isCal) calGames++;
+      const dt = new Date(s.created_at);
+      return {
+        idx: idx + 1,
+        label: `#${idx + 1}`,
+        dateLabel: `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}`,
+        habilidade: Math.round(normScoreToPercentile(ability)),
+        jogo: Math.round(Number(s.percentile || 1)),
+        slug: s.game_slug,
+      };
+    });
+  }, [sessions]);
+
+  if (chartData.length === 0) {
+    return (
+      <div
+        className="rounded-xl px-3.5 py-3 text-xs text-center"
+        style={{ background: 'var(--bg-card)', color: 'var(--text-soft)' }}
+      >
+        {emptyText}
+      </div>
+    );
+  }
+
+  const first = chartData[0].habilidade;
+  const last = chartData[chartData.length - 1].habilidade;
+  const delta = last - first;
+
+  return (
+    <div
+      className="rounded-xl p-3 flex flex-col gap-2"
+      style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
+    >
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <span className="font-bold truncate">{title}</span>
+        <div className="flex items-center gap-1.5 tabular shrink-0">
+          <span style={{ color: 'var(--text-soft)' }}>
+            {chartData.length === 1 ? '1 sessão' : `${first}% → ${last}%`}
+          </span>
+          {chartData.length > 1 && delta !== 0 && (
+            <span className="font-extrabold" style={{ color: delta > 0 ? 'var(--ok)' : 'var(--err)' }}>
+              {delta > 0 ? `+${delta}%` : `${delta}%`}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="w-full" style={{ height }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={chartData} margin={{ top: 8, right: 8, left: -24, bottom: 0 }}>
+            <XAxis
+              dataKey="label"
+              tick={{ fill: axisColor, fontSize: 10 }}
+              axisLine={false}
+              tickLine={false}
+              interval="preserveStartEnd"
+            />
+            <YAxis
+              domain={[0, 100]}
+              tick={{ fill: axisColor, fontSize: 10 }}
+              tickFormatter={(v) => `${v}%`}
+              tickCount={3}
+              axisLine={false}
+              tickLine={false}
+            />
+            <ReferenceLine y={50} stroke={axisColor} strokeDasharray="3 4" strokeOpacity={0.45} />
+            <Tooltip
+              contentStyle={{
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border)',
+                borderRadius: '12px',
+                fontSize: '11px',
+                padding: '6px 10px',
+                color: 'var(--text)',
+                boxShadow: 'var(--card-shadow)',
+              }}
+              labelFormatter={(_label, payload) => {
+                const p = payload?.[0]?.payload as { idx?: number; dateLabel?: string } | undefined;
+                return p ? `Sessão #${p.idx} · ${p.dateLabel}` : '';
+              }}
+              formatter={(val, name) =>
+                [`${val}%`, name === 'habilidade' ? 'Sua habilidade' : 'Este jogo'] as [string, string]
+              }
+            />
+            <Scatter
+              dataKey="jogo"
+              fill={color}
+              fillOpacity={0.28}
+              isAnimationActive={false}
+            />
+            <Line
+              type="monotone"
+              dataKey="habilidade"
+              stroke={color}
+              strokeWidth={2.6}
+              dot={false}
+              activeDot={{ r: 5, fill: color }}
+              isAnimationActive={false}
+            />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="flex items-center gap-3 text-[10px]" style={{ color: 'var(--text-soft)' }}>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-4 h-[3px] rounded-full" style={{ background: color }} />
+          Sua habilidade
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full" style={{ background: color, opacity: 0.35 }} />
+          Cada partida
+        </span>
+        <span className="ml-auto">— 50% = média da idade</span>
+      </div>
     </div>
   );
 }

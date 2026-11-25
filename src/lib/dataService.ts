@@ -17,6 +17,8 @@ import {
   calculateGlobalCognitiveIndex,
   generateDailyProtocol,
   getCalibrationDomains,
+  getCalibrationPlan,
+  getCalibrationProgress,
   getCognitiveTier,
   nextDomainScore,
   percentileToNormScore,
@@ -371,20 +373,33 @@ export async function loadRemoteState(
  * - sempre: partidas e pontos de evolução anteriores a essa data são lidos na régua nova.
  */
 async function applyRemoteNormMigration(base: AppDataState): Promise<AppDataState> {
-  const key = `neurolab_norm_v2_since:${base.profile.id}`;
+  const key = `neurolab_norm_v${NORM_VERSION}_since:${base.profile.id}`;
   let since: string | null = null;
+  let v2Since: string | null = null;
   try {
     since = localStorage.getItem(key);
+    v2Since = localStorage.getItem(`neurolab_norm_v2_since:${base.profile.id}`);
   } catch {
     since = null;
   }
 
+  // Pontos do gráfico anteriores à 1ª migração ainda estão na escala da 1ª versão no servidor
+  const nowIso = getAppNowIso();
+  const snapshotsOldBeforeIso = v2Since ?? since ?? nowIso;
+
   if (since) {
-    return migrateStateToNormV2(base, { recomputeScores: false, onlyOlderThanIso: since });
+    return migrateStateToNormV2(base, {
+      recomputeScores: false,
+      onlyOlderThanIso: since,
+      snapshotsOldBeforeIso,
+    });
   }
 
-  const nowIso = getAppNowIso();
-  const migrated = migrateStateToNormV2(base, { recomputeScores: true, onlyOlderThanIso: nowIso });
+  const migrated = migrateStateToNormV2(base, {
+    recomputeScores: true,
+    onlyOlderThanIso: nowIso,
+    snapshotsOldBeforeIso,
+  });
   try {
     localStorage.setItem(key, nowIso);
   } catch {
@@ -509,17 +524,24 @@ export async function recordSessionResult(
   // Escore padronizado da sessão (média 500, desvio 235) a partir do percentil frente à idade
   const triTargetScore = percentileToNormScore(result.percentile);
 
-  const upd = nextDomainScore(curVal, triTargetScore, result.mode === 'calibration');
+  const isCalibration = result.mode === 'calibration';
+  const priorCalGames = state.sessions.filter(
+    (s) => s.mode === 'calibration' && s.domain === result.domain
+  ).length;
+  const upd = nextDomainScore(curVal, triTargetScore, isCalibration, priorCalGames);
   nextScores[result.domain] = upd.score;
-  if (!nextScores.baseline_scores[result.domain]) {
+  if (isCalibration || !nextScores.baseline_scores[result.domain]) {
     nextScores.baseline_scores[result.domain] = upd.baseline;
   }
   nextScores.norm_version = NORM_VERSION;
 
-  const requiredCalDomains = getCalibrationDomains(state.profile.selected_domains, state.profile.cognitive_bottlenecks);
-  const allCalibratedNow = requiredCalDomains.every((d) =>
-    Boolean(nextScores.baseline_scores[d])
-  );
+  // Teste inicial completo = os 2 jogos de cada habilidade escolhida foram feitos
+  const calPlan = getCalibrationPlan(state.profile.selected_domains, state.profile.cognitive_bottlenecks);
+  const calSessionsAfter = [
+    { game_slug: result.gameSlug, mode: result.mode },
+    ...state.sessions,
+  ];
+  const allCalibratedNow = getCalibrationProgress(calPlan, calSessionsAfter).next === null;
   const calibrated = state.profile.calibrated || allCalibratedNow;
 
   const icg = calculateGlobalCognitiveIndex(nextScores);

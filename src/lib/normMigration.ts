@@ -16,7 +16,8 @@ import {
   percentileToNormScore,
 } from '../engine/psychometricEngine';
 
-export const NORM_VERSION = 2;
+/** 2 = régua científica por idade; 3 = peso por habilidade + referência por jogo + fase fixa */
+export const NORM_VERSION = 3;
 
 /**
  * Recalcula o percentil de uma partida antiga com a régua científica nova,
@@ -39,6 +40,8 @@ export function recomputeSessionPercentile(
     ageSd: ageNorm.sd,
     ageBracket,
     trials: 8,
+    slug: s.game_slug,
+    domain: s.domain,
   });
 }
 
@@ -71,11 +74,17 @@ function convertSnapshot(s: CognitiveSnapshotRecord): CognitiveSnapshotRecord {
  */
 export function migrateStateToNormV2(
   state: AppDataState,
-  opts: { recomputeScores: boolean; onlyOlderThanIso?: string } = { recomputeScores: true }
+  opts: {
+    recomputeScores: boolean;
+    /** Servidor: recalcula partidas anteriores a esta data */
+    onlyOlderThanIso?: string;
+    /** Servidor: pontos do gráfico anteriores a esta data ainda estão na escala antiga (percentil × 10) */
+    snapshotsOldBeforeIso?: string;
+  } = { recomputeScores: true }
 ): AppDataState {
   const age = state.profile.age_bracket;
-  const isOld = (iso: string | undefined, isV2?: number) =>
-    opts.onlyOlderThanIso ? (iso || '') < opts.onlyOlderThanIso : isV2 !== NORM_VERSION;
+  const isOld = (iso: string | undefined, version?: number) =>
+    opts.onlyOlderThanIso ? (iso || '') < opts.onlyOlderThanIso : version !== NORM_VERSION;
 
   const sessions = state.sessions.map((s) =>
     isOld(s.created_at, s.norm_v)
@@ -83,8 +92,12 @@ export function migrateStateToNormV2(
       : s
   );
 
+  // Só converte pontos do gráfico que ainda estão na escala da 1ª versão (sem marcação de versão)
+  const snapshotsAreV1 = state.scores?.norm_version === undefined;
   const snapshots = state.snapshots.map((s) =>
-    (opts.onlyOlderThanIso ? s.snapshot_date < opts.onlyOlderThanIso.slice(0, 10) : opts.recomputeScores)
+    (opts.snapshotsOldBeforeIso
+      ? s.snapshot_date < opts.snapshotsOldBeforeIso.slice(0, 10)
+      : !opts.onlyOlderThanIso && opts.recomputeScores && snapshotsAreV1)
       ? convertSnapshot(s)
       : s
   );
@@ -105,19 +118,23 @@ export function migrateStateToNormV2(
   );
 
   if (chronological.length === 0) {
-    // Sem histórico: só converte o que existir para a escala nova
+    // Sem histórico: converte o que existir para a escala nova (só se ainda estiver na 1ª versão)
     for (const d of DOMAIN_LIST) {
-      nextScores[d.key] = convertOldScore(state.scores[d.key] ?? 0);
+      const cur = state.scores[d.key] ?? 0;
+      nextScores[d.key] = snapshotsAreV1 ? convertOldScore(cur) : cur;
       const base = state.scores.baseline_scores?.[d.key];
-      if (base) nextScores.baseline_scores[d.key] = convertOldScore(base);
+      if (base) nextScores.baseline_scores[d.key] = snapshotsAreV1 ? convertOldScore(base) : base;
     }
   } else {
+    const calCount: Partial<Record<DomainKey, number>> = {};
     for (const s of chronological) {
       const cur = nextScores[s.domain] ?? 0;
       const target = percentileToNormScore(s.percentile);
-      const { score, baseline } = nextDomainScore(cur, target, s.mode === 'calibration');
+      const isCal = s.mode === 'calibration';
+      const { score, baseline } = nextDomainScore(cur, target, isCal, calCount[s.domain] ?? 0);
+      if (isCal) calCount[s.domain] = (calCount[s.domain] ?? 0) + 1;
       nextScores[s.domain] = score;
-      if (!nextScores.baseline_scores[s.domain]) {
+      if (isCal || !nextScores.baseline_scores[s.domain]) {
         nextScores.baseline_scores[s.domain] = baseline;
       }
     }

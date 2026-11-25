@@ -67,7 +67,10 @@ function buildLocalScientificInsight(
   const { nextTrend, nextTrendLabel, nextDifficultyDeltaPct } = resolveNextTrend(result);
 
   let perfNote = '';
-  if (!result.stageCleared && result.accuracyPct >= 80) {
+  const errors = (result.commissionErrors ?? 0) + (result.omissionErrors ?? 0);
+  if (!result.stageCleared && (result.hits ?? 0) >= (result.targetHits ?? 1) && errors > 0) {
+    perfNote = `Você completou a meta com ${result.accuracyPct}% de acerto. Para passar de fase é preciso gabaritar: faltou zerar ${errors === 1 ? '1 erro' : `${errors} erros`}.`;
+  } else if (!result.stageCleared && result.accuracyPct >= 80) {
     perfNote = `Sua precisão foi ótima (${result.accuracyPct}%), mas o tempo acabou antes de completar a meta.`;
   } else if (result.accuracyPct < 75 && delta >= 1.5) {
     perfNote = `Mesmo com ${result.accuracyPct}% de precisão, você chegou a um ${intensity} que poucas pessoas de ${ageLabel} alcançam.`;

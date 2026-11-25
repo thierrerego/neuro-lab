@@ -20,6 +20,7 @@ import {
   getBottleneckDomains,
   getCalibrationDomains,
   getTargetRtMs,
+  isRankingReady,
   normalCDF,
   scoreToPercent,
 } from './psychometricEngine';
@@ -737,7 +738,7 @@ export function generateCognitiveDossier(params: {
       : `${anamnesisLead}${anamnesisLead ? 'o' : 'O'} ponto que mais vale treinar agora, entre o que você já testou, é ${bottleneckMeta.name} (${scoreToPercent(bottleneckScore)}%), que ${trendPhrase}. Jogar ${recommendedGameMeta.name} hoje é o caminho mais rápido para equilibrar sua mente.${untestedHint}`;
 
   // Ranking da faixa etária só depois do teste inicial (antes disso a medida ainda está incompleta)
-  const rankingReady = Boolean(profile.calibrated);
+  const rankingReady = isRankingReady(profile, sessions);
   const calTotal = getCalibrationDomains(profile.selected_domains, profile.cognitive_bottlenecks).length;
   const p1Final = rankingReady
     ? p1
