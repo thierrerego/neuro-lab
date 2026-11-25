@@ -10,14 +10,16 @@ import { getExpectedAgeEquilibrium } from '../engine/adaptiveEngine';
 import {
   calculateGlobalCognitiveIndex,
   computeAgeNormPercentile,
+  computeCompletionPercentile,
+  isCompletionGame,
   getCognitiveTier,
   getTargetRtMs,
   nextDomainScore,
   percentileToNormScore,
 } from '../engine/psychometricEngine';
 
-/** 2 = régua científica por idade; 3 = peso por habilidade + referência por jogo + fase fixa */
-export const NORM_VERSION = 3;
+/** 2 = régua científica por idade; 3 = peso por habilidade + referência por jogo + fase fixa; 4 = teste adaptativo + jogos de completar */
+export const NORM_VERSION = 4;
 
 /**
  * Recalcula o percentil de uma partida antiga com a régua científica nova,
@@ -30,6 +32,19 @@ export function recomputeSessionPercentile(
   if (Number(s.accuracy_pct || 0) <= 0 || (s.score ?? 0) <= 0) return 1.0;
   const stage = Math.max(1, s.stage_played || 1);
   const ageNorm = getExpectedAgeEquilibrium(ageBracket, s.domain, s.game_slug);
+  if (isCompletionGame(s.game_slug) && s.mode !== 'calibration') {
+    const cleared = Boolean(s.completed_early) || (s.waves_completed ?? 0) >= 5;
+    return computeCompletionPercentile({
+      cleared,
+      timeUsedMs: cleared ? Math.max(0, 30000 - Math.min(30000, s.time_remaining_ms || 0)) : 30000,
+      progressRatio: Math.min(1, (s.waves_completed ?? 0) / 5),
+      errors: (s.commission_errors ?? 0) + (s.omission_errors ?? 0),
+      stage,
+      ageExpected: ageNorm.expected,
+      ageSd: ageNorm.sd,
+      ageBracket,
+    });
+  }
   return computeAgeNormPercentile({
     accuracyPct: Number(s.accuracy_pct || 0),
     rtMeanMs: s.rt_mean_ms || 0,

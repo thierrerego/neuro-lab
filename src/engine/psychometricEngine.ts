@@ -316,6 +316,76 @@ export function computeAgeNormPercentile(params: {
   return Number(Math.max(1.0, Math.min(99.5, pct)).toFixed(1));
 }
 
+/**
+ * Jogos de "achar e completar": o objetivo é concluir as etapas do nível no menor tempo.
+ * - Passa de fase quem conclui (mesmo errando algumas cartas/casas).
+ * - Nota = rapidez para concluir (frente ao tempo típico da idade) − ~3 pontos por erro.
+ */
+export const COMPLETION_GAMES: GameSlug[] = ['memory-pairs', 'flash-match', 'schulte-order'];
+export const COMPLETION_ERROR_PENALTY_PCT = 3;
+/** Tempo típico (s) que um adulto de 25–34 anos leva para concluir as etapas de uma fase */
+const COMPLETION_TYPICAL_SEC = 20;
+
+export function isCompletionGame(slug?: GameSlug | null): boolean {
+  return Boolean(slug && COMPLETION_GAMES.includes(slug));
+}
+
+export function computeCompletionPercentile(params: {
+  cleared: boolean;
+  timeUsedMs: number;
+  progressRatio: number;
+  errors: number;
+  stage: number;
+  ageExpected: number;
+  ageSd: number;
+  ageBracket?: AgeBracket | string | null;
+}): number {
+  const { cleared, timeUsedMs, progressRatio, errors, stage, ageExpected, ageSd, ageBracket } = params;
+  const penalty = Math.max(0, errors) * COMPLETION_ERROR_PENALTY_PCT;
+  if (!cleared) {
+    // Não concluiu: fica na faixa baixa, proporcional ao quanto avançou
+    const base = 2 + 18 * Math.max(0, Math.min(1, progressRatio));
+    return Number(Math.max(1.0, base - penalty).toFixed(1));
+  }
+  const typicalMs = COMPLETION_TYPICAL_SEC * 1000 * getAgeBracketMeta(ageBracket).rtFactor;
+  const used = Math.max(1500, timeUsedMs);
+  const zTime = Math.max(-2.5, Math.min(2.5, -Math.log(used / typicalMs) / 0.35));
+  const zLevel = Math.max(0, (stage - ageExpected) / Math.max(1, ageSd)) * AGE_NORM_PARAMS.levelWeight;
+  const pct = normalCDF(zTime + zLevel, 0, 1) * 100 - penalty;
+  return Number(Math.max(1.0, Math.min(99.5, pct)).toFixed(1));
+}
+
+/**
+ * Percentil do TESTE INICIAL adaptativo: a dificuldade sobe e desce até estabilizar,
+ * então o que mede a pessoa é o NÍVEL onde ela estabilizou (frente ao típico da idade).
+ * A velocidade entra só como um ajuste pequeno (limitado pelo tipo de habilidade).
+ */
+export function computeCalibrationPercentile(params: {
+  accuracyPct: number;
+  rtMeanMs: number;
+  targetRtMs: number;
+  equilibriumIndex: number;
+  ageExpected: number;
+  ageSd: number;
+  domain?: DomainKey;
+  /** Escada "2 acertos sobe / 1 erro desce" estabiliza ~0,7 nível abaixo do limite real da pessoa */
+  staircaseBias?: number;
+}): number {
+  const { accuracyPct, rtMeanMs, targetRtMs, equilibriumIndex, ageExpected, ageSd, domain } = params;
+  const bias = params.staircaseBias ?? 0;
+  if (accuracyPct < 50) {
+    return Number(Math.max(1.0, Math.min(5.0, 1.0 + (Math.max(0, accuracyPct) / 50) * 4.0)).toFixed(1));
+  }
+  const maxSpeedZ = domain ? DOMAIN_SCORING_WEIGHTS[domain].maxSpeedZ : 1.0;
+  const zSpd =
+    rtMeanMs > 0 && targetRtMs > 0
+      ? Math.max(-2, Math.min(Math.min(1.5, maxSpeedZ), -Math.log(rtMeanMs / targetRtMs) / AGE_NORM_PARAMS.logRtSd))
+      : 0;
+  const zLevel = (equilibriumIndex + bias - ageExpected) / Math.max(1, ageSd);
+  const z = zLevel * 0.9 + zSpd * 0.2;
+  return Number(Math.max(1.0, Math.min(99.5, normalCDF(z, 0, 1) * 100)).toFixed(1));
+}
+
 /** Tempo-alvo de referência (ms) calibrado por exercício, nível e faixa etária (literatura psicométrica) */
 export function getTargetRtMs(
   slug: GameSlug,
@@ -523,6 +593,28 @@ export function evaluateSession(params: {
   const percentile =
     perf.correct <= 0
       ? 1.0
+      : wave.calibrationRun
+        ? computeCalibrationPercentile({
+            accuracyPct,
+            rtMeanMs,
+            targetRtMs: targetRt,
+            equilibriumIndex,
+            ageExpected: ageNorm.expected,
+            ageSd: ageNorm.sd,
+            domain,
+            staircaseBias: (wave.stepTargetHits ?? targetHits) > 5 ? 0.7 : 0,
+          })
+      : isCompletionGame(gameSlug)
+        ? computeCompletionPercentile({
+            cleared: wave.isCleared,
+            timeUsedMs: wave.isCleared ? Math.max(0, totalDurationMs - timeRemainingMs) : totalDurationMs,
+            progressRatio,
+            errors: perf.commissionErrors + perf.omissionErrors,
+            stage: safeBaseStage,
+            ageExpected: ageNorm.expected,
+            ageSd: ageNorm.sd,
+            ageBracket,
+          })
       : computeAgeNormPercentile({
           accuracyPct,
           rtMeanMs,
@@ -546,8 +638,10 @@ export function evaluateSession(params: {
   let adaptiveStatus: AdaptiveStatus = 'hold';
   let stageCleared = false;
 
-  const gabaritou =
-    wave.isCleared && perf.correct > 0 && perf.commissionErrors === 0 && perf.omissionErrors === 0;
+  // Jogos de "achar e completar": passa quem conclui as etapas do nível (errar faz parte)
+  const gabaritou = isCompletionGame(gameSlug)
+    ? wave.isCleared && perf.correct > 0
+    : wave.isCleared && perf.correct > 0 && perf.commissionErrors === 0 && perf.omissionErrors === 0;
   const badNow = failedAccuracyGate || accuracyPct < 60;
   const prevAcc = params.previousSameStageAccuracyPct;
   const struggled = badNow && prevAcc !== null && prevAcc !== undefined && prevAcc < 60;

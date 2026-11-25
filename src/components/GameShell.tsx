@@ -147,7 +147,9 @@ export function GameShell({
   labTuningRef.current = labTuning;
   const [appliedTuning, setAppliedTuning] = useState<LabLevelTuning | undefined>(labTuning);
 
-  const [wave, setWave] = useState<WaveState>(() => createWaveState(stage, slug, labTuning));
+  const [wave, setWave] = useState<WaveState>(() =>
+    createWaveState(stage, slug, labTuning, { calibration: mode === 'calibration' })
+  );
   const waveRef = useRef<WaveState>(wave);
   waveRef.current = wave;
 
@@ -230,7 +232,7 @@ export function GameShell({
   useEffect(() => {
     const nextTuning = labTuningRef.current;
     setAppliedTuning(nextTuning);
-    const freshWave = createWaveState(stage, slug, nextTuning);
+    const freshWave = createWaveState(stage, slug, nextTuning, { calibration: mode === 'calibration' });
     waveRef.current = freshWave;
     setWave(freshWave);
     const dur = getWaveEffectiveConfig(slug, freshWave, easeBoost, nextTuning).durationSec;
@@ -287,7 +289,8 @@ export function GameShell({
   }, [confirmExitOpen, helpOpen]);
 
   useEffect(() => {
-    if (isPaused || finishRequested) return;
+    // Teste inicial é sem relógio: termina quando a dificuldade estabiliza
+    if (isPaused || finishRequested || mode === 'calibration') return;
     const id = window.setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
@@ -299,7 +302,7 @@ export function GameShell({
       });
     }, 1000);
     return () => clearInterval(id);
-  }, [isPaused, finishRequested]);
+  }, [isPaused, finishRequested, mode]);
 
   const handleDismissTutorial = () => {
     sound.tap();
@@ -320,6 +323,8 @@ export function GameShell({
     const { next } = regressWaveError(waveRef.current);
     waveRef.current = next;
     setWave(next);
+    // Teste inicial: se o nível estabilizou num erro, encerra o jogo
+    if (next.calibrationRun && next.isCleared) setFinishRequested(true);
   }, []);
 
   const handleFinish = useCallback(
@@ -571,8 +576,8 @@ export function GameShell({
           <div
             className="h-full transition-all duration-1000 linear"
             style={{
-              width: `${timePct}%`,
-              background: timeLeft <= 7 ? 'var(--err)' : 'var(--accent-grad)',
+              width: mode === 'calibration' ? '100%' : `${timePct}%`,
+              background: mode !== 'calibration' && timeLeft <= 7 ? 'var(--err)' : 'var(--accent-grad)',
             }}
           />
         </div>
@@ -632,11 +637,12 @@ export function GameShell({
             <div
               className="min-w-[58px] text-center px-3 py-2 rounded-2xl font-extrabold text-[15px] tabular"
               style={{
-                background: timeLeft <= 7 ? 'rgba(239, 68, 68, 0.12)' : 'var(--bg-subtle)',
-                color: timeLeft <= 7 ? 'var(--err)' : 'var(--text)',
+                background: mode !== 'calibration' && timeLeft <= 7 ? 'rgba(239, 68, 68, 0.12)' : 'var(--bg-subtle)',
+                color: mode !== 'calibration' && timeLeft <= 7 ? 'var(--err)' : 'var(--text)',
               }}
+              title={mode === 'calibration' ? 'Teste inicial: sem tempo' : undefined}
             >
-              {timeLeft}s
+              {mode === 'calibration' ? 'Livre' : `${timeLeft}s`}
             </div>
           </div>
         </div>
@@ -883,6 +889,8 @@ export function GameShell({
                   {!sandboxMode && (() => {
                     const shownStage = nextStageUnlocked ? result.nextStage : result.stagePlayed;
                     const reachPct = getStageReachPercent(shownStage, ageBracket, game.domain);
+                    // Só mostra quando a fase está entre as 20% melhores da idade
+                    if (reachPct > 20) return null;
                     return (
                       <div
                         className="rounded-2xl px-4 py-2.5 text-xs font-semibold flex items-center gap-2"
@@ -894,8 +902,8 @@ export function GameShell({
                         <Award size={14} className="shrink-0" />
                         <span>
                           {nextStageUnlocked
-                            ? `Fase ${shownStage} liberada! Só ${reachPct}% das pessoas de ${ageLabel} chegam até ela.`
-                            : `Fase ${shownStage}: ${reachPct}% das pessoas de ${ageLabel} chegam até aqui.`}
+                            ? `Fase ${shownStage} liberada! Apenas ${reachPct}% das pessoas de ${ageLabel} chegam até ela.`
+                            : `Fase ${shownStage}: apenas ${reachPct}% das pessoas de ${ageLabel} chegam até aqui.`}
                         </span>
                       </div>
                     );

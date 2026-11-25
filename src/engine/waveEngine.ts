@@ -10,6 +10,14 @@ import {
 export const TOTAL_WAVES = 5;
 export const TOTAL_WAVE_HITS = 10;
 
+/** Teste inicial adaptativo: para quando a dificuldade virar 6 vezes (achou o nível) ou após 40 jogadas */
+export const CALIBRATION_REVERSALS = 6;
+export const CALIBRATION_MAX_TRIALS = 40;
+
+function calibrationDone(reversals: number, trials: number): boolean {
+  return reversals >= CALIBRATION_REVERSALS || trials >= CALIBRATION_MAX_TRIALS;
+}
+
 /**
  * Meta de acertos/etapas calibrada com testes reais para cada exercício durar ~20–30 segundos:
  * - Etapas longas (spatial-span por sequência completa): 4 etapas
@@ -106,11 +114,14 @@ export interface WaveTuningOverride {
 export function createWaveState(
   baseStage: number,
   slug?: GameSlug,
-  tuning?: WaveTuningOverride
+  tuning?: WaveTuningOverride,
+  opts?: { calibration?: boolean }
 ): WaveState {
   const safeBase = Math.max(1, Number(baseStage) || 1);
-  // Dificuldade FIXA durante a partida: só muda de uma partida para a outra (regra de fase).
-  const locked = true;
+  // Partidas normais: dificuldade FIXA (só muda de uma partida para a outra).
+  // Teste inicial: dificuldade adaptativa (sobe com acertos, cai com erros) até estabilizar.
+  const isCalibration = Boolean(opts?.calibration) && tuning?.effectiveLevel === undefined;
+  const locked = !isCalibration;
   const effectiveBase =
     tuning?.effectiveLevel !== undefined
       ? Math.max(1, Math.min(20, Number(tuning.effectiveLevel)))
@@ -128,6 +139,9 @@ export function createWaveState(
     wavesCompleted: 0,
     totalHits: 0,
     totalTargetHits: targetHits,
+    calibrationRun: isCalibration,
+    trials: 0,
+    stepTargetHits: targetHits,
     effectiveDifficulty: locked
       ? calcContinuousDiff(effectiveBase, 0, targetHits)
       : staircase.currentLoad,
@@ -153,6 +167,40 @@ export function advanceWaveHit(state: WaveState): {
   const targetHits = Math.max(1, state.totalTargetHits || TOTAL_WAVE_HITS);
   if (state.isCleared) {
     return { next: state, waveJustCleared: false, matchCleared: true, clearedWaveNum: TOTAL_WAVES };
+  }
+
+  // Teste inicial: escada adaptativa sem meta de acertos; termina quando estabiliza
+  if (state.calibrationRun) {
+    const stair = stepAdaptiveHit(
+      {
+        currentLoad: state.effectiveDifficulty,
+        streakHits: state.adaptiveStreak ?? 0,
+        reversals: state.adaptiveReversals ?? 0,
+        lastDirection: state.adaptiveDirection ?? null,
+        trail: state.difficultyTrail ?? [state.effectiveDifficulty],
+      },
+      state.stepTargetHits ?? targetHits
+    );
+    const trials = (state.trials ?? 0) + 1;
+    const done = calibrationDone(stair.reversals, trials);
+    return {
+      next: {
+        ...state,
+        totalHits: state.totalHits + 1,
+        waveHits: state.totalHits + 1,
+        wavesCompleted: done ? TOTAL_WAVES : state.wavesCompleted,
+        effectiveDifficulty: stair.currentLoad,
+        adaptiveStreak: stair.streakHits,
+        adaptiveReversals: stair.reversals,
+        adaptiveDirection: stair.lastDirection,
+        difficultyTrail: stair.trail,
+        trials,
+        isCleared: done,
+      },
+      waveJustCleared: false,
+      matchCleared: done,
+      clearedWaveNum: done ? TOTAL_WAVES : 0,
+    };
   }
 
   const nextTotalHits = Math.min(targetHits, state.totalHits + 1);
@@ -238,6 +286,9 @@ export function regressWaveError(state: WaveState): {
     trail: state.difficultyTrail ?? [state.effectiveDifficulty],
   });
 
+  const trials = (state.trials ?? 0) + (state.calibrationRun ? 1 : 0);
+  const calDone = Boolean(state.calibrationRun) && calibrationDone(nextStair.reversals, trials);
+
   return {
     next: {
       ...state,
@@ -246,6 +297,9 @@ export function regressWaveError(state: WaveState): {
       adaptiveReversals: nextStair.reversals,
       adaptiveDirection: nextStair.lastDirection,
       difficultyTrail: nextStair.trail,
+      trials,
+      isCleared: calDone ? true : state.isCleared,
+      wavesCompleted: calDone ? TOTAL_WAVES : state.wavesCompleted,
     },
     regressed: nextStair.currentLoad < state.effectiveDifficulty,
     fromWave: state.currentWave,
@@ -276,5 +330,10 @@ export function getWaveEffectiveConfig(
 
 export function getWaveBarPct(wave: WaveState): number {
   if (wave.isCleared) return 100;
+  if (wave.calibrationRun) {
+    const byRev = (wave.adaptiveReversals ?? 0) / CALIBRATION_REVERSALS;
+    const byTrials = (wave.trials ?? 0) / CALIBRATION_MAX_TRIALS;
+    return Math.min(99, Math.round(Math.max(byRev, byTrials) * 100));
+  }
   return Math.min(100, Math.round((wave.totalHits / Math.max(1, wave.totalTargetHits)) * 100));
 }

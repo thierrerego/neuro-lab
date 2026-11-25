@@ -3,7 +3,6 @@ import type { GameSlug, StageConfig } from '../types/cognitive';
 export const MAX_EXERCISE_LEVEL = 20;
 
 export const MEMORY_GAMES_60S: GameSlug[] = [
-  'memory-pairs',
   'photo-recall',
   'spatial-span',
   'dual-n-back',

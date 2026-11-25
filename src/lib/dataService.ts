@@ -25,7 +25,7 @@ import {
 } from '../engine/psychometricEngine';
 import { migrateStateToNormV2, needsNormMigration, NORM_VERSION } from './normMigration';
 import { NORMATIVE_BENCHMARKS, resolveArchetype } from '../engine/cognitiveProfiler';
-import { DOMAIN_LIST, GAME_REGISTRY } from '../engine/gameRegistry';
+import { DOMAIN_LIST, GAME_REGISTRY, GAMES_BY_DOMAIN } from '../engine/gameRegistry';
 import { saveLocalUserState } from './localUserDb';
 import { getAppNowIso, getAppTodayIso, getAppYesterdayIso } from './appClock';
 import { supabase } from './supabase';
@@ -514,6 +514,43 @@ export async function recordSessionResult(
     updated_at: now,
   };
 
+  // Teste inicial adaptativo: o nível onde a pessoa estabilizou vira a fase de partida
+  // de TODOS os jogos daquela habilidade (1 fase abaixo, para ter onde gabaritar).
+  const isCalRun = result.mode === 'calibration';
+  const calLevel = isCalRun
+    ? Math.max(1, Math.min(20, Math.round(result.equilibriumIndex ?? result.stagePlayed)))
+    : 0;
+  const domainProgressUpdates: GameProgressRecord[] = [];
+  if (isCalRun) {
+    const levels = [
+      calLevel,
+      ...state.sessions
+        .filter((s) => s.mode === 'calibration' && s.domain === result.domain && s.norm_v === NORM_VERSION)
+        .map((s) => s.stage_played),
+    ];
+    const avgLevel = levels.reduce((a, b) => a + b, 0) / levels.length;
+    const startStage = Math.max(1, Math.round(avgLevel) - 1);
+    for (const g of GAMES_BY_DOMAIN[result.domain]) {
+      const base = g.slug === result.gameSlug ? updatedProg : state.progress[g.slug];
+      const cur = Math.max(1, base?.current_stage ?? 1);
+      if (startStage > cur) {
+        domainProgressUpdates.push({
+          game_slug: g.slug,
+          domain: result.domain,
+          current_stage: startStage,
+          highest_score: base?.highest_score ?? 0,
+          total_plays: base?.total_plays ?? 0,
+          ease_mode: false,
+          updated_at: now,
+        });
+      }
+    }
+    // No teste a fase do jogo testado não deve "subir de fase" pela regra normal
+    if (!domainProgressUpdates.some((p) => p.game_slug === result.gameSlug)) {
+      updatedProg.current_stage = Math.max(1, prevProg.current_stage ?? 1, startStage);
+    }
+  }
+
   const nextScores: DomainScoresRecord = {
     ...state.scores,
     baseline_scores: { ...state.scores.baseline_scores },
@@ -576,7 +613,8 @@ export async function recordSessionResult(
     domain: result.domain,
     game_slug: result.gameSlug,
     mode: result.mode,
-    stage_played: result.stagePlayed,
+    // No teste inicial guarda o nível onde a pessoa estabilizou
+    stage_played: isCalRun ? calLevel : result.stagePlayed,
     stage_cleared: result.stageCleared,
     score: result.score,
     accuracy_pct: result.accuracyPct,
@@ -655,6 +693,7 @@ export async function recordSessionResult(
     progress: {
       ...state.progress,
       [result.gameSlug]: updatedProg,
+      ...Object.fromEntries(domainProgressUpdates.map((p) => [p.game_slug, p])),
     },
     sessions: updatedSessions,
     snapshots: nextSnapshots,
@@ -700,6 +739,22 @@ export async function recordSessionResult(
         },
         { onConflict: 'user_id,game_slug' }
       ),
+      ...(domainProgressUpdates.length > 0
+        ? [
+            supabase.from('game_progress').upsert(
+              domainProgressUpdates.map((p) => ({
+                user_id: uid,
+                game_slug: p.game_slug,
+                domain: p.domain,
+                current_stage: p.current_stage,
+                highest_score: p.highest_score,
+                total_plays: p.total_plays,
+                updated_at: now,
+              })),
+              { onConflict: 'user_id,game_slug' }
+            ),
+          ]
+        : []),
       supabase.from('cognitive_sessions').insert({
         user_id: uid,
         domain: newSession.domain,

@@ -116,6 +116,12 @@ export interface WaveState {
   adaptiveReversals?: number;
   adaptiveDirection?: 'up' | 'down' | null;
   difficultyTrail?: number[];
+  /** Teste inicial: sem relógio, dificuldade sobe/desce até estabilizar */
+  calibrationRun?: boolean;
+  /** Jogadas feitas (acertos + erros) no teste inicial */
+  trials?: number;
+  /** Meta original do jogo (define o passo da escada adaptativa) */
+  stepTargetHits?: number;
 }
 
 export type AdaptiveStatus = 'fast_track' | 'level_up' | 'hold' | 'step_down' | 'ease_mode';
