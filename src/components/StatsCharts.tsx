@@ -660,3 +660,151 @@ export function GameSparkline({
     </div>
   );
 }
+
+/* ============================================================================
+   5. GRÁFICO DE EVOLUÇÃO SESSÃO A SESSÃO (DOMÍNIO OU EXERCÍCIO, DA 1ª ATÉ HOJE)
+   ============================================================================ */
+export function SessionEvolutionChart({
+  sessions,
+  color,
+  title,
+  theme,
+  height = 135,
+  emptyText = 'Conclua 1 sessão para iniciar seu gráfico de evolução.',
+}: {
+  sessions: CognitiveSessionRecord[];
+  color: string;
+  title: string;
+  theme: ThemeMode;
+  height?: number;
+  emptyText?: string;
+}) {
+  const isLight = theme === 'light';
+  const axisColor = isLight ? '#6B7280' : '#8B9BB4';
+
+  const chartData = useMemo(() => {
+    const ordered = [...sessions].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+    return ordered.map((s, idx) => {
+      const dt = new Date(s.created_at);
+      const day = String(dt.getDate()).padStart(2, '0');
+      const month = String(dt.getMonth() + 1).padStart(2, '0');
+      const scorePct = scoreToPercent(s.score);
+      return {
+        idx: idx + 1,
+        label: `#${idx + 1}`,
+        dateLabel: `${day}/${month}`,
+        pct: scorePct,
+        acc: Math.round(s.accuracy_pct ?? 0),
+        rtMs: Math.round(s.rt_mean_ms ?? 0),
+      };
+    });
+  }, [sessions]);
+
+  if (chartData.length === 0) {
+    return (
+      <div
+        className="rounded-xl px-3.5 py-3 text-xs text-center"
+        style={{ background: 'var(--bg-card)', color: 'var(--text-soft)' }}
+      >
+        {emptyText}
+      </div>
+    );
+  }
+
+  const firstPct = chartData[0].pct;
+  const lastPct = chartData[chartData.length - 1].pct;
+  const deltaPct = lastPct - firstPct;
+  const gradId = `evoGrad-${title.replace(/[^a-zA-Z0-9]/g, '')}-${chartData.length}`;
+
+  return (
+    <div
+      className="rounded-xl p-3 flex flex-col gap-2"
+      style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
+    >
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <span className="font-bold truncate">{title}</span>
+        <div className="flex items-center gap-1.5 tabular shrink-0">
+          <span style={{ color: 'var(--text-soft)' }}>
+            {chartData.length === 1 ? '1 sessão' : `${firstPct}% → ${lastPct}%`}
+          </span>
+          {chartData.length > 1 && deltaPct !== 0 && (
+            <span
+              className="font-extrabold"
+              style={{ color: deltaPct > 0 ? 'var(--ok)' : 'var(--err)' }}
+            >
+              {deltaPct > 0 ? `+${deltaPct}%` : `${deltaPct}%`}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="w-full" style={{ height }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={chartData} margin={{ top: 8, right: 8, left: -24, bottom: 0 }}>
+            <defs>
+              <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={color} stopOpacity={0.28} />
+                <stop offset="100%" stopColor={color} stopOpacity={0.02} />
+              </linearGradient>
+            </defs>
+            <XAxis
+              dataKey="label"
+              tick={{ fill: axisColor, fontSize: 10 }}
+              axisLine={false}
+              tickLine={false}
+              interval="preserveStartEnd"
+            />
+            <YAxis
+              domain={[0, 100]}
+              tick={{ fill: axisColor, fontSize: 10 }}
+              tickFormatter={(v) => `${v}%`}
+              tickCount={3}
+              axisLine={false}
+              tickLine={false}
+            />
+            <Tooltip
+              contentStyle={{
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border)',
+                borderRadius: '12px',
+                fontSize: '11px',
+                padding: '6px 10px',
+                color: 'var(--text)',
+                boxShadow: 'var(--card-shadow)',
+              }}
+              labelFormatter={(_label, payload) => {
+                const p = payload?.[0]?.payload as { idx?: number; dateLabel?: string } | undefined;
+                return p ? `Sessão #${p.idx} · ${p.dateLabel}` : '';
+              }}
+              formatter={(val, _name, item) => {
+                const p = item?.payload as { acc?: number; rtMs?: number } | undefined;
+                const extra = p
+                  ? ` · Prec. ${p.acc}%${p.rtMs ? ` · ${p.rtMs}ms` : ''}`
+                  : '';
+                return [`${val}%${extra}`, 'Evolução'] as [string, string];
+              }}
+            />
+            <Area
+              type="monotone"
+              dataKey="pct"
+              stroke={color}
+              strokeWidth={2.4}
+              fill={`url(#${gradId})`}
+              dot={{ r: 3, fill: color, stroke: isLight ? '#FFFFFF' : '#0F172A', strokeWidth: 1.5 }}
+              activeDot={{ r: 5, fill: color }}
+              isAnimationActive={false}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+
+      {chartData.length === 1 && (
+        <div className="text-[11px] text-center" style={{ color: 'var(--text-soft)' }}>
+          1ª sessão registrada — faça mais sessões para acompanhar a linha subindo!
+        </div>
+      )}
+    </div>
+  );
+}

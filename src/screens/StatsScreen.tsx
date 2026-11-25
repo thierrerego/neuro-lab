@@ -27,7 +27,7 @@ import type {
   ThemeMode,
 } from '../types/cognitive';
 import { fetchPopulationBenchmarks, type AppDataState } from '../lib/dataService';
-import { DOMAIN_LIST, DOMAIN_MAP, GAME_MAP, GAME_REGISTRY } from '../engine/gameRegistry';
+import { DOMAIN_LIST, DOMAIN_MAP, GAME_MAP, GAME_REGISTRY, GAMES_BY_DOMAIN } from '../engine/gameRegistry';
 import { getIntensityLabel } from '../engine/adaptiveEngine';
 import { getAgeBracketMeta, scoreToPercent } from '../engine/psychometricEngine';
 import {
@@ -45,6 +45,7 @@ import {
   ComparativeRadarChart,
   GameSparkline,
   LongitudinalEvolutionChart,
+  SessionEvolutionChart,
 } from '../components/StatsCharts';
 import { GameIcon } from '../components/DomainIcon';
 
@@ -199,6 +200,8 @@ export function StatsScreen({
   const [shareModalOpen, setShareModalOpen] = useState(false);
 
   const [selectedMetric, setSelectedMetric] = useState<'icg' | DomainKey>('icg');
+  const [expandedDomain, setExpandedDomain] = useState<DomainKey | null>(null);
+  const [expandedDomainGame, setExpandedDomainGame] = useState<GameSlug | null>(null);
   const [exerciseDomainFilter, setExerciseDomainFilter] = useState<'all' | DomainKey>('all');
   const [historyDomainFilter, setHistoryDomainFilter] = useState<'all' | DomainKey>('all');
   const [expandedGameSlug, setExpandedGameSlug] = useState<GameSlug | null>(null);
@@ -887,7 +890,7 @@ export function StatsScreen({
               <div>
                 <div className="text-base font-bold tracking-tight">6 Domínios Cognitivos</div>
                 <div className="text-xs mt-0.5" style={{ color: 'var(--text-soft)' }}>
-                  Faixa {ageLabel} · Treine qualquer área em 1 toque (30s)
+                  Toque em um domínio para ver o gráfico de evolução e os exercícios ({ageLabel})
                 </div>
               </div>
             </div>
@@ -906,83 +909,219 @@ export function StatsScreen({
                   ? percentileFromBenchmark(curRaw, benchmarks.domains[d.key], ageBracket)
                   : 0;
                 const topP = isMeasured ? percentileToTopPercent(pct) : 100;
-                const isSelected = selectedMetric === d.key;
+                const isExpanded = expandedDomain === d.key;
+                const isSelected = selectedMetric === d.key || isExpanded;
+                const domainSessions = sessions.filter((s) => s.domain === d.key);
+                const domainGames = [...GAMES_BY_DOMAIN[d.key]].sort((a, b) => {
+                  const playsA = progress[a.slug]?.total_plays ?? 0;
+                  const playsB = progress[b.slug]?.total_plays ?? 0;
+                  return playsB - playsA;
+                });
+
+                const toggleDomain = () => {
+                  setSelectedMetric(d.key);
+                  setExpandedDomain((prev) => {
+                    const next = prev === d.key ? null : d.key;
+                    if (next !== prev) setExpandedDomainGame(null);
+                    return next;
+                  });
+                };
 
                 return (
                   <div
                     key={d.key}
-                    onClick={() => setSelectedMetric(d.key)}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') setSelectedMetric(d.key);
-                    }}
-                    className="text-left rounded-2xl p-4 transition-all cursor-pointer flex flex-col gap-2.5"
+                    className="rounded-2xl transition-all flex flex-col overflow-hidden"
                     style={{
                       background: isSelected ? 'var(--accent-glow)' : 'var(--bg-subtle)',
                       border: isSelected ? '1.5px solid var(--border-strong)' : '1px solid transparent',
                     }}
                   >
-                    <div className="flex items-center justify-between gap-2.5">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: d.color }} />
-                        <div className="min-w-0">
-                          <div className="text-[15px] font-bold truncate">{d.name}</div>
-                          <div className="text-xs tabular flex items-center gap-1.5 mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                            <span className="font-extrabold" style={{ color: 'var(--text)' }}>
-                              {curPct}%
-                            </span>
-                            <span>{isMeasured ? `· Est. Top ${topP}%` : '· Sem medição'}</span>
-                            {diffPct !== 0 && (
-                              <span
-                                className="font-bold"
-                                style={{ color: diffPct > 0 ? 'var(--ok)' : 'var(--err)' }}
-                              >
-                                ({diffPct > 0 ? `+${diffPct}%` : `${diffPct}%`})
+                    <div
+                      onClick={toggleDomain}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') toggleDomain();
+                      }}
+                      className="text-left p-4 cursor-pointer flex flex-col gap-2.5"
+                    >
+                      <div className="flex items-center justify-between gap-2.5">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: d.color }} />
+                          <div className="min-w-0">
+                            <div className="text-[15px] font-bold truncate flex items-center gap-1.5">
+                              <span className="truncate">{d.name}</span>
+                              {isExpanded ? (
+                                <ChevronUp size={15} style={{ color: 'var(--text-soft)' }} className="shrink-0" />
+                              ) : (
+                                <ChevronDown size={15} style={{ color: 'var(--text-soft)' }} className="shrink-0" />
+                              )}
+                            </div>
+                            <div className="text-xs tabular flex items-center gap-1.5 mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                              <span className="font-extrabold" style={{ color: 'var(--text)' }}>
+                                {curPct}%
                               </span>
-                            )}
+                              <span>{isMeasured ? `· Est. Top ${topP}%` : '· Sem medição'}</span>
+                              {diffPct !== 0 && (
+                                <span
+                                  className="font-bold"
+                                  style={{ color: diffPct > 0 ? 'var(--ok)' : 'var(--err)' }}
+                                >
+                                  ({diffPct > 0 ? `+${diffPct}%` : `${diffPct}%`})
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onImproveDomain(d.key);
+                          }}
+                          className="px-3.5 py-2 rounded-xl text-xs font-bold cursor-pointer inline-flex items-center gap-1.5 shrink-0 transition-all"
+                          style={{
+                            background: 'var(--bg-card)',
+                            border: '1px solid var(--border-strong)',
+                            color: 'var(--accent)',
+                            boxShadow: 'var(--card-shadow)',
+                          }}
+                        >
+                          <span>{isMeasured ? 'Melhorar' : 'Iniciar'}</span>
+                          <ArrowRight size={13} />
+                        </button>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onImproveDomain(d.key);
-                        }}
-                        className="px-3.5 py-2 rounded-xl text-xs font-bold cursor-pointer inline-flex items-center gap-1.5 shrink-0 transition-all"
-                        style={{
-                          background: 'var(--bg-card)',
-                          border: '1px solid var(--border-strong)',
-                          color: 'var(--accent)',
-                          boxShadow: 'var(--card-shadow)',
-                        }}
+                      <div
+                        className="relative h-2 rounded-full overflow-hidden"
+                        style={{ background: 'var(--bg-card)' }}
                       >
-                        <span>{isMeasured ? 'Melhorar' : 'Iniciar'}</span>
-                        <ArrowRight size={13} />
-                      </button>
+                        <div
+                          className="h-full rounded-full transition-all duration-300"
+                          style={{ width: `${curPct}%`, background: d.color }}
+                        />
+                        <div
+                          title={`Estimativa normativa da faixa: ${benchMeanPct}%`}
+                          className="absolute top-0 bottom-0 w-0.5"
+                          style={{ left: `${Math.min(98, benchMeanPct)}%`, background: '#F59E0B' }}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs tabular" style={{ color: 'var(--text-soft)' }}>
+                        <span>Base: {baseRaw > 0 ? `${basePct}%` : '—'}</span>
+                        <span>Est. {ageLabel}: {benchMeanPct}%</span>
+                      </div>
                     </div>
 
-                    <div
-                      className="relative h-2 rounded-full overflow-hidden"
-                      style={{ background: 'var(--bg-card)' }}
-                    >
+                    {/* Sanfona: gráfico de evolução do domínio + lista clicável de exercícios */}
+                    {isExpanded && (
                       <div
-                        className="h-full rounded-full transition-all duration-300"
-                        style={{ width: `${curPct}%`, background: d.color }}
-                      />
-                      <div
-                        title={`Estimativa normativa da faixa: ${benchMeanPct}%`}
-                        className="absolute top-0 bottom-0 w-0.5"
-                        style={{ left: `${Math.min(98, benchMeanPct)}%`, background: '#F59E0B' }}
-                      />
-                    </div>
+                        className="px-3.5 pb-4 pt-3 flex flex-col gap-3 animate-pop"
+                        style={{ borderTop: '1px solid var(--border)' }}
+                      >
+                        <SessionEvolutionChart
+                          sessions={domainSessions}
+                          color={d.color}
+                          title={`Evolução · ${d.shortName}`}
+                          theme={theme}
+                          height={130}
+                          emptyText={`Faça um exercício de ${d.shortName} para iniciar o gráfico de evolução.`}
+                        />
 
-                    <div className="flex items-center justify-between text-xs tabular" style={{ color: 'var(--text-soft)' }}>
-                      <span>Base: {baseRaw > 0 ? `${basePct}%` : '—'}</span>
-                      <span>Est. {ageLabel}: {benchMeanPct}%</span>
-                    </div>
+                        <div className="flex flex-col gap-1.5">
+                          <div
+                            className="text-[11px] font-bold uppercase tracking-wider px-1"
+                            style={{ color: 'var(--text-soft)' }}
+                          >
+                            Exercícios de {d.shortName} ({domainGames.length})
+                          </div>
+
+                          {domainGames.map((g) => {
+                            const gSessions = sessions.filter((s) => s.game_slug === g.slug);
+                            const gPlays = gSessions.length;
+                            const lastSession = gSessions.length
+                              ? [...gSessions].sort(
+                                  (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+                                )[0]
+                              : null;
+                            const lastPct = lastSession ? scoreToPercent(lastSession.score) : 0;
+                            const isGameOpen = expandedDomainGame === g.slug;
+
+                            return (
+                              <div
+                                key={g.slug}
+                                className="rounded-xl overflow-hidden"
+                                style={{
+                                  background: 'var(--bg-card)',
+                                  border: isGameOpen
+                                    ? `1.5px solid ${d.color}`
+                                    : '1px solid var(--border)',
+                                }}
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setExpandedDomainGame(isGameOpen ? null : g.slug)
+                                  }
+                                  className="w-full px-3 py-2.5 flex items-center justify-between gap-2 text-left cursor-pointer"
+                                >
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <div
+                                      className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+                                      style={{ background: `${d.color}16`, color: d.color }}
+                                    >
+                                      <GameIcon slug={g.slug} size={16} />
+                                    </div>
+                                    <div className="min-w-0">
+                                      <div className="text-[13px] font-bold truncate">{g.name}</div>
+                                      <div
+                                        className="text-[11px] tabular"
+                                        style={{ color: 'var(--text-soft)' }}
+                                      >
+                                        {gPlays === 0
+                                          ? 'Ainda não jogado'
+                                          : `${gPlays} ${gPlays === 1 ? 'sessão' : 'sessões'} · Última: ${lastPct}%`}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {isGameOpen ? (
+                                    <ChevronUp size={15} style={{ color: 'var(--text-soft)' }} className="shrink-0" />
+                                  ) : (
+                                    <ChevronDown size={15} style={{ color: 'var(--text-soft)' }} className="shrink-0" />
+                                  )}
+                                </button>
+
+                                {isGameOpen && (
+                                  <div
+                                    className="px-3 pb-3 pt-2 flex flex-col gap-2.5 animate-pop"
+                                    style={{ borderTop: '1px solid var(--border)' }}
+                                  >
+                                    <SessionEvolutionChart
+                                      sessions={gSessions}
+                                      color={d.color}
+                                      title={`Histórico · ${g.name}`}
+                                      theme={theme}
+                                      height={118}
+                                      emptyText={`Nenhuma sessão de ${g.name} ainda.`}
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => onStartGame(g.slug, 'free')}
+                                      className="w-full py-2.5 px-3 rounded-xl font-bold text-xs btn-accent flex items-center justify-center gap-1.5 cursor-pointer"
+                                    >
+                                      <span>Treinar {g.name}</span>
+                                      <ArrowRight size={14} />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}

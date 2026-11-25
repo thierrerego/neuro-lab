@@ -3,9 +3,34 @@ import { DOMAIN_MAP, GAME_MAP } from '../engine/gameRegistry';
 import { getAgeBracketMeta } from '../engine/psychometricEngine';
 import { getIntensityLabel } from '../engine/adaptiveEngine';
 
+export type NextDifficultyTrend = 'harder' | 'easier' | 'steady';
+
 export interface AdaptiveCoachInsight {
   source: 'gemini' | 'scientific_local';
   text: string;
+  nextTrend: NextDifficultyTrend;
+  nextTrendLabel: string;
+}
+
+function resolveNextTrend(result: ComputedSessionResult): {
+  nextTrend: NextDifficultyTrend;
+  nextTrendLabel: string;
+} {
+  if (
+    result.nextStage > result.stagePlayed ||
+    result.adaptiveStatus === 'level_up' ||
+    result.adaptiveStatus === 'fast_track'
+  ) {
+    return { nextTrend: 'harder', nextTrendLabel: 'Próximo mais desafiador' };
+  }
+  if (
+    result.nextStage < result.stagePlayed ||
+    result.adaptiveStatus === 'step_down' ||
+    result.adaptiveStatus === 'ease_mode'
+  ) {
+    return { nextTrend: 'easier', nextTrendLabel: 'Próximo mais leve' };
+  }
+  return { nextTrend: 'steady', nextTrendLabel: 'Mesmo ritmo' };
 }
 
 function formatRtShort(rtMeanMs: number): string {
@@ -23,6 +48,7 @@ function buildLocalScientificInsight(
   const delta = eq - expected;
   const intensity = getIntensityLabel(eq).toLowerCase();
   const rtText = formatRtShort(result.rtMeanMs);
+  const { nextTrend, nextTrendLabel } = resolveNextTrend(result);
 
   let perfNote = '';
   if (result.accuracyPct < 75 && delta >= 1.5) {
@@ -38,13 +64,17 @@ function buildLocalScientificInsight(
   }
 
   const nextHint =
-    result.rtMeanMs > 0 && result.targetRtMs && result.rtMeanMs <= result.targetRtMs
-      ? 'Seu tempo de resposta está rápido — ótimo ritmo para manter o desafio subindo.'
-      : 'Na próxima tentativa, tente ganhar um pouco mais de agilidade mantendo a precisão alta.';
+    nextTrend === 'harder'
+      ? 'Você evoluiu bem — na próxima vez este exercício vai vir um pouco mais desafiador.'
+      : nextTrend === 'easier'
+        ? 'Na próxima vez o ritmo vai vir um pouco mais leve para você firmar a precisão e subir de novo.'
+        : 'Na próxima vez o ritmo continua parecido para consolidar sua agilidade.';
 
   return {
     source: 'scientific_local',
     text: `${perfNote} ${nextHint}`,
+    nextTrend,
+    nextTrendLabel,
   };
 }
 
@@ -68,10 +98,18 @@ export async function generateAdaptiveCoachInsight(
   const domain = DOMAIN_MAP[result.domain];
   const ageLabel = getAgeBracketMeta(ageBracket).label;
   const intensity = getIntensityLabel(result.equilibriumIndex ?? result.stagePlayed);
+  const { nextTrend, nextTrendLabel } = resolveNextTrend(result);
+  const trendContext =
+    nextTrend === 'harder'
+      ? 'o próximo exercício vai ficar mais desafiador porque o usuário evoluiu'
+      : nextTrend === 'easier'
+        ? 'o próximo exercício vai ficar um pouco mais leve para consolidar a precisão'
+        : 'o próximo exercício vai manter um ritmo parecido para consolidar';
 
   const prompt = [
     'Você é um especialista em treino cognitivo comentando o resultado de um exercício do app NeuroLab.',
     'Escreva NO MÁXIMO 2 frases curtas em português do Brasil, em linguagem simples e motivadora, sem markdown e sem termos técnicos como "carga", "equilíbrio numérico", "motor adaptativo" ou "calibração".',
+    `Deixe claro de forma natural que ${trendContext}.`,
     `Exercício: ${game?.name ?? result.gameSlug} (${domain?.name ?? result.domain})`,
     `Faixa etária: ${ageLabel}`,
     `Ritmo atingido: ${intensity} | Precisão: ${result.accuracyPct}% | Tempo médio: ${result.rtMeanMs}ms | Superou: ${result.percentile}% da faixa etária`,
@@ -99,7 +137,7 @@ export async function generateAdaptiveCoachInsight(
     };
     const text = json.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
     if (!text) return fallback;
-    return { source: 'gemini', text };
+    return { source: 'gemini', text, nextTrend, nextTrendLabel };
   } catch {
     return fallback;
   }

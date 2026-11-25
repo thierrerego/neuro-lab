@@ -848,10 +848,10 @@ export function GameShell({
 
                     {!sandboxMode && coachInsight && (
                       <div
-                        className="mt-3 rounded-2xl p-3.5 text-left flex flex-col gap-1"
+                        className="mt-3 rounded-2xl p-3.5 text-left flex flex-col gap-2"
                         style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)' }}
                       >
-                        <div className="flex items-center justify-between text-[11px] font-bold">
+                        <div className="flex items-center justify-between gap-2 text-[11px] font-bold">
                           <span style={{ color: 'var(--accent)' }}>
                             {coachInsight.source === 'gemini' ? 'Análise IA' : 'Resumo do desempenho'}
                           </span>
@@ -866,6 +866,36 @@ export function GameShell({
                               : ''}
                           </span>
                         </div>
+
+                        <div className="flex items-center">
+                          <span
+                            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold"
+                            style={{
+                              background:
+                                coachInsight.nextTrend === 'harder'
+                                  ? 'rgba(16, 185, 129, 0.14)'
+                                  : coachInsight.nextTrend === 'easier'
+                                    ? 'rgba(245, 158, 11, 0.16)'
+                                    : 'var(--bg-card)',
+                              color:
+                                coachInsight.nextTrend === 'harder'
+                                  ? 'var(--ok)'
+                                  : coachInsight.nextTrend === 'easier'
+                                    ? 'var(--warn)'
+                                    : 'var(--text-muted)',
+                            }}
+                          >
+                            {coachInsight.nextTrend === 'harder' ? (
+                              <TrendingUp size={12} />
+                            ) : coachInsight.nextTrend === 'easier' ? (
+                              <TrendingDown size={12} />
+                            ) : (
+                              <ArrowRight size={12} />
+                            )}
+                            <span>{coachInsight.nextTrendLabel}</span>
+                          </span>
+                        </div>
+
                         <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
                           {coachInsight.text}
                         </p>
