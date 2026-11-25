@@ -6,6 +6,7 @@ import { GameIcon } from '../components/DomainIcon';
 
 interface CalibrationScreenProps {
   selectedDomains: DomainKey[];
+  bottlenecks?: string[];
   scores: DomainScoresRecord;
   onStartGame: (slug: GameSlug, idx: number, total: number, domainName: string) => void;
   onSkipCalibration: () => void;
@@ -14,12 +15,13 @@ interface CalibrationScreenProps {
 
 export function CalibrationScreen({
   selectedDomains,
+  bottlenecks,
   scores,
   onStartGame,
   onSkipCalibration,
   onFinishCalibration,
 }: CalibrationScreenProps) {
-  const activeDomains = getCalibrationDomains(selectedDomains);
+  const activeDomains = getCalibrationDomains(selectedDomains, bottlenecks);
   const doneCount = activeDomains.filter((d) => Boolean(scores.baseline_scores?.[d])).length;
   const totalCount = activeDomains.length;
   const nextIndex = activeDomains.findIndex((d) => !scores.baseline_scores?.[d]);

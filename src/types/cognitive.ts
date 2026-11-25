@@ -227,6 +227,8 @@ export interface DomainScoresRecord {
   inhibitory_control: number;
   baseline_scores: Partial<Record<DomainKey, number>>;
   updated_at: string;
+  /** 2 = notas na régua científica nova (escore padronizado por faixa etária) */
+  norm_version?: number;
 }
 
 export interface GameProgressRecord {
@@ -260,6 +262,8 @@ export interface CognitiveSessionRecord {
   rt_mean_ms: number;
   rt_sd_ms: number;
   created_at: string;
+  /** 2 = percentil calculado pela régua científica nova */
+  norm_v?: number;
 }
 
 export interface DailyProtocolRecord {
@@ -333,6 +337,12 @@ export interface CognitiveDossier {
   topDomains: [DomainKey, DomainKey];
   bottleneckDomain: DomainKey;
   recommendedGame: GameSlug;
+  /** Domínios ainda sem nenhuma medição (aparecem como "não testado" no dossiê) */
+  untestedDomains: DomainKey[];
+  /** Domínios sem medição que a pessoa marcou no questionário (objetivo ou dificuldade) */
+  untestedDeclaredDomains: DomainKey[];
+  /** Falso enquanto o teste inicial não terminou: o ranking da faixa etária fica "calibrando" */
+  rankingReady: boolean;
   globalPercentile: number;
   topPercent: number;
   populationBand: 'Ápice (Top 1%)' | 'Elite (Top 10%)' | 'Acima da Média (Top 25%)' | 'Média Geral (50%)' | 'Em Evolução';

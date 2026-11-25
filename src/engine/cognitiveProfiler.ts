@@ -14,7 +14,15 @@ import type {
   UserProfile,
 } from '../types/cognitive';
 import { DOMAIN_LIST, DOMAIN_MAP, GAME_REGISTRY, GAMES_BY_DOMAIN } from './gameRegistry';
-import { getAgeBracketMeta, normalCDF, scoreToPercent } from './psychometricEngine';
+import {
+  AGE_NORM_PARAMS,
+  getAgeBracketMeta,
+  getBottleneckDomains,
+  getCalibrationDomains,
+  getTargetRtMs,
+  normalCDF,
+  scoreToPercent,
+} from './psychometricEngine';
 import { getAppNow } from '../lib/appClock';
 
 export interface WeeklyDayItem {
@@ -74,12 +82,12 @@ export const NORMATIVE_BENCHMARKS: PopulationBenchmarks = {
   distinct_users: 0,
   global: { mean: 500, sd: 235, p50: 500, p75: 658, p90: 801, p99: 960 },
   domains: {
-    selective_attention: { mean: 505, sd: 230, p50: 505, p75: 660, p90: 800, p99: 958, avg_rt_ms: 1180 },
-    working_memory: { mean: 495, sd: 235, p50: 495, p75: 653, p90: 796, p99: 955, avg_rt_ms: 1280 },
-    fluid_reasoning: { mean: 490, sd: 240, p50: 490, p75: 652, p90: 798, p99: 958, avg_rt_ms: 1980 },
-    processing_speed: { mean: 510, sd: 228, p50: 510, p75: 664, p90: 802, p99: 960, avg_rt_ms: 930 },
-    numerical_cognition: { mean: 498, sd: 235, p50: 498, p75: 656, p90: 799, p99: 958, avg_rt_ms: 1520 },
-    inhibitory_control: { mean: 502, sd: 232, p50: 502, p75: 658, p90: 799, p99: 958, avg_rt_ms: 790 },
+    selective_attention: { mean: 500, sd: 235, p50: 500, p75: 658, p90: 801, p99: 960, avg_rt_ms: 1180 },
+    working_memory: { mean: 500, sd: 235, p50: 500, p75: 658, p90: 801, p99: 960, avg_rt_ms: 1280 },
+    fluid_reasoning: { mean: 500, sd: 235, p50: 500, p75: 658, p90: 801, p99: 960, avg_rt_ms: 1980 },
+    processing_speed: { mean: 500, sd: 235, p50: 500, p75: 658, p90: 801, p99: 960, avg_rt_ms: 930 },
+    numerical_cognition: { mean: 500, sd: 235, p50: 500, p75: 658, p90: 801, p99: 960, avg_rt_ms: 1520 },
+    inhibitory_control: { mean: 500, sd: 235, p50: 500, p75: 658, p90: 801, p99: 960, avg_rt_ms: 790 },
   },
   games: {
     'visual-search': { mean: 508, sd: 230, p50: 508, p75: 663, p90: 803, p99: 960, avg_rt_ms: 1150, early_rate_pct: 34 },
@@ -133,20 +141,16 @@ export const NORMATIVE_BENCHMARKS: PopulationBenchmarks = {
   },
 };
 
+/**
+ * A faixa etária já entra no cálculo de cada partida (tempo-alvo e precisão esperados para a idade),
+ * e as notas dos domínios ficam guardadas como escore padronizado daquela faixa.
+ * Por isso a curva NÃO é deslocada de novo aqui (antes a idade era contada duas vezes).
+ */
 export function adjustDistributionForAge(
   dist: BenchmarkDistribution,
-  ageBracket?: AgeBracket | string | null
+  _ageBracket?: AgeBracket | string | null
 ): BenchmarkDistribution {
-  const offset = getAgeBracketMeta(ageBracket).meanOffset;
-  if (offset === 0) return dist;
-  return {
-    ...dist,
-    mean: Math.max(300, Math.min(700, dist.mean + offset)),
-    p50: Math.max(300, Math.min(700, dist.p50 + offset)),
-    p75: Math.max(420, Math.min(820, dist.p75 + offset)),
-    p90: Math.max(550, Math.min(910, dist.p90 + offset)),
-    p99: Math.max(720, Math.min(990, dist.p99 + offset)),
-  };
+  return dist;
 }
 
 interface ArchetypeDef {
@@ -487,10 +491,24 @@ export function buildGameMasteryList(
   });
 }
 
-function estimateSpeedBeatsPct(avgRtMs: number): number {
-  if (avgRtMs <= 0) return 50;
-  const pct = normalCDF(1250 - avgRtMs, 0, 380) * 100;
-  return Math.max(5, Math.min(98, Math.round(pct)));
+/**
+ * Agilidade frente à faixa etária: compara o tempo de reação de cada partida com o tempo-alvo
+ * esperado para aquela idade, jogo e nível (distribuição log-normal), e faz a média.
+ */
+function estimateSpeedBeatsPct(
+  sessions: CognitiveSessionRecord[],
+  ageBracket?: AgeBracket | string | null
+): number {
+  const zs = sessions
+    .filter((s) => s.rt_mean_ms > 0)
+    .slice(0, 30)
+    .map((s) => {
+      const target = getTargetRtMs(s.game_slug, Math.max(1, s.stage_played || 1), ageBracket);
+      return Math.max(-3, Math.min(2.8, -Math.log(s.rt_mean_ms / target) / AGE_NORM_PARAMS.logRtSd));
+    });
+  if (zs.length === 0) return 50;
+  const avgZ = zs.reduce((a, b) => a + b, 0) / zs.length;
+  return Math.max(1, Math.min(99, Math.round(normalCDF(avgZ, 0, 1) * 100)));
 }
 
 /**
@@ -504,12 +522,21 @@ export function generateCognitiveDossier(params: {
   benchmarks: PopulationBenchmarks;
 }): CognitiveDossier {
   const { profile, scores, progress, sessions, benchmarks } = params;
-  const { def, topDomains, ranked } = resolveArchetype(scores);
+  const { def, topDomains } = resolveArchetype(scores);
   const clinical = computeClinicalMetrics(sessions);
   const ageLabel = getAgeBracketMeta(profile.age_bracket).label;
 
   const measuredKeys = DOMAIN_LIST.map((d) => d.key).filter((k) => (scores[k] ?? 0) > 0);
   const hasMeasured = profile.global_cognitive_index > 0 && measuredKeys.length > 0;
+
+  // O que a pessoa marcou no questionário: objetivos (etapa 1) e dificuldades (etapa 2)
+  const declaredBottleneckDomains = new Set(getBottleneckDomains(profile.cognitive_bottlenecks));
+  const declaredDomains = new Set<DomainKey>([
+    ...(profile.selected_domains ?? []),
+    ...declaredBottleneckDomains,
+  ]);
+  const untestedDomains = DOMAIN_LIST.map((d) => d.key).filter((k) => !((scores[k] ?? 0) > 0));
+  const untestedDeclaredDomains = untestedDomains.filter((k) => declaredDomains.has(k));
 
   const globalPct = hasMeasured
     ? percentileFromBenchmark(profile.global_cognitive_index, benchmarks.global, profile.age_bracket)
@@ -529,7 +556,20 @@ export function generateCognitiveDossier(params: {
     : 0;
   const top1Top = top1Score > 0 ? percentileToTopPercent(top1Pct) : 100;
 
-  const bottleneckKey = ranked[ranked.length - 1];
+  // Ponto a treinar = a habilidade TESTADA mais baixa (nunca uma que ainda não foi medida).
+  // Se uma dificuldade marcada no questionário estiver quase empatada com ela, essa tem prioridade.
+  const measuredAsc = [...measuredKeys].sort((a, b) => (scores[a] ?? 0) - (scores[b] ?? 0));
+  let bottleneckKey: DomainKey =
+    measuredAsc[0] ??
+    getCalibrationDomains(profile.selected_domains, profile.cognitive_bottlenecks)[0] ??
+    DOMAIN_LIST[0].key;
+  if (measuredAsc.length > 0) {
+    const lowest = scores[measuredAsc[0]] ?? 0;
+    const declaredNear = measuredAsc.find(
+      (k) => declaredBottleneckDomains.has(k) && (scores[k] ?? 0) - lowest <= 50
+    );
+    if (declaredNear) bottleneckKey = declaredNear;
+  }
   const bottleneckMeta = DOMAIN_MAP[bottleneckKey];
   const bottleneckScore = scores[bottleneckKey] ?? 0;
   const bottleneckBase = scores.baseline_scores?.[bottleneckKey] ?? bottleneckScore;
@@ -548,9 +588,11 @@ export function generateCognitiveDossier(params: {
   })[0];
 
   if (!hasMeasured) {
+    const calGameMeta =
+      GAME_REGISTRY.find((g) => g.slug === bottleneckMeta.calibrationGame) ?? recommendedGameMeta;
     const p1Zero = `Este perfil começou zerado (0%) na faixa ${ageLabel}. Conclua as primeiras sessões de 30 segundos para registrar sua linha de base real em velocidade e precisão.`;
     const p2Zero = `Assim que você terminar o primeiro exercício, o NeuroLab passa a medir seu tempo de reação (ms), sua precisão média e sua evolução comparando você com você mesmo.`;
-    const p3Zero = `Primeiro passo recomendado: iniciar ${recommendedGameMeta.name} (${bottleneckMeta.name}) ou concluir a avaliação de linha de base para gerar insights personalizados.`;
+    const p3Zero = `Primeiro passo recomendado: iniciar ${calGameMeta.name} (${bottleneckMeta.name}) ou concluir a avaliação de linha de base para gerar insights personalizados.`;
 
     return {
       archetypeTitle: def.title,
@@ -558,7 +600,10 @@ export function generateCognitiveDossier(params: {
       archetypeColor: def.color,
       topDomains,
       bottleneckDomain: bottleneckKey,
-      recommendedGame: recommendedGameMeta.slug,
+      recommendedGame: calGameMeta.slug,
+      untestedDomains,
+      untestedDeclaredDomains,
+      rankingReady: false,
       globalPercentile: 0,
       topPercent: 100,
       populationBand: 'Em Evolução',
@@ -572,7 +617,7 @@ export function generateCognitiveDossier(params: {
         `NeuroLab — Dossiê Cognitivo`,
         `Perfil: ${def.title} (Faixa ${ageLabel})`,
         `Índice Global: 0% · Aguardando primeiras medições de 30s`,
-        `Próximo passo: ${bottleneckMeta.name} → ${recommendedGameMeta.name}`,
+        `Próximo passo: ${bottleneckMeta.name} → ${calGameMeta.name}`,
       ].join('\n'),
     };
   }
@@ -599,7 +644,7 @@ export function generateCognitiveDossier(params: {
             .join(', ')} e ${ctxArray[ctxArray.length - 1].toLowerCase()}`;
 
   const stamina = profile.mental_stamina_baseline ?? 3;
-  const speedBeatsPct = estimateSpeedBeatsPct(clinical.avgRtMs);
+  const speedBeatsPct = estimateSpeedBeatsPct(sessions, profile.age_bracket);
 
   // --- Parágrafo 1: Pontos Fortes e Comparação Simples ---
   const balanceNote =
@@ -659,11 +704,20 @@ export function generateCognitiveDossier(params: {
     if (matched) {
       anamnesisLead = `Isso bate certinho com o que você marcou no início (${matched.meta.short}): `;
     } else {
-      const firstDeclared = declaredBottlenecks[0];
-      const declaredDomName = DOMAIN_MAP[firstDeclared.meta.domains[0]].shortName;
-      anamnesisLead = `Você foi melhor do que esperava em ${declaredDomName}, enquanto `;
+      // Só diz "foi melhor do que esperava" se a dificuldade marcada foi de fato testada e ficou acima
+      const betterDeclared = declaredBottlenecks
+        .flatMap((b) => b.meta.domains)
+        .find((k) => (scores[k] ?? 0) > bottleneckScore);
+      if (betterDeclared) {
+        anamnesisLead = `Você foi melhor do que esperava em ${DOMAIN_MAP[betterDeclared].shortName}, enquanto `;
+      }
     }
   }
+
+  const listNames = (keys: DomainKey[]) => {
+    const names = keys.map((k) => DOMAIN_MAP[k].shortName);
+    return names.length <= 1 ? names.join('') : `${names.slice(0, -1).join(', ')} e ${names[names.length - 1]}`;
+  };
 
   const trendPhrase =
     changePct > 2
@@ -672,12 +726,29 @@ export function generateCognitiveDossier(params: {
         ? `caiu ${changePct}% recentemente, mas tem ${growthRoomPct}% de espaço fácil para recuperar`
         : `tem ${growthRoomPct}% de espaço para alcançar seus pontos mais fortes`;
 
-  const p3 = `${anamnesisLead}${anamnesisLead ? 'o' : 'O'} ponto que mais vale treinar agora é ${bottleneckMeta.name} (${scoreToPercent(bottleneckScore)}%), que ${trendPhrase}. Jogar ${recommendedGameMeta.name} hoje é o caminho mais rápido para equilibrar sua mente.`;
+  const untestedHint =
+    untestedDeclaredDomains.length > 0
+      ? ` Você ainda não testou ${listNames(untestedDeclaredDomains)}, que marcou no questionário: faça esse teste para completar seu mapa.`
+      : '';
+
+  const p3 =
+    measuredKeys.length === 1
+      ? `Por enquanto só ${bottleneckMeta.name} foi medida (${scoreToPercent(bottleneckScore)}%).${untestedHint || ' Teste outras habilidades para descobrir onde vale mais a pena treinar.'}`
+      : `${anamnesisLead}${anamnesisLead ? 'o' : 'O'} ponto que mais vale treinar agora, entre o que você já testou, é ${bottleneckMeta.name} (${scoreToPercent(bottleneckScore)}%), que ${trendPhrase}. Jogar ${recommendedGameMeta.name} hoje é o caminho mais rápido para equilibrar sua mente.${untestedHint}`;
+
+  // Ranking da faixa etária só depois do teste inicial (antes disso a medida ainda está incompleta)
+  const rankingReady = Boolean(profile.calibrated);
+  const calTotal = getCalibrationDomains(profile.selected_domains, profile.cognitive_bottlenecks).length;
+  const p1Final = rankingReady
+    ? p1
+    : `Teste inicial em andamento: você já mediu ${listNames(measuredKeys)} (${measuredKeys.length} de ${calTotal}). Sua posição frente às pessoas da faixa ${ageLabel} aparece assim que o teste terminar.`;
 
   const shareSummaryText = [
     `NeuroLab — Dossiê Cognitivo`,
     `Perfil: ${def.title}`,
-    `Índice Global: ${scoreToPercent(profile.global_cognitive_index)}% · Faixa ${ageLabel}: Top ${topPercent}% (superou ${Math.round(globalPct)}%)`,
+    rankingReady
+      ? `Índice Global: ${scoreToPercent(profile.global_cognitive_index)}% · Faixa ${ageLabel}: Top ${topPercent}% (superou ${Math.round(globalPct)}%)`
+      : `Índice Global: calibrando (teste inicial em andamento)`,
     `Pontos fortes: ${top1.name} (${scoreToPercent(top1Score)}%) e ${top2.name} (${scoreToPercent(top2Score)}%)`,
     sessions.length > 0
       ? `Precisão média: ${Math.round(clinical.avgAccuracyPct)}% · Estabilidade de foco: ${clinical.consistencyIndex}%`
@@ -692,11 +763,14 @@ export function generateCognitiveDossier(params: {
     topDomains,
     bottleneckDomain: bottleneckKey,
     recommendedGame: recommendedGameMeta.slug,
+    untestedDomains,
+    untestedDeclaredDomains,
+    rankingReady,
     globalPercentile: globalPct,
     topPercent,
     populationBand,
     paragraphs: {
-      profileAndStrengths: p1,
+      profileAndStrengths: p1Final,
       behaviorUnderPressure: p2,
       bottleneckAndPrescription: p3,
     },
@@ -924,7 +998,13 @@ export function buildPersonalDailyNote(params: {
   const globalPct = scoreToPercent(profile.global_cognitive_index);
   const weekly = computeWeeklyEvolution(sessions, snapshots, profile.global_cognitive_index);
 
-  const ranked = [...DOMAIN_LIST].sort((a, b) => (scores[a.key] ?? 0) - (scores[b.key] ?? 0));
+  // Só compara habilidades já testadas (as não testadas não são "a mais fraca", só não foram medidas)
+  const measured = DOMAIN_LIST.filter((d) => (scores[d.key] ?? 0) > 0);
+  const firstCalDomain = getCalibrationDomains(profile.selected_domains, profile.cognitive_bottlenecks)[0];
+  const pool = measured.length > 0 ? measured : DOMAIN_LIST.filter((d) => d.key === firstCalDomain);
+  const ranked = [...(pool.length > 0 ? pool : DOMAIN_LIST)].sort(
+    (a, b) => (scores[a.key] ?? 0) - (scores[b.key] ?? 0)
+  );
   const weakest = ranked[0];
   const strongest = ranked[ranked.length - 1];
   const weakPct = scoreToPercent(scores[weakest.key] ?? 0);

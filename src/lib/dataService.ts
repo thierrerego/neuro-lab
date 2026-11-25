@@ -18,7 +18,10 @@ import {
   generateDailyProtocol,
   getCalibrationDomains,
   getCognitiveTier,
+  nextDomainScore,
+  percentileToNormScore,
 } from '../engine/psychometricEngine';
+import { migrateStateToNormV2, needsNormMigration, NORM_VERSION } from './normMigration';
 import { NORMATIVE_BENCHMARKS, resolveArchetype } from '../engine/cognitiveProfiler';
 import { DOMAIN_LIST, GAME_REGISTRY } from '../engine/gameRegistry';
 import { saveLocalUserState } from './localUserDb';
@@ -178,7 +181,7 @@ export function loadLocalState(): AppDataState | null {
         };
       }
     }
-    return {
+    const loaded: AppDataState = {
       profile: cleanProfile,
       scores: parsed.scores,
       progress: mergedProgress,
@@ -186,6 +189,13 @@ export function loadLocalState(): AppDataState | null {
       snapshots: Array.isArray(parsed.snapshots) ? parsed.snapshots : [],
       dailyProtocol,
     };
+    // Conta local (sem servidor) que ainda está na régua antiga: recalcula uma vez pelo histórico
+    if (cleanProfile.isLocalGuest && needsNormMigration(loaded)) {
+      const migrated = migrateStateToNormV2(loaded, { recomputeScores: true });
+      saveLocalState(migrated);
+      return migrated;
+    }
+    return loaded;
   } catch {
     return null;
   }
@@ -349,8 +359,60 @@ export async function loadRemoteState(
     });
   }
 
-  saveLocalState(base);
-  return base;
+  const migratedBase = await applyRemoteNormMigration(base);
+  saveLocalState(migratedBase);
+  return migratedBase;
+}
+
+/**
+ * Migração para a régua científica nova em contas do servidor.
+ * O servidor não guarda a marcação de versão, então a data da migração fica salva neste aparelho:
+ * - 1ª vez: refaz as notas pelo histórico e grava no servidor;
+ * - sempre: partidas e pontos de evolução anteriores a essa data são lidos na régua nova.
+ */
+async function applyRemoteNormMigration(base: AppDataState): Promise<AppDataState> {
+  const key = `neurolab_norm_v2_since:${base.profile.id}`;
+  let since: string | null = null;
+  try {
+    since = localStorage.getItem(key);
+  } catch {
+    since = null;
+  }
+
+  if (since) {
+    return migrateStateToNormV2(base, { recomputeScores: false, onlyOlderThanIso: since });
+  }
+
+  const nowIso = getAppNowIso();
+  const migrated = migrateStateToNormV2(base, { recomputeScores: true, onlyOlderThanIso: nowIso });
+  try {
+    localStorage.setItem(key, nowIso);
+  } catch {
+    // sem armazenamento: recalcula de novo na próxima abertura
+  }
+
+  const s = migrated.scores;
+  await Promise.allSettled([
+    supabase.from('domain_scores').upsert({
+      user_id: base.profile.id,
+      selective_attention: s.selective_attention,
+      working_memory: s.working_memory,
+      fluid_reasoning: s.fluid_reasoning,
+      processing_speed: s.processing_speed,
+      numerical_cognition: s.numerical_cognition,
+      inhibitory_control: s.inhibitory_control,
+      baseline_scores: s.baseline_scores,
+      updated_at: nowIso,
+    }),
+    supabase
+      .from('profiles')
+      .update({
+        global_cognitive_index: migrated.profile.global_cognitive_index,
+        current_title: migrated.profile.current_title,
+      })
+      .eq('id', base.profile.id),
+  ]);
+  return migrated;
 }
 
 /**
@@ -444,26 +506,17 @@ export async function recordSessionResult(
   };
 
   const curVal = nextScores[result.domain] ?? 0;
-  // Pontuação alvo real da sessão na escala 0..990 baseada no percentil TRI frente à idade
-  const triTargetScore = Math.max(80, Math.min(990, Math.round(result.percentile * 10)));
+  // Escore padronizado da sessão (média 500, desvio 235) a partir do percentil frente à idade
+  const triTargetScore = percentileToNormScore(result.percentile);
 
-  if (result.mode === 'calibration' || curVal === 0) {
-    // 1ª medição real do domínio: registra diretamente o desempenho TRI como estado atual e linha de base
-    nextScores[result.domain] = triTargetScore;
-    if (!nextScores.baseline_scores[result.domain]) {
-      nextScores.baseline_scores[result.domain] = triTargetScore;
-    }
-  } else {
-    // Média móvel suave rumo ao desempenho real (TRI): sobe quando evolui, sem travar em 100% por repetição
-    const blended = Math.round(curVal * 0.72 + triTargetScore * 0.28);
-    const boundedDelta = Math.max(-25, Math.min(35, blended - curVal));
-    nextScores[result.domain] = Math.max(80, Math.min(990, curVal + boundedDelta));
-    if (!nextScores.baseline_scores[result.domain]) {
-      nextScores.baseline_scores[result.domain] = curVal;
-    }
+  const upd = nextDomainScore(curVal, triTargetScore, result.mode === 'calibration');
+  nextScores[result.domain] = upd.score;
+  if (!nextScores.baseline_scores[result.domain]) {
+    nextScores.baseline_scores[result.domain] = upd.baseline;
   }
+  nextScores.norm_version = NORM_VERSION;
 
-  const requiredCalDomains = getCalibrationDomains(state.profile.selected_domains);
+  const requiredCalDomains = getCalibrationDomains(state.profile.selected_domains, state.profile.cognitive_bottlenecks);
   const allCalibratedNow = requiredCalDomains.every((d) =>
     Boolean(nextScores.baseline_scores[d])
   );
@@ -517,6 +570,7 @@ export async function recordSessionResult(
     rt_mean_ms: result.rtMeanMs,
     rt_sd_ms: result.rtSdMs,
     created_at: now,
+    norm_v: NORM_VERSION,
   };
 
   const updatedSessions = [newSession, ...state.sessions].slice(0, 150);
@@ -672,13 +726,17 @@ export async function recordSessionResult(
   return nextState;
 }
 
+const USE_SCIENTIFIC_NORMS_ONLY = true;
+
 /**
  * Busca benchmarks globais.
  * Em modo local (sem consumo Supabase), usa exclusivamente a calibração científica normativa
  * da literatura (nunca mistura os perfis fictícios locais como se fossem base populacional real).
  */
 export async function fetchPopulationBenchmarks(backendOnline: boolean): Promise<PopulationBenchmarks> {
-  if (!backendOnline) return NORMATIVE_BENCHMARKS;
+  // Ranking sempre pela régua científica da faixa etária: com poucas pessoas usando o app,
+  // comparar com a base de jogadores daria posições sem sentido.
+  if (!backendOnline || USE_SCIENTIFIC_NORMS_ONLY) return NORMATIVE_BENCHMARKS;
   try {
     const { data, error } = await supabase.rpc('get_global_benchmarks');
     if (error || !data || typeof data !== 'object') {

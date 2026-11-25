@@ -19,7 +19,6 @@ import { TOTAL_WAVE_HITS } from './waveEngine';
 import {
   buildAgeComparisonNote,
   computeEquilibriumIndex,
-  estimateTriAbility,
   getEquilibriumBandLabel,
   getExpectedAgeEquilibrium,
 } from './adaptiveEngine';
@@ -123,7 +122,8 @@ export function getCognitiveTier(score: number): CognitiveTier {
 }
 
 export function normalCDF(x: number, mean = 500, sd = 235): number {
-  const safeSd = Math.max(50, sd);
+  // Atenção: não forçar um desvio mínimo alto aqui — escalas pequenas (z, 1..20) usam sd < 50.
+  const safeSd = Math.max(1e-6, sd);
   const z = (x - mean) / (safeSd * Math.SQRT2);
   const sign = z < 0 ? -1 : 1;
   const absZ = Math.abs(z);
@@ -164,6 +164,102 @@ export function scoreToPercentile(
   const rawPct = normalCDF(levelScore, mean, sd) * 100;
   const clamped = Math.max(1.0, Math.min(99.5, rawPct));
   return Number(clamped.toFixed(1));
+}
+
+/** Inversa da normal padrão (aproximação de Acklam): percentil (0..1) → z */
+export function inverseNormalCDF(p: number): number {
+  const q = Math.max(1e-6, Math.min(1 - 1e-6, p));
+  const a = [-39.69683028665376, 220.9460984245205, -275.9285104469687, 138.357751867269, -30.66479806614716, 2.506628277459239];
+  const b = [-54.47609879822406, 161.5858368580409, -155.6989798598866, 66.80131188771972, -13.28068155288572];
+  const c = [-0.007784894002430293, -0.3223964580411365, -2.400758277161838, -2.549732539343734, 4.374664141464968, 2.938163982698783];
+  const d = [0.007784695709041462, 0.3224671290700398, 2.445134137142996, 3.754408661907416];
+  const low = 0.02425;
+  if (q < low) {
+    const r = Math.sqrt(-2 * Math.log(q));
+    return (((((c[0] * r + c[1]) * r + c[2]) * r + c[3]) * r + c[4]) * r + c[5]) / ((((d[0] * r + d[1]) * r + d[2]) * r + d[3]) * r + 1);
+  }
+  if (q > 1 - low) {
+    const r = Math.sqrt(-2 * Math.log(1 - q));
+    return -(((((c[0] * r + c[1]) * r + c[2]) * r + c[3]) * r + c[4]) * r + c[5]) / ((((d[0] * r + d[1]) * r + d[2]) * r + d[3]) * r + 1);
+  }
+  const r = q - 0.5;
+  const s = r * r;
+  return ((((((a[0] * s + a[1]) * s + a[2]) * s + a[3]) * s + a[4]) * s + a[5]) * r) / (((((b[0] * s + b[1]) * s + b[2]) * s + b[3]) * s + b[4]) * s + 1);
+}
+
+/**
+ * Escala normativa interna dos domínios (0..1000): média 500, desvio 235.
+ * O percentil da faixa etária vira um escore padronizado (z) nessa escala, e volta igual.
+ */
+export const NORM_SCORE_MEAN = 500;
+export const NORM_SCORE_SD = 235;
+
+export function percentileToNormScore(percentile: number): number {
+  const z = inverseNormalCDF(Math.max(0.5, Math.min(99.5, percentile)) / 100);
+  return Math.max(30, Math.min(990, Math.round(NORM_SCORE_MEAN + z * NORM_SCORE_SD)));
+}
+
+export function normScoreToPercentile(score: number): number {
+  if (score <= 0) return 1.0;
+  const pct = normalCDF(score, NORM_SCORE_MEAN, NORM_SCORE_SD) * 100;
+  return Number(Math.max(1.0, Math.min(99.5, pct)).toFixed(1));
+}
+
+/**
+ * Parâmetros da régua normativa científica (por faixa etária), inspirados em normas de testes
+ * de atenção/velocidade (TMT, SDMT, Flanker): adulto típico acerta ~83% sob pressão de tempo,
+ * com variação de ~12 pontos, e o tempo de reação segue distribuição log-normal (σ ≈ 0,30).
+ */
+export const AGE_NORM_PARAMS = {
+  expectedAccuracy: 83,
+  accuracySd: 12,
+  logRtSd: 0.3,
+  accWeight: 0.5,
+  speedWeight: 0.5,
+  compositeSd: 0.85,
+  levelWeight: 0.5,
+};
+
+/**
+ * Percentil frente à faixa etária a partir de 3 sinais objetivos:
+ * 1) precisão vs. esperado para a idade; 2) velocidade vs. tempo-alvo da idade (log-normal);
+ * 3) bônus por sustentar um ritmo acima do esperado para a idade (níveis avançados).
+ */
+export function computeAgeNormPercentile(params: {
+  accuracyPct: number;
+  rtMeanMs: number;
+  targetRtMs: number;
+  equilibriumIndex: number;
+  ageExpected: number;
+  ageSd: number;
+  ageBracket?: AgeBracket | string | null;
+  trials: number;
+}): number {
+  const { accuracyPct, rtMeanMs, targetRtMs, equilibriumIndex, ageExpected, ageSd, ageBracket, trials } = params;
+  const P = AGE_NORM_PARAMS;
+
+  // Regra anti-chute: menos de 50% de acerto fica sempre na faixa mais baixa
+  if (accuracyPct < 50) {
+    return Number(Math.max(1.0, Math.min(5.0, 1.0 + (Math.max(0, accuracyPct) / 50) * 4.0)).toFixed(1));
+  }
+
+  const ageOffset = getAgeBracketMeta(ageBracket).meanOffset;
+  const expectedAcc = P.expectedAccuracy + ageOffset * 0.05;
+  const zAcc = Math.max(-3, Math.min(2.5, (accuracyPct - expectedAcc) / P.accuracySd));
+
+  const zSpd =
+    rtMeanMs > 0 && targetRtMs > 0
+      ? Math.max(-3, Math.min(2.8, -Math.log(rtMeanMs / targetRtMs) / P.logRtSd))
+      : 0;
+
+  const zLevel = Math.max(0, (equilibriumIndex - ageExpected) / Math.max(1, ageSd)) * P.levelWeight;
+
+  // Poucas jogadas = medida menos confiável (encolhe levemente rumo à média, sem achatar)
+  const reliability = 0.8 + 0.2 * Math.min(1, Math.max(0, trials) / 8);
+
+  const z = ((P.accWeight * zAcc + P.speedWeight * zSpd) / P.compositeSd) * reliability + zLevel;
+  const pct = normalCDF(z, 0, 1) * 100;
+  return Number(Math.max(1.0, Math.min(99.5, pct)).toFixed(1));
 }
 
 /** Tempo-alvo de referência (ms) calibrado por exercício, nível e faixa etária (literatura psicométrica) */
@@ -367,26 +463,21 @@ export function evaluateSession(params: {
   const equilibriumBand = getEquilibriumBandLabel(equilibriumIndex);
   const ageComparisonNote = buildAgeComparisonNote(equilibriumIndex, ageNorm.expected, ageLabel);
 
-  // Percentil normativo estilo TRI (Teoria de Resposta ao Item):
-  // Considera principalmente a dificuldade realmente alcançada frente à curva da faixa etária,
-  // ajustada pela precisão e velocidade — assim, quem chega em ritmo extremo e erra mais
-  // continua bem posicionado frente à idade, e quem gabarita ritmo muito fácil sobe aos poucos.
-  const triAbility = estimateTriAbility({
-    equilibriumIndex,
-    trail: wave.difficultyTrail,
-    accuracyPct,
-    rtRatio,
-    correctCount: perf.correct,
-  });
+  // Percentil normativo científico frente à faixa etária (não depende de quantas pessoas usam o app):
+  // combina precisão, velocidade (vs. tempo esperado para a idade) e nível sustentado.
   const percentile =
     perf.correct <= 0
       ? 1.0
-      : Number(
-          Math.max(
-            1.0,
-            Math.min(99.5, normalCDF(triAbility, ageNorm.expected, ageNorm.sd) * 100)
-          ).toFixed(1)
-        );
+      : computeAgeNormPercentile({
+          accuracyPct,
+          rtMeanMs,
+          targetRtMs: targetRt,
+          equilibriumIndex,
+          ageExpected: ageNorm.expected,
+          ageSd: ageNorm.sd,
+          ageBracket,
+          trials: totalAttempts,
+        });
 
   const tier = getCognitiveTier(finalScore);
 
@@ -479,6 +570,24 @@ export function evaluateSession(params: {
   };
 }
 
+/**
+ * Regra única de atualização da nota de uma habilidade após uma partida:
+ * - 1ª medição (ou teste inicial): registra direto o desempenho;
+ * - depois: média móvel suave rumo ao desempenho real, com limite de quanto sobe/desce por partida.
+ */
+export function nextDomainScore(
+  current: number,
+  target: number,
+  isCalibration: boolean
+): { score: number; baseline: number } {
+  if (isCalibration || current <= 0) {
+    return { score: target, baseline: target };
+  }
+  const blended = Math.round(current * 0.72 + target * 0.28);
+  const boundedDelta = Math.max(-25, Math.min(35, blended - current));
+  return { score: Math.max(30, Math.min(990, current + boundedDelta)), baseline: current };
+}
+
 export function calculateGlobalCognitiveIndex(scores: DomainScoresRecord): number {
   const measured = DOMAIN_LIST.map((d) => scores[d.key] ?? 0).filter((v) => v > 0);
   if (measured.length === 0) return 0;
@@ -493,9 +602,37 @@ export function getWeakestDomains(scores: DomainScoresRecord, count = 2): Domain
     .map((d) => d.key);
 }
 
-export function getCalibrationDomains(selectedDomains?: DomainKey[]): DomainKey[] {
+/** Domínios ligados a cada dificuldade marcada na etapa 2 da anamnese */
+export const BOTTLENECK_DOMAIN_MAP: Record<string, DomainKey[]> = {
+  wm_reread: ['working_memory'],
+  att_tabs: ['selective_attention'],
+  inh_impulse: ['inhibitory_control'],
+  spd_num_slow: ['processing_speed', 'numerical_cognition'],
+  fld_stuck: ['fluid_reasoning'],
+};
+
+export function getBottleneckDomains(bottleneckIds?: string[] | null): DomainKey[] {
+  const set = new Set<DomainKey>();
+  for (const id of bottleneckIds ?? []) {
+    (BOTTLENECK_DOMAIN_MAP[id] ?? []).forEach((d) => set.add(d));
+  }
+  return Array.from(set);
+}
+
+/**
+ * Domínios da avaliação inicial: objetivos escolhidos (etapa 1) + dificuldades declaradas (etapa 2).
+ * Assim o teste mede exatamente o que a pessoa disse que quer treinar ou que sente dificuldade.
+ */
+export function getCalibrationDomains(
+  selectedDomains?: DomainKey[],
+  bottleneckIds?: string[] | null
+): DomainKey[] {
   const valid = Array.from(
-    new Set((selectedDomains ?? []).filter((d) => DOMAIN_LIST.some((m) => m.key === d)))
+    new Set(
+      [...(selectedDomains ?? []), ...getBottleneckDomains(bottleneckIds)].filter((d) =>
+        DOMAIN_LIST.some((m) => m.key === d)
+      )
+    )
   );
   if (valid.length === 0) return DOMAIN_LIST.map((d) => d.key);
   if (valid.length === 1) {
@@ -651,20 +788,37 @@ export function buildTrainingQueue(
     return result;
   }
 
-  const rankedWeak = [...DOMAIN_LIST].sort((a, b) => (scores[a.key] ?? 0) - (scores[b.key] ?? 0));
-  const hasMaintenance = totalGames >= 3;
+  // Só entram as habilidades já testadas ou escolhidas no questionário
+  // (uma habilidade nunca medida não é "a mais fraca", então não vira foco sozinha).
+  const relevant = DOMAIN_LIST.filter(
+    (d) => (scores[d.key] ?? 0) > 0 || (selectedDomains ?? []).includes(d.key)
+  );
+  const rankedWeak = [...(relevant.length > 0 ? relevant : DOMAIN_LIST)].sort(
+    (a, b) => (scores[a.key] ?? 0) - (scores[b.key] ?? 0)
+  );
+  const hasMaintenance = totalGames >= 3 && rankedWeak.length >= 2;
   const focusCount = hasMaintenance ? totalGames - 1 : totalGames;
 
-  const gamesList: DailyProtocolRecord['recommended_games'] = rankedWeak.slice(0, focusCount).map((d, idx) => ({
-    slug: pickGame(d.key, idx),
-    domain: d.key,
-    role: 'weak',
-  }));
+  const usedWeak = new Set<GameSlug>();
+  const gamesList: DailyProtocolRecord['recommended_games'] = Array.from({ length: focusCount }, (_, idx) => {
+    const d = rankedWeak[idx % rankedWeak.length];
+    let slug = pickGame(d.key, idx);
+    if (usedWeak.has(slug)) {
+      const alt = GAMES_BY_DOMAIN[d.key].find((g) => !usedWeak.has(g.slug));
+      if (alt) slug = alt.slug;
+    }
+    usedWeak.add(slug);
+    return { slug, domain: d.key, role: 'weak' as const };
+  });
 
   if (hasMaintenance) {
     const strongest = rankedWeak[rankedWeak.length - 1];
+    let maintSlug = pickGame(strongest.key, 1);
+    if (usedWeak.has(maintSlug)) {
+      maintSlug = GAMES_BY_DOMAIN[strongest.key].find((g) => !usedWeak.has(g.slug))?.slug ?? maintSlug;
+    }
     gamesList.push({
-      slug: pickGame(strongest.key, 1),
+      slug: maintSlug,
       domain: strongest.key,
       role: 'maintenance',
     });

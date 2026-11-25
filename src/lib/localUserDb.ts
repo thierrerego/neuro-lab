@@ -20,6 +20,7 @@ import {
 } from '../engine/psychometricEngine';
 import { NORMATIVE_BENCHMARKS, resolveArchetype } from '../engine/cognitiveProfiler';
 import { getAppTodayIso, resetSimulatedDayOffset } from './appClock';
+import { migrateStateToNormV2, needsNormMigration } from './normMigration';
 
 const LOCAL_DB_KEY = 'neurolab_local_db_v1';
 const LOCAL_AUTH_KEY = 'neurolab_local_auth_v1';
@@ -733,22 +734,33 @@ export function getLocalUserState(userId: string): AppDataState | null {
     state.progress = nextProg;
   }
 
+  // Régua científica nova: quem já jogava tem as notas recalculadas uma vez pelo histórico
+  let current = state;
+  if (needsNormMigration(current)) {
+    current = migrateStateToNormV2(current, { recomputeScores: true });
+    dirty = true;
+  }
+  const finalState = current;
+  if (finalState !== state) {
+    db.users[userId] = finalState;
+  }
+
   const today = getAppTodayIso();
-  if (!state.dailyProtocol || state.dailyProtocol.protocol_date !== today) {
-    state.dailyProtocol = generateDailyProtocol(
-      state.scores,
+  if (!finalState.dailyProtocol || finalState.dailyProtocol.protocol_date !== today) {
+    finalState.dailyProtocol = generateDailyProtocol(
+      finalState.scores,
       today,
-      state.profile.selected_domains,
-      state.profile.daily_goal_minutes
+      finalState.profile.selected_domains,
+      finalState.profile.daily_goal_minutes
     );
     dirty = true;
   }
 
   if (dirty) {
-    db.users[userId] = state;
+    db.users[userId] = finalState;
     writeDb(db);
   }
-  return state;
+  return finalState;
 }
 
 export function getActiveLocalUserId(): string {

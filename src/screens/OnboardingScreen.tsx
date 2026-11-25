@@ -323,8 +323,8 @@ export function OnboardingScreen({
   );
 
   const calibrationDomains = useMemo(
-    () => getCalibrationDomains(effectiveDomains),
-    [effectiveDomains]
+    () => getCalibrationDomains(effectiveDomains, bottlenecks),
+    [effectiveDomains, bottlenecks]
   );
 
   const telemetryLine = useMemo(() => {

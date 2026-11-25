@@ -805,6 +805,9 @@ export function GameShell({
             (() => {
               const beatsPct = Math.max(1, Math.min(99, Math.round(result.percentile)));
               const topPct = Math.max(1, 100 - beatsPct);
+              // Durante o teste inicial o ranking da idade fica "calibrando" (só aparece no Dossiê ao final)
+              const showRanking = mode !== 'calibration';
+              const effectiveChartTab = showRanking ? resultChartTab : 'evolution';
               const passedStage = result.stageCleared;
               const nextStageUnlocked = passedStage && result.nextStage > result.stagePlayed;
               const curveX = 14 + (beatsPct / 100) * 272;
@@ -874,22 +877,24 @@ export function GameShell({
                       className="text-xs font-extrabold uppercase tracking-widest"
                       style={{ color: 'var(--text-soft)' }}
                     >
-                      Você superou
+                      {showRanking ? 'Você superou' : 'Teste inicial'}
                     </div>
 
                     <div
-                      className="text-6xl font-extrabold tabular tracking-tight leading-none mt-2"
+                      className={`${showRanking ? 'text-6xl' : 'text-4xl'} font-extrabold tabular tracking-tight leading-none mt-2`}
                       style={{
                         background: 'var(--accent-grad)',
                         WebkitBackgroundClip: 'text',
                         WebkitTextFillColor: 'transparent',
                       }}
                     >
-                      {beatsPct}%
+                      {showRanking ? `${beatsPct}%` : 'Calibrando…'}
                     </div>
 
                     <div className="text-[15px] font-bold mt-2" style={{ color: 'var(--text)' }}>
-                      das pessoas da sua faixa etária ({ageLabel})
+                      {showRanking
+                        ? `das pessoas da sua faixa etária (${ageLabel})`
+                        : `Sua posição na faixa ${ageLabel} aparece no Dossiê quando o teste terminar`}
                     </div>
 
                     {!sandboxMode && coachInsight && (
@@ -949,9 +954,11 @@ export function GameShell({
                     )}
 
                     <div className="text-xs font-medium mt-1" style={{ color: 'var(--text-soft)' }}>
-                      {beatsPct >= 50
-                        ? `Entre os Top ${topPct}% da faixa ${ageLabel}`
-                        : `Continue treinando para subir no ranking (${ageLabel})`}
+                      {!showRanking
+                        ? `Precisão ${result.accuracyPct}% registrada nesta habilidade`
+                        : beatsPct >= 50
+                          ? `Entre os Top ${topPct}% da faixa ${ageLabel}`
+                          : `Continue treinando para subir no ranking (${ageLabel})`}
                     </div>
 
                     {deltaVsPrevPct !== null && deltaVsPrevPct !== 0 && (
@@ -981,7 +988,7 @@ export function GameShell({
                   <div className="flex flex-col gap-2">
                     <div
                       className="grid grid-cols-2 gap-1 p-1 rounded-xl"
-                      style={{ background: 'var(--bg-subtle)' }}
+                      style={{ background: 'var(--bg-subtle)', display: showRanking ? undefined : 'none' }}
                     >
                       <button
                         type="button"
@@ -1009,7 +1016,7 @@ export function GameShell({
                       </button>
                     </div>
 
-                    {resultChartTab === 'ranking' ? (
+                    {effectiveChartTab === 'ranking' ? (
                       <div className="rounded-2xl px-3.5 pt-3.5 pb-2.5" style={{ background: 'var(--bg-subtle)' }}>
                         <svg viewBox="0 0 300 112" className="w-full h-[108px] block overflow-visible">
                           <defs>

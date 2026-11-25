@@ -384,7 +384,14 @@ export function StatsScreen({
           </div>
 
           <div className="flex flex-col items-end gap-1 shrink-0">
-            {icgPct > 0 ? (
+            {icgPct > 0 && !dossier.rankingReady ? (
+              <span
+                className="px-3 py-1 rounded-full text-xs font-bold"
+                style={{ background: 'var(--bg-subtle)', color: 'var(--text-soft)' }}
+              >
+                Calibrando…
+              </span>
+            ) : icgPct > 0 ? (
               <>
                 <span
                   className="px-3 py-1 rounded-full text-xs font-bold tabular"
@@ -510,10 +517,12 @@ export function StatsScreen({
                       Superação geral
                     </div>
                     <div className="text-lg font-extrabold tabular mt-0.5">
-                      {Math.round(dossier.globalPercentile)}%
+                      {dossier.rankingReady ? `${Math.round(dossier.globalPercentile)}%` : 'Calibrando…'}
                     </div>
                     <div className="text-[11px] mt-0.5 leading-snug" style={{ color: 'var(--text-muted)' }}>
-                      Pessoas superadas na faixa {ageLabel}
+                      {dossier.rankingReady
+                        ? `Pessoas superadas na faixa ${ageLabel}`
+                        : 'Aparece ao terminar o teste inicial'}
                     </div>
                   </div>
                 </div>
@@ -557,6 +566,42 @@ export function StatsScreen({
                 <ArrowRight size={16} />
               </button>
             </div>
+
+            {dossier.untestedDomains.length > 0 && (
+              <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: 'var(--bg-subtle)' }}>
+                <div>
+                  <div className="text-xs font-bold tracking-wide mb-1.5" style={{ color: 'var(--text-soft)' }}>
+                    4. Ainda não testado
+                  </div>
+                  <p className="text-sm leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                    {dossier.untestedDeclaredDomains.length > 0
+                      ? 'Você marcou estas habilidades no questionário, mas ainda não testou. Um teste de 30s já entra no seu mapa.'
+                      : 'Estas habilidades ainda não foram medidas, então ficam fora das recomendações. Quer testar?'}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    ...dossier.untestedDeclaredDomains,
+                    ...dossier.untestedDomains.filter((k) => !dossier.untestedDeclaredDomains.includes(k)),
+                  ].map((dk) => {
+                    const d = DOMAIN_MAP[dk];
+                    const declared = dossier.untestedDeclaredDomains.includes(dk);
+                    return (
+                      <button
+                        key={dk}
+                        type="button"
+                        onClick={() => onImproveDomain(dk)}
+                        className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold btn-soft cursor-pointer"
+                        style={declared ? { border: `1px solid ${d.color}` } : undefined}
+                      >
+                        <span className="w-2 h-2 rounded-full" style={{ background: d.color }} />
+                        <span>Testar {d.shortName}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -961,7 +1006,7 @@ export function StatsScreen({
                               <span className="font-extrabold" style={{ color: 'var(--text)' }}>
                                 {curPct}%
                               </span>
-                              <span>{isMeasured ? `· Est. Top ${topP}%` : '· Sem medição'}</span>
+                              <span>{!isMeasured ? '· Não testado' : dossier.rankingReady ? `· Est. Top ${topP}%` : '· Calibrando…'}</span>
                               {diffPct !== 0 && (
                                 <span
                                   className="font-bold"

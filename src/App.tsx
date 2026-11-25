@@ -322,7 +322,7 @@ export default function App() {
     }
 
     if (ob.startCalibrationNow) {
-      const calDomains = getCalibrationDomains(updated.profile.selected_domains);
+      const calDomains = getCalibrationDomains(updated.profile.selected_domains, updated.profile.cognitive_bottlenecks);
       const firstDom = DOMAIN_MAP[calDomains[0]];
       if (firstDom) {
         setActivePlay({
@@ -438,7 +438,7 @@ export default function App() {
     let workoutProgress: DailyWorkoutProgressInfo | undefined;
 
     if (activePlay.mode === 'calibration') {
-      const calDomains = getCalibrationDomains(data.profile.selected_domains);
+      const calDomains = getCalibrationDomains(data.profile.selected_domains, data.profile.cognitive_bottlenecks);
       const pendingIdx = calDomains.findIndex((d) => !data.scores.baseline_scores?.[d]);
       if (pendingIdx !== -1) {
         const nextDom = DOMAIN_MAP[calDomains[pendingIdx]];
@@ -608,6 +608,7 @@ export default function App() {
       >
         <CalibrationScreen
           selectedDomains={data.profile.selected_domains}
+          bottlenecks={data.profile.cognitive_bottlenecks}
           scores={data.scores}
           onStartGame={(slug, idx, total, domainName) =>
             startGame(slug, 'calibration', 'calibration', {
