@@ -22,17 +22,14 @@ export function getTargetHitsForGame(slug?: GameSlug): number {
   switch (slug) {
     case 'schulte-order':
     case 'path-logic':
-    case 'ancient-numbers':
       return 3;
     case 'spatial-span':
     case 'sustained-tracking':
     case 'reverse-digits':
     case 'pass-the-ball':
-    case 'hidden-gold':
     case 'shopping-list':
     case 'phone-number':
     case 'secret-code':
-    case 'strange-signals':
       return 4;
     case 'visual-search':
     case 'conjunction-search':
@@ -48,31 +45,35 @@ export function getTargetHitsForGame(slug?: GameSlug): number {
       return 6;
     case 'dual-n-back':
     case 'memory-pairs':
-    case 'match-pairs':
     case 'chain-arithmetic':
     case 'missing-operator':
     case 'number-comparison':
-    case 'quick-pair':
     case 'treasure-hunt':
-    case 'identical-items':
     case 'missing-number':
     case 'complex-patterns':
+    case 'exact-change':
+    case 'double-half':
       return 8;
     case 'odd-one-out':
     case 'flash-match':
     case 'symbol-digit':
     case 'rule-switch':
     case 'stroop-conflict':
-    case 'quick-estimate':
-    case 'fish-out-of-water':
+    case 'word-radar':
+    case 'math-verdict':
+    case 'simon-says':
       return 10;
     case 'logic-intruder':
     case 'sort-trash':
+    case 'whack-target':
+    case 'bomb-defuse':
       return 12;
     case 'opposite-arrow':
     case 'speed-match':
     case 'flanker-focus':
-    case 'inverted-signal':
+    case 'parity-dash':
+    case 'color-sort':
+    case 'mirror-words':
       return 14;
     case 'go-nogo-reflex':
       return 16;

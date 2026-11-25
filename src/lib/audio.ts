@@ -1,16 +1,43 @@
 import type { ThemeMode } from '../types/cognitive';
 
+const MUTE_KEY = 'neurolab_sound_muted_v1';
+
+// Escala pentatônica maior (Dó5 -> Dó6 -> Ré6 -> Mi6): som musical gostoso que sobe no combo!
+const PENTATONIC_HZ = [523.25, 587.33, 659.25, 783.99, 880.0, 1046.5, 1174.66, 1318.51];
+
 class SoundEngine {
   private ctx: AudioContext | null = null;
-  private enabled = true;
+  private muted = false;
+
+  constructor() {
+    try {
+      this.muted = window.localStorage.getItem(MUTE_KEY) === '1';
+    } catch {
+      this.muted = false;
+    }
+  }
 
   setTheme(_theme: ThemeMode) {
-    // Feedback sonoro discreto e preciso em ambos os modos (escuro e claro)
-    this.enabled = true;
+    // Mantém o estado de mudo escolhido pelo usuário
+  }
+
+  isMuted(): boolean {
+    return this.muted;
+  }
+
+  toggleMute(): boolean {
+    this.muted = !this.muted;
+    try {
+      window.localStorage.setItem(MUTE_KEY, this.muted ? '1' : '0');
+    } catch {
+      // ignore storage errors
+    }
+    if (!this.muted) this.tap();
+    return this.muted;
   }
 
   private ensureContext(): AudioContext | null {
-    if (!this.enabled) return null;
+    if (this.muted) return null;
     try {
       if (!this.ctx) {
         const AudioCtor =
@@ -27,45 +54,105 @@ class SoundEngine {
     }
   }
 
-  private tone(freq: number, dur = 0.07, type: OscillatorType = 'sine', vol = 0.05, delay = 0) {
+  /**
+   * Nota estilo marimba/kalimba: ataque macio sem estalo + harmônico suave de oitava
+   */
+  private marimba(freq: number, dur = 0.16, vol = 0.08, delay = 0) {
     const ctx = this.ensureContext();
     if (!ctx) return;
     const now = ctx.currentTime + delay;
+
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    const gain2 = ctx.createGain();
+
+    osc1.type = 'sine';
+    osc2.type = 'triangle';
+    osc1.frequency.setValueAtTime(freq, now);
+    osc2.frequency.setValueAtTime(freq * 2, now);
+
+    // Envelope suave (evita "click" seco e dá textura de madeira/cristal)
+    gain1.gain.setValueAtTime(0.0005, now);
+    gain1.gain.linearRampToValueAtTime(vol, now + 0.01);
+    gain1.gain.exponentialRampToValueAtTime(0.0006, now + dur);
+
+    gain2.gain.setValueAtTime(0.0005, now);
+    gain2.gain.linearRampToValueAtTime(vol * 0.22, now + 0.008);
+    gain2.gain.exponentialRampToValueAtTime(0.0005, now + dur * 0.55);
+
+    osc1.connect(gain1);
+    osc2.connect(gain2);
+    gain1.connect(ctx.destination);
+    gain2.connect(ctx.destination);
+
+    osc1.start(now);
+    osc2.start(now);
+    osc1.stop(now + dur + 0.01);
+    osc2.stop(now + dur * 0.6 + 0.01);
+  }
+
+  /** Pop suave e tátil ao tocar em botões */
+  tap() {
+    const ctx = this.ensureContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    osc.type = type;
-    osc.frequency.setValueAtTime(freq, now);
-    gain.gain.setValueAtTime(vol, now);
-    gain.gain.exponentialRampToValueAtTime(0.0008, now + dur);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(480, now);
+    osc.frequency.exponentialRampToValueAtTime(340, now + 0.045);
+    gain.gain.setValueAtTime(0.0005, now);
+    gain.gain.linearRampToValueAtTime(0.045, now + 0.005);
+    gain.gain.exponentialRampToValueAtTime(0.0005, now + 0.05);
     osc.connect(gain);
     gain.connect(ctx.destination);
     osc.start(now);
-    osc.stop(now + dur);
+    osc.stop(now + 0.055);
   }
 
-  tap() {
-    this.tone(420, 0.035, 'sine', 0.03);
-  }
-
+  /** Nota musical pentatônica que sobe gostosamente conforme o combo cresce */
   hit(combo = 1) {
-    const pitch = Math.min(860, 480 + combo * 34);
-    this.tone(pitch, 0.07, 'sine', 0.055);
+    const idx = Math.max(0, Math.min(PENTATONIC_HZ.length - 1, combo - 1));
+    const base = PENTATONIC_HZ[idx];
+    this.marimba(base, 0.17, 0.085, 0);
+    // Brilho extra em combos altos (4+)
+    if (combo >= 4) {
+      this.marimba(base * 1.25, 0.13, 0.04, 0.045);
+    }
   }
 
+  /** Som de erro abafado e educado (sem susto irritante) */
   miss() {
-    this.tone(190, 0.12, 'triangle', 0.05);
-    this.tone(150, 0.12, 'triangle', 0.04, 0.06);
+    const ctx = this.ensureContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(220, now);
+    osc.frequency.exponentialRampToValueAtTime(155, now + 0.14);
+    gain.gain.setValueAtTime(0.0005, now);
+    gain.gain.linearRampToValueAtTime(0.065, now + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0006, now + 0.16);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.17);
   }
 
+  /** Fanfarra cristalina de conclusão (arpejo C5 -> E5 -> G5 -> C6) */
   stageClear() {
-    this.tone(523.25, 0.1, 'sine', 0.06, 0);
-    this.tone(659.25, 0.1, 'sine', 0.06, 0.09);
-    this.tone(783.99, 0.14, 'sine', 0.065, 0.18);
+    this.marimba(523.25, 0.18, 0.075, 0);
+    this.marimba(659.25, 0.18, 0.075, 0.085);
+    this.marimba(783.99, 0.2, 0.08, 0.17);
+    this.marimba(1046.5, 0.34, 0.09, 0.26);
   }
 
+  /** Fechamento suave quando o tempo acaba */
   stageFail() {
-    this.tone(330, 0.12, 'sine', 0.05, 0);
-    this.tone(262, 0.18, 'sine', 0.05, 0.12);
+    this.marimba(392.0, 0.18, 0.06, 0);
+    this.marimba(329.63, 0.24, 0.055, 0.12);
   }
 }
 

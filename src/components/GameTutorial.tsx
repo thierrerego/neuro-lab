@@ -3,30 +3,33 @@ import { Check, Hand, Play } from 'lucide-react';
 import type { GameSlug, StageConfig } from '../types/cognitive';
 import { DOMAIN_MAP, GAME_MAP } from '../engine/gameRegistry';
 import {
-  AncientNumbersDemo,
   ComplexPatternsDemo,
   ConjunctionSearchDemo,
   CrimeSceneDemo,
   FanCountDemo,
-  FishOutOfWaterDemo,
-  HiddenGoldDemo,
-  IdenticalItemsDemo,
-  InvertedSignalDemo,
   LogicBalanceDemo,
-  MatchPairsDemo,
   MissingNumberDemo,
   PassTheBallDemo,
   PhoneNumberDemo,
-  QuickEstimateDemo,
-  QuickPairDemo,
   ReverseDigitsDemo,
   SecretAnagramsDemo,
   SecretCodeDemo,
   ShoppingListDemo,
   SortTrashDemo,
-  StrangeSignalsDemo,
   TreasureHuntDemo,
 } from './GameTutorialExtraDemos';
+import {
+  BombDefuseDemo,
+  ColorSortDemo,
+  DoubleHalfDemo,
+  ExactChangeDemo,
+  MathVerdictDemo,
+  MirrorWordsDemo,
+  ParityDashDemo,
+  SimonSaysDemo,
+  WhackTargetDemo,
+  WordRadarDemo,
+} from './GameTutorialNewDemos';
 
 interface GameTutorialProps {
   slug: GameSlug;
@@ -1821,46 +1824,48 @@ function getTutorialInstruction(slug: GameSlug, config: StageConfig): string {
       return 'Memorize os números que aparecem e digite a sequência de TRÁS PRA FRENTE.';
     case 'logic-balance':
       return 'Use as pistas visuais para descobrir quanto vale o símbolo do "?".';
-    case 'quick-pair':
-      return 'Localize o único par de símbolos idênticos na grade e toque nos dois.';
-    case 'quick-estimate':
-      return 'Compare mentalmente as duas expressões e toque na que dá o MAIOR resultado.';
-    case 'inverted-signal':
-      return 'Sinal VERDE: siga a seta. Sinal VERMELHO: toque na direção OPOSTA.';
     case 'pass-the-ball':
       return 'Memorize onde estão as armadilhas 🚧 e leve a bola ⚽ até a bandeira 🏁 sem pisar nelas.';
-    case 'hidden-gold':
-      return 'Memorize onde estão as moedas 🪙 e toque nas mesmas posições quando sumirem.';
     case 'shopping-list':
       return 'Memorize os itens da lista de compras e selecione exatamente eles na prateleira.';
-    case 'match-pairs':
-      return 'Memorize os emojis revelados e combine todos os pares idênticos com o mínimo de erros.';
     case 'phone-number':
       return 'Memorize o número exibido na tela e digite-o completo no teclado numérico.';
     case 'secret-code':
       return 'Memorize os números espalhados e toque nos quadrados em ordem CRESCENTE quando sumirem.';
-    case 'strange-signals':
-      return 'Observe a sequência de sinais 📡 que piscam na matriz e repita exatamente na mesma ordem.';
-    case 'ancient-numbers':
-      return 'Toque nos números espalhados pela tela na ordem crescente (1 → 2 → 3...) bem rápido.';
     case 'crime-scene':
-      return 'Todos os objetos têm um par, exceto UM. Localize e toque no único item solitário.';
+      return 'A maioria dos objetos tem um par. Localize e toque em todos os itens que estão SEM par na cena.';
     case 'treasure-hunt':
       return 'Observe as cores misturadas e toque rapidamente na cor que aparece em maior quantidade.';
-    case 'identical-items':
-      return 'Apenas um par de emojis se repete na grade. Toque em qualquer um dos dois itens iguais.';
     case 'missing-number':
       return 'Descubra qual número está faltando na sequência e toque na alternativa correta.';
     case 'fan-count':
       return 'Conte rapidamente quantas camisas têm a cor pedida no topo e toque no total certo.';
     case 'secret-anagrams':
       return 'Encontre a única opção que usa exatamente as mesmas letras da palavra-alvo embaralhadas.';
-    case 'fish-out-of-water':
-      return 'Observe o grupo e toque no único item intruso que não pertence à categoria ou padrão.';
     case 'sort-trash':
       return 'Classifique rapidamente cada item tocando na lixeira da cor certa (Papel, Plástico, Vidro ou Orgânico).';
     case 'complex-patterns':
       return 'Compare os dois padrões e responda SIM se o da direita for o mesmo apenas girado, ou NÃO se for diferente.';
+    case 'whack-target':
+      return 'Alvos brilhantes ⚡ acendem rápido na grade — toque neles antes que apaguem e ignore as pedras 🪨.';
+    case 'parity-dash':
+      return 'Decida o mais rápido possível se o número (ou o resultado da conta) é PAR ou ÍMPAR.';
+    case 'word-radar':
+      return 'Olhe a palavra-alvo no topo e toque na palavra EXATAMENTE igual no meio das parecidas.';
+    case 'color-sort':
+      return 'Jogue a peça colorida no botão da mesma cor o mais rápido que conseguir.';
+    case 'math-verdict':
+      return 'Leia a conta completa na tela e responda rápido se o resultado está CERTO ou ERRADO.';
+    case 'exact-change':
+      return 'Veja o preço do item e com quanto foi pago, e toque rapidamente no valor exato do troco.';
+    case 'double-half':
+      return 'Veja se o topo pede DOBRO, METADE ou TRIPLO e toque no resultado certo de cabeça.';
+    case 'bomb-defuse':
+      return 'Pegue rápido os prêmios (⭐💎🎁) tocando na pista, mas NÃO toque quando aparecer bomba (💣🧨☠️).';
+    case 'simon-says':
+      return 'Só toque na cor pedida se aparecer 👑 O MESTRE MANDOU. Sem a coroa, toque em IGNORAR.';
+    case 'mirror-words':
+      return 'Toque no botão que obedece à PALAVRA escrita (ESQUERDA ou DIREITA), ignorando de que lado o cartão apareceu.';
   }
 }
 
@@ -1920,46 +1925,48 @@ function TutorialStageVisual({ slug, config }: { slug: GameSlug; config: StageCo
       return <ReverseDigitsDemo />;
     case 'logic-balance':
       return <LogicBalanceDemo />;
-    case 'quick-pair':
-      return <QuickPairDemo />;
-    case 'quick-estimate':
-      return <QuickEstimateDemo />;
-    case 'inverted-signal':
-      return <InvertedSignalDemo />;
     case 'pass-the-ball':
       return <PassTheBallDemo />;
-    case 'hidden-gold':
-      return <HiddenGoldDemo />;
     case 'shopping-list':
       return <ShoppingListDemo />;
-    case 'match-pairs':
-      return <MatchPairsDemo />;
     case 'phone-number':
       return <PhoneNumberDemo />;
     case 'secret-code':
       return <SecretCodeDemo />;
-    case 'strange-signals':
-      return <StrangeSignalsDemo />;
-    case 'ancient-numbers':
-      return <AncientNumbersDemo />;
     case 'crime-scene':
       return <CrimeSceneDemo />;
     case 'treasure-hunt':
       return <TreasureHuntDemo />;
-    case 'identical-items':
-      return <IdenticalItemsDemo />;
     case 'missing-number':
       return <MissingNumberDemo />;
     case 'fan-count':
       return <FanCountDemo />;
     case 'secret-anagrams':
       return <SecretAnagramsDemo />;
-    case 'fish-out-of-water':
-      return <FishOutOfWaterDemo />;
     case 'sort-trash':
       return <SortTrashDemo />;
     case 'complex-patterns':
       return <ComplexPatternsDemo />;
+    case 'whack-target':
+      return <WhackTargetDemo />;
+    case 'parity-dash':
+      return <ParityDashDemo />;
+    case 'word-radar':
+      return <WordRadarDemo />;
+    case 'color-sort':
+      return <ColorSortDemo />;
+    case 'math-verdict':
+      return <MathVerdictDemo />;
+    case 'exact-change':
+      return <ExactChangeDemo />;
+    case 'double-half':
+      return <DoubleHalfDemo />;
+    case 'bomb-defuse':
+      return <BombDefuseDemo />;
+    case 'simon-says':
+      return <SimonSaysDemo />;
+    case 'mirror-words':
+      return <MirrorWordsDemo />;
   }
 }
 

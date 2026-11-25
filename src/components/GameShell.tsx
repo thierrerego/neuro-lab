@@ -14,6 +14,8 @@ import {
   Timer,
   TrendingDown,
   TrendingUp,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import type {
   AgeBracket,
@@ -176,10 +178,28 @@ export function GameShell({
     note: '',
   });
   const [sandboxFbSaved, setSandboxFbSaved] = useState(false);
-  const [resultChartTab, setResultChartTab] = useState<'ranking' | 'evolution'>('ranking');
+  const [resultChartTab, setResultChartTab] = useState<'ranking' | 'evolution'>(() => {
+    try {
+      const saved = window.localStorage.getItem('neurolab_result_chart_tab_v1');
+      return saved === 'evolution' ? 'evolution' : 'ranking';
+    } catch {
+      return 'ranking';
+    }
+  });
+  const [muted, setMuted] = useState<boolean>(() => sound.isMuted());
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState('');
   const [noteSavedToast, setNoteSavedToast] = useState(false);
+
+  const handleSelectResultChartTab = (tab: 'ranking' | 'evolution') => {
+    sound.tap();
+    setResultChartTab(tab);
+    try {
+      window.localStorage.setItem('neurolab_result_chart_tab_v1', tab);
+    } catch {
+      // ignore storage errors
+    }
+  };
 
   // Fluxo: tutorial -> contagem única no início (3 -> 2 -> 1 -> Vai!) -> exercício contínuo
   const [tutorialSlug, setTutorialSlug] = useState<GameSlug | null>(slug);
@@ -221,7 +241,6 @@ export function GameShell({
     setHelpOpen(false);
     setSandboxFb({ note: '' });
     setSandboxFbSaved(false);
-    setResultChartTab('ranking');
     setNoteOpen(false);
     setNoteDraft('');
     setNoteSavedToast(false);
@@ -573,7 +592,18 @@ export function GameShell({
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => setMuted(sound.toggleMute())}
+              className="w-9 h-9 rounded-2xl flex items-center justify-center btn-soft cursor-pointer"
+              style={{ color: muted ? 'var(--text-soft)' : 'var(--text-muted)' }}
+              title={muted ? 'Ativar som' : 'Silenciar som'}
+              aria-label={muted ? 'Ativar som' : 'Silenciar som'}
+            >
+              {muted ? <VolumeX size={17} /> : <Volume2 size={17} />}
+            </button>
+
             {!showTutorial && !result && (
               <button
                 type="button"
@@ -582,12 +612,12 @@ export function GameShell({
                   helpOpensRef.current += 1;
                   setHelpOpen(true);
                 }}
-                className="w-10 h-10 rounded-2xl flex items-center justify-center btn-soft cursor-pointer"
+                className="w-9 h-9 rounded-2xl flex items-center justify-center btn-soft cursor-pointer"
                 style={{ color: 'var(--accent)' }}
                 title="Ajuda · Como fazer este exercício"
                 aria-label="Ajuda"
               >
-                <HelpCircle size={20} />
+                <HelpCircle size={19} />
               </button>
             )}
 
@@ -955,10 +985,7 @@ export function GameShell({
                     >
                       <button
                         type="button"
-                        onClick={() => {
-                          sound.tap();
-                          setResultChartTab('ranking');
-                        }}
+                        onClick={() => handleSelectResultChartTab('ranking')}
                         className={`py-1.5 px-2 rounded-lg text-xs font-bold cursor-pointer transition-all ${
                           resultChartTab === 'ranking' ? 'btn-accent' : ''
                         }`}
@@ -970,10 +997,7 @@ export function GameShell({
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          sound.tap();
-                          setResultChartTab('evolution');
-                        }}
+                        onClick={() => handleSelectResultChartTab('evolution')}
                         className={`py-1.5 px-2 rounded-lg text-xs font-bold cursor-pointer transition-all ${
                           resultChartTab === 'evolution' ? 'btn-accent' : ''
                         }`}

@@ -10,27 +10,43 @@ export interface AdaptiveCoachInsight {
   text: string;
   nextTrend: NextDifficultyTrend;
   nextTrendLabel: string;
+  nextDifficultyDeltaPct: number;
 }
 
 function resolveNextTrend(result: ComputedSessionResult): {
   nextTrend: NextDifficultyTrend;
   nextTrendLabel: string;
+  nextDifficultyDeltaPct: number;
 } {
-  if (
-    result.nextStage > result.stagePlayed ||
-    result.adaptiveStatus === 'level_up' ||
-    result.adaptiveStatus === 'fast_track'
-  ) {
-    return { nextTrend: 'harder', nextTrendLabel: 'Próximo mais desafiador' };
+  if (result.adaptiveStatus === 'fast_track' && result.adaptiveDelta > 0) {
+    const pct = Math.min(25, Math.max(15, result.adaptiveDelta * 10));
+    return {
+      nextTrend: 'harder',
+      nextTrendLabel: `+${pct}% mais desafiador na próxima`,
+      nextDifficultyDeltaPct: pct,
+    };
   }
-  if (
-    result.nextStage < result.stagePlayed ||
-    result.adaptiveStatus === 'step_down' ||
-    result.adaptiveStatus === 'ease_mode'
-  ) {
-    return { nextTrend: 'easier', nextTrendLabel: 'Próximo mais leve' };
+  if (result.adaptiveStatus === 'level_up' && result.adaptiveDelta > 0) {
+    const pct = Math.min(18, Math.max(8, result.adaptiveDelta * 10));
+    return {
+      nextTrend: 'harder',
+      nextTrendLabel: `+${pct}% mais desafiador na próxima`,
+      nextDifficultyDeltaPct: pct,
+    };
   }
-  return { nextTrend: 'steady', nextTrendLabel: 'Mesmo ritmo' };
+  if (result.adaptiveStatus === 'step_down' || result.adaptiveStatus === 'ease_mode') {
+    const pct = result.adaptiveStatus === 'step_down' ? Math.min(20, Math.max(10, Math.abs(result.adaptiveDelta) * 10)) : 10;
+    return {
+      nextTrend: 'easier',
+      nextTrendLabel: `-${pct}% mais leve na próxima`,
+      nextDifficultyDeltaPct: -pct,
+    };
+  }
+  return {
+    nextTrend: 'steady',
+    nextTrendLabel: 'Mesmo ritmo na próxima (0%)',
+    nextDifficultyDeltaPct: 0,
+  };
 }
 
 function formatRtShort(rtMeanMs: number): string {
@@ -48,12 +64,14 @@ function buildLocalScientificInsight(
   const delta = eq - expected;
   const intensity = getIntensityLabel(eq).toLowerCase();
   const rtText = formatRtShort(result.rtMeanMs);
-  const { nextTrend, nextTrendLabel } = resolveNextTrend(result);
+  const { nextTrend, nextTrendLabel, nextDifficultyDeltaPct } = resolveNextTrend(result);
 
   let perfNote = '';
-  if (result.accuracyPct < 75 && delta >= 1.5) {
+  if (!result.stageCleared && result.accuracyPct >= 80) {
+    perfNote = `Sua precisão foi ótima (${result.accuracyPct}%), mas o tempo acabou antes de completar a meta.`;
+  } else if (result.accuracyPct < 75 && delta >= 1.5) {
     perfNote = `Mesmo com ${result.accuracyPct}% de precisão, você chegou a um ${intensity} que poucas pessoas de ${ageLabel} alcançam.`;
-  } else if (result.accuracyPct >= 92 && delta >= 0.8) {
+  } else if (result.accuracyPct >= 92 && delta >= 0.8 && result.stageCleared) {
     perfNote = `Você manteve ${result.accuracyPct}% de precisão em ${intensity} — acima da média para ${ageLabel}.`;
   } else if (result.accuracyPct < 75) {
     perfNote = `Sua precisão ficou em ${result.accuracyPct}%. Vale focar em acertar com calma antes de acelerar.`;
@@ -65,16 +83,17 @@ function buildLocalScientificInsight(
 
   const nextHint =
     nextTrend === 'harder'
-      ? 'Você evoluiu bem — na próxima vez este exercício vai vir um pouco mais desafiador.'
+      ? `Na próxima rodada o desafio sobe ${nextDifficultyDeltaPct}% para acompanhar sua evolução.`
       : nextTrend === 'easier'
-        ? 'Na próxima vez o ritmo vai vir um pouco mais leve para você firmar a precisão e subir de novo.'
-        : 'Na próxima vez o ritmo continua parecido para consolidar sua agilidade.';
+        ? `Na próxima rodada vamos aliviar ${Math.abs(nextDifficultyDeltaPct)}% o ritmo para você pegar embalo e subir de novo.`
+        : 'Na próxima rodada vamos manter o mesmo ritmo para você consolidar velocidade e fechar a meta.';
 
   return {
     source: 'scientific_local',
     text: `${perfNote} ${nextHint}`,
     nextTrend,
     nextTrendLabel,
+    nextDifficultyDeltaPct,
   };
 }
 
@@ -98,20 +117,20 @@ export async function generateAdaptiveCoachInsight(
   const domain = DOMAIN_MAP[result.domain];
   const ageLabel = getAgeBracketMeta(ageBracket).label;
   const intensity = getIntensityLabel(result.equilibriumIndex ?? result.stagePlayed);
-  const { nextTrend, nextTrendLabel } = resolveNextTrend(result);
+  const { nextTrend, nextTrendLabel, nextDifficultyDeltaPct } = resolveNextTrend(result);
   const trendContext =
     nextTrend === 'harder'
-      ? 'o próximo exercício vai ficar mais desafiador porque o usuário evoluiu'
+      ? `o próximo exercício vai ficar +${nextDifficultyDeltaPct}% mais desafiador porque o usuário concluiu a meta com ótima precisão`
       : nextTrend === 'easier'
-        ? 'o próximo exercício vai ficar um pouco mais leve para consolidar a precisão'
-        : 'o próximo exercício vai manter um ritmo parecido para consolidar';
+        ? `o próximo exercício vai ficar ${Math.abs(nextDifficultyDeltaPct)}% mais leve para ajudar o usuário a pegar ritmo`
+        : 'o próximo exercício vai manter o mesmo ritmo para consolidar velocidade';
 
   const prompt = [
     'Você é um especialista em treino cognitivo comentando o resultado de um exercício do app NeuroLab.',
     'Escreva NO MÁXIMO 2 frases curtas em português do Brasil, em linguagem simples e motivadora, sem markdown e sem termos técnicos como "carga", "equilíbrio numérico", "motor adaptativo" ou "calibração".',
     `Deixe claro de forma natural que ${trendContext}.`,
     `Exercício: ${game?.name ?? result.gameSlug} (${domain?.name ?? result.domain})`,
-    `Faixa etária: ${ageLabel}`,
+    `Faixa etária: ${ageLabel} | Concluiu meta: ${result.stageCleared ? 'Sim' : 'Não'}`,
     `Ritmo atingido: ${intensity} | Precisão: ${result.accuracyPct}% | Tempo médio: ${result.rtMeanMs}ms | Superou: ${result.percentile}% da faixa etária`,
   ].join('\n');
 
@@ -137,7 +156,7 @@ export async function generateAdaptiveCoachInsight(
     };
     const text = json.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
     if (!text) return fallback;
-    return { source: 'gemini', text, nextTrend, nextTrendLabel };
+    return { source: 'gemini', text, nextTrend, nextTrendLabel, nextDifficultyDeltaPct };
   } catch {
     return fallback;
   }

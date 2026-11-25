@@ -51,11 +51,10 @@ export const DOMAIN_MAP: Record<DomainKey, DomainMeta> = DOMAIN_LIST.reduce(
 );
 
 /**
- * Catálogo completo de 24 exercícios cognitivos (4 por domínio).
- * Todos começam no Nível 1 (ultrabásico) e progridem em curva suave de Flow.
+ * Catálogo curado com 48 exercícios cognitivos 100% distintos (sem clones).
  */
 export const GAME_REGISTRY: GameMeta[] = [
-  // 1. Atenção Seletiva (4)
+  // 1. Atenção Seletiva (9)
   {
     slug: 'visual-search',
     domain: 'selective_attention',
@@ -92,17 +91,10 @@ export const GAME_REGISTRY: GameMeta[] = [
     durationSec: 30,
   },
   {
-    slug: 'ancient-numbers',
-    domain: 'selective_attention',
-    name: 'Números Antigos',
-    shortTip: 'Toque em ordem 1 → 2 → 3',
-    durationSec: 30,
-  },
-  {
     slug: 'crime-scene',
     domain: 'selective_attention',
     name: 'Cena do Crime',
-    shortTip: 'Ache o item sem par',
+    shortTip: 'Ache os itens sem par',
     durationSec: 30,
   },
   {
@@ -110,13 +102,6 @@ export const GAME_REGISTRY: GameMeta[] = [
     domain: 'selective_attention',
     name: 'Caça ao Tesouro',
     shortTip: 'Qual cor aparece mais?',
-    durationSec: 30,
-  },
-  {
-    slug: 'identical-items',
-    domain: 'selective_attention',
-    name: 'Itens Idênticos',
-    shortTip: 'Toque no item repetido',
     durationSec: 30,
   },
   {
@@ -134,7 +119,7 @@ export const GAME_REGISTRY: GameMeta[] = [
     durationSec: 30,
   },
 
-  // 2. Memória (Memória Visual/Normal + Memória de Trabalho — 4)
+  // 2. Memória (9)
   {
     slug: 'memory-pairs',
     domain: 'working_memory',
@@ -178,24 +163,10 @@ export const GAME_REGISTRY: GameMeta[] = [
     durationSec: 30,
   },
   {
-    slug: 'hidden-gold',
-    domain: 'working_memory',
-    name: 'Ouro Escondido',
-    shortTip: 'Onde estavam as moedas?',
-    durationSec: 30,
-  },
-  {
     slug: 'shopping-list',
     domain: 'working_memory',
     name: 'Lista de Compras',
     shortTip: 'Pegue os itens da lista',
-    durationSec: 30,
-  },
-  {
-    slug: 'match-pairs',
-    domain: 'working_memory',
-    name: 'Combine o Par',
-    shortTip: 'Combine os emojis iguais',
     durationSec: 30,
   },
   {
@@ -212,15 +183,8 @@ export const GAME_REGISTRY: GameMeta[] = [
     shortTip: 'Toque na ordem crescente',
     durationSec: 30,
   },
-  {
-    slug: 'strange-signals',
-    domain: 'working_memory',
-    name: 'Sinais Estranhos',
-    shortTip: 'Repita a transmissão',
-    durationSec: 30,
-  },
 
-  // 3. Raciocínio Fluido (4)
+  // 3. Raciocínio Fluido (8)
   {
     slug: 'number-sequence',
     domain: 'fluid_reasoning',
@@ -264,13 +228,6 @@ export const GAME_REGISTRY: GameMeta[] = [
     durationSec: 30,
   },
   {
-    slug: 'fish-out-of-water',
-    domain: 'fluid_reasoning',
-    name: "Peixe Fora d'Água",
-    shortTip: 'Toque no intruso do grupo',
-    durationSec: 30,
-  },
-  {
     slug: 'sort-trash',
     domain: 'fluid_reasoning',
     name: 'Separar o Lixo',
@@ -285,7 +242,7 @@ export const GAME_REGISTRY: GameMeta[] = [
     durationSec: 30,
   },
 
-  // 4. Velocidade de Processamento (4)
+  // 4. Velocidade de Processamento (8)
   {
     slug: 'speed-match',
     domain: 'processing_speed',
@@ -315,14 +272,35 @@ export const GAME_REGISTRY: GameMeta[] = [
     durationSec: 30,
   },
   {
-    slug: 'quick-pair',
+    slug: 'whack-target',
     domain: 'processing_speed',
-    name: 'Par Rápido',
-    shortTip: 'Encontre o par idêntico',
+    name: 'Alvo Relâmpago',
+    shortTip: 'Toque antes de apagar',
+    durationSec: 30,
+  },
+  {
+    slug: 'parity-dash',
+    domain: 'processing_speed',
+    name: 'Par ou Ímpar',
+    shortTip: 'Classifique em milissegundos',
+    durationSec: 30,
+  },
+  {
+    slug: 'word-radar',
+    domain: 'processing_speed',
+    name: 'Caça-Palavra Relâmpago',
+    shortTip: 'Ache a palavra exata',
+    durationSec: 30,
+  },
+  {
+    slug: 'color-sort',
+    domain: 'processing_speed',
+    name: 'Separar por Cor',
+    shortTip: 'Jogue na cor igual',
     durationSec: 30,
   },
 
-  // 5. Cálculo Mental (4)
+  // 5. Cálculo Mental (7)
   {
     slug: 'chain-arithmetic',
     domain: 'numerical_cognition',
@@ -352,14 +330,28 @@ export const GAME_REGISTRY: GameMeta[] = [
     durationSec: 30,
   },
   {
-    slug: 'quick-estimate',
+    slug: 'math-verdict',
     domain: 'numerical_cognition',
-    name: 'Maior Expressão',
-    shortTip: 'Toque na conta maior',
+    name: 'Conta Certa ou Errada',
+    shortTip: 'Julgue a conta rápido',
+    durationSec: 30,
+  },
+  {
+    slug: 'exact-change',
+    domain: 'numerical_cognition',
+    name: 'Troco Exato',
+    shortTip: 'Calcule o troco da compra',
+    durationSec: 30,
+  },
+  {
+    slug: 'double-half',
+    domain: 'numerical_cognition',
+    name: 'Dobro ou Metade',
+    shortTip: 'Dobre ou divida de cabeça',
     durationSec: 30,
   },
 
-  // 6. Controle Inibitório (4)
+  // 6. Controle Inibitório (7)
   {
     slug: 'stroop-conflict',
     domain: 'inhibitory_control',
@@ -389,10 +381,24 @@ export const GAME_REGISTRY: GameMeta[] = [
     durationSec: 30,
   },
   {
-    slug: 'inverted-signal',
+    slug: 'bomb-defuse',
     domain: 'inhibitory_control',
-    name: 'Regra Invertida',
-    shortTip: 'Verde segue · Vermelho inverte',
+    name: 'Toque Proibido',
+    shortTip: 'Pegue prêmios · Evite bombas',
+    durationSec: 30,
+  },
+  {
+    slug: 'simon-says',
+    domain: 'inhibitory_control',
+    name: 'Mestre Mandou',
+    shortTip: 'Só obedeça com a coroa',
+    durationSec: 30,
+  },
+  {
+    slug: 'mirror-words',
+    domain: 'inhibitory_control',
+    name: 'Palavra ou Posição',
+    shortTip: 'Siga a palavra, ignore o lado',
     durationSec: 30,
   },
 ];

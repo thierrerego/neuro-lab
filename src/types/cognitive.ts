@@ -13,56 +13,60 @@ export type DomainKey =
   | 'inhibitory_control';
 
 export type GameSlug =
+  // 1. Atenção Seletiva (9)
   | 'visual-search'
   | 'sustained-tracking'
   | 'odd-one-out'
   | 'flanker-focus'
   | 'conjunction-search'
-  | 'spatial-span'
-  | 'dual-n-back'
+  | 'crime-scene'
+  | 'treasure-hunt'
+  | 'missing-number'
+  | 'fan-count'
+  // 2. Memória (9)
   | 'memory-pairs'
   | 'photo-recall'
+  | 'spatial-span'
+  | 'dual-n-back'
   | 'reverse-digits'
-  | 'raven-matrices'
-  | 'path-logic'
+  | 'pass-the-ball'
+  | 'shopping-list'
+  | 'phone-number'
+  | 'secret-code'
+  // 3. Raciocínio Fluido (8)
   | 'number-sequence'
   | 'logic-intruder'
+  | 'raven-matrices'
+  | 'path-logic'
   | 'logic-balance'
+  | 'secret-anagrams'
+  | 'sort-trash'
+  | 'complex-patterns'
+  // 4. Velocidade de Processamento (8)
   | 'speed-match'
   | 'symbol-digit'
   | 'schulte-order'
   | 'flash-match'
-  | 'quick-pair'
+  | 'whack-target'
+  | 'parity-dash'
+  | 'word-radar'
+  | 'color-sort'
+  // 5. Cálculo Mental (7)
   | 'chain-arithmetic'
   | 'number-comparison'
   | 'target-sum'
   | 'missing-operator'
-  | 'quick-estimate'
+  | 'math-verdict'
+  | 'exact-change'
+  | 'double-half'
+  // 6. Controle Inibitório (7)
   | 'stroop-conflict'
   | 'go-nogo-reflex'
   | 'opposite-arrow'
   | 'rule-switch'
-  | 'inverted-signal'
-  // Novos — Memória de Trabalho (7)
-  | 'pass-the-ball'
-  | 'hidden-gold'
-  | 'shopping-list'
-  | 'match-pairs'
-  | 'phone-number'
-  | 'secret-code'
-  | 'strange-signals'
-  // Novos — Atenção Seletiva (6)
-  | 'ancient-numbers'
-  | 'crime-scene'
-  | 'treasure-hunt'
-  | 'identical-items'
-  | 'missing-number'
-  | 'fan-count'
-  // Novos — Raciocínio Fluido (4)
-  | 'secret-anagrams'
-  | 'fish-out-of-water'
-  | 'sort-trash'
-  | 'complex-patterns';
+  | 'bomb-defuse'
+  | 'simon-says'
+  | 'mirror-words';
 
 export interface DomainMeta {
   key: DomainKey;

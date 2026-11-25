@@ -1415,6 +1415,7 @@ export function StatsScreen({
                     {group.items.map((entry) => {
                       const gameMeta = GAME_MAP[entry.slug];
                       const domMeta = DOMAIN_MAP[entry.domain];
+                      if (!gameMeta || !domMeta) return null;
 
                       return (
                         <button

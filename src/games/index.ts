@@ -28,79 +28,81 @@ import { RuleSwitchGame } from './RuleSwitchGame';
 import { ConjunctionSearchGame } from './ConjunctionSearchGame';
 import { ReverseDigitsGame } from './ReverseDigitsGame';
 import { LogicBalanceGame } from './LogicBalanceGame';
-import { QuickPairGame } from './QuickPairGame';
-import { QuickEstimateGame } from './QuickEstimateGame';
-import { InvertedSignalGame } from './InvertedSignalGame';
 import { PassTheBallGame } from './PassTheBallGame';
-import { HiddenGoldGame } from './HiddenGoldGame';
 import { ShoppingListGame } from './ShoppingListGame';
-import { MatchPairsGame } from './MatchPairsGame';
 import { PhoneNumberGame } from './PhoneNumberGame';
 import { SecretCodeGame } from './SecretCodeGame';
-import { StrangeSignalsGame } from './StrangeSignalsGame';
-import { AncientNumbersGame } from './AncientNumbersGame';
 import { CrimeSceneGame } from './CrimeSceneGame';
 import { TreasureHuntGame } from './TreasureHuntGame';
-import { IdenticalItemsGame } from './IdenticalItemsGame';
 import { MissingNumberGame } from './MissingNumberGame';
 import { FanCountGame } from './FanCountGame';
 import { SecretAnagramsGame } from './SecretAnagramsGame';
-import { FishOutOfWaterGame } from './FishOutOfWaterGame';
 import { SortTrashGame } from './SortTrashGame';
 import { ComplexPatternsGame } from './ComplexPatternsGame';
+import { WhackTargetGame } from './WhackTargetGame';
+import { ParityDashGame } from './ParityDashGame';
+import { WordRadarGame } from './WordRadarGame';
+import { ColorSortGame } from './ColorSortGame';
+import { MathVerdictGame } from './MathVerdictGame';
+import { ExactChangeGame } from './ExactChangeGame';
+import { DoubleHalfGame } from './DoubleHalfGame';
+import { BombDefuseGame } from './BombDefuseGame';
+import { SimonSaysGame } from './SimonSaysGame';
+import { MirrorWordsGame } from './MirrorWordsGame';
 
 export const GAME_COMPONENTS: Record<GameSlug, ComponentType<MinigameProps>> = {
-  // 1. Atenção Seletiva (11)
+  // 1. Atenção Seletiva (9)
   'visual-search': VisualSearchGame,
   'sustained-tracking': SustainedTrackingGame,
   'odd-one-out': OddOneOutGame,
   'flanker-focus': FlankerFocusGame,
   'conjunction-search': ConjunctionSearchGame,
-  'ancient-numbers': AncientNumbersGame,
   'crime-scene': CrimeSceneGame,
   'treasure-hunt': TreasureHuntGame,
-  'identical-items': IdenticalItemsGame,
   'missing-number': MissingNumberGame,
   'fan-count': FanCountGame,
-  // 2. Memória (12)
+  // 2. Memória (9)
   'memory-pairs': MemoryPairsGame,
   'photo-recall': PhotoRecallGame,
   'spatial-span': SpatialSpanGame,
   'dual-n-back': DualNBackGame,
   'reverse-digits': ReverseDigitsGame,
   'pass-the-ball': PassTheBallGame,
-  'hidden-gold': HiddenGoldGame,
   'shopping-list': ShoppingListGame,
-  'match-pairs': MatchPairsGame,
   'phone-number': PhoneNumberGame,
   'secret-code': SecretCodeGame,
-  'strange-signals': StrangeSignalsGame,
-  // 3. Raciocínio Fluido (9)
+  // 3. Raciocínio Fluido (8)
   'number-sequence': NumberSequenceGame,
   'logic-intruder': LogicIntruderGame,
   'raven-matrices': RavenMatricesGame,
   'path-logic': PathLogicGame,
   'logic-balance': LogicBalanceGame,
   'secret-anagrams': SecretAnagramsGame,
-  'fish-out-of-water': FishOutOfWaterGame,
   'sort-trash': SortTrashGame,
   'complex-patterns': ComplexPatternsGame,
-  // 4. Velocidade de Processamento (5)
+  // 4. Velocidade de Processamento (8)
   'speed-match': SpeedMatchGame,
   'symbol-digit': SymbolDigitGame,
   'schulte-order': SchulteOrderGame,
   'flash-match': FlashMatchGame,
-  'quick-pair': QuickPairGame,
-  // 5. Cálculo Mental (5)
+  'whack-target': WhackTargetGame,
+  'parity-dash': ParityDashGame,
+  'word-radar': WordRadarGame,
+  'color-sort': ColorSortGame,
+  // 5. Cálculo Mental (7)
   'chain-arithmetic': ChainArithmeticGame,
   'number-comparison': NumberComparisonGame,
   'target-sum': TargetSumGame,
   'missing-operator': MissingOperatorGame,
-  'quick-estimate': QuickEstimateGame,
-  // 6. Controle Inibitório (5)
+  'math-verdict': MathVerdictGame,
+  'exact-change': ExactChangeGame,
+  'double-half': DoubleHalfGame,
+  // 6. Controle Inibitório (7)
   'stroop-conflict': StroopConflictGame,
   'go-nogo-reflex': GoNoGoReflexGame,
   'opposite-arrow': OppositeArrowGame,
   'rule-switch': RuleSwitchGame,
-  'inverted-signal': InvertedSignalGame,
+  'bomb-defuse': BombDefuseGame,
+  'simon-says': SimonSaysGame,
+  'mirror-words': MirrorWordsGame,
 };

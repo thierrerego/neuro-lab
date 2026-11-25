@@ -200,26 +200,27 @@ export function getTargetRtMs(
     'conjunction-search': 1250,
     'reverse-digits': 2100,
     'logic-balance': 2300,
-    'quick-pair': 1400,
-    'quick-estimate': 1550,
-    'inverted-signal': 1050,
     'pass-the-ball': 780,
-    'hidden-gold': 850,
     'shopping-list': 1100,
-    'match-pairs': 950,
     'phone-number': 2200,
     'secret-code': 900,
-    'strange-signals': 780,
-    'ancient-numbers': 720,
     'crime-scene': 1650,
     'treasure-hunt': 1350,
-    'identical-items': 1350,
     'missing-number': 1550,
     'fan-count': 1750,
     'secret-anagrams': 2100,
-    'fish-out-of-water': 1250,
     'sort-trash': 980,
     'complex-patterns': 1750,
+    'whack-target': 680,
+    'parity-dash': 820,
+    'word-radar': 1180,
+    'color-sort': 720,
+    'math-verdict': 1380,
+    'exact-change': 1620,
+    'double-half': 1450,
+    'bomb-defuse': 660,
+    'simon-says': 1080,
+    'mirror-words': 880,
   };
   const base = baseByGame[slug] ?? 1200;
   const d = Math.max(0, baseStage - 1);
@@ -389,7 +390,8 @@ export function evaluateSession(params: {
 
   const tier = getCognitiveTier(finalScore);
 
-  // Evolução contínua baseada no ponto de equilíbrio real (sem depender de degraus fixos 1..20)
+  // Evolução justa: só sobe de ritmo quando realmente conclui com boa precisão;
+  // se perder por tempo (pouco progresso) ou errar demais, mantém ou reduz o ritmo!
   let adaptiveDelta = 0;
   let adaptiveStatus: AdaptiveStatus = 'hold';
   let stageCleared = false;
@@ -397,29 +399,31 @@ export function evaluateSession(params: {
   const passedBasicComfort =
     safeBaseStage <= 2 && wave.totalHits >= Math.ceil(targetHits * 0.75) && accuracyPct >= 80;
   const passedFull = (wavesCompleted === 5 || wave.isCleared) && accuracyPct >= 80;
+  const struggled = failedAccuracyGate || accuracyPct < 65 || progressRatio < 0.55;
 
-  let nextStage = Math.max(1, Math.min(20, Math.round(equilibriumIndex)));
+  let nextStage = safeBaseStage;
 
   if (passedFull || passedBasicComfort) {
     stageCleared = true;
-    if (accuracyPct === 100 && completedEarly && speedScore >= 85) {
-      nextStage = Math.max(nextStage, Math.min(20, safeBaseStage + 2));
+    if (accuracyPct >= 95 && completedEarly && speedScore >= 82) {
+      nextStage = Math.min(20, safeBaseStage + 2);
       adaptiveDelta = nextStage - safeBaseStage;
-      adaptiveStatus = 'fast_track';
+      adaptiveStatus = adaptiveDelta > 0 ? 'fast_track' : 'hold';
     } else {
-      nextStage = Math.max(nextStage, Math.min(20, safeBaseStage + 1));
+      nextStage = Math.min(20, safeBaseStage + 1);
       adaptiveDelta = nextStage - safeBaseStage;
-      adaptiveStatus = 'level_up';
+      adaptiveStatus = adaptiveDelta > 0 ? 'level_up' : 'hold';
     }
-  } else if (failedAccuracyGate) {
+  } else if (struggled) {
     stageCleared = false;
-    nextStage = Math.max(1, Math.min(safeBaseStage, Math.floor(equilibriumIndex)));
+    nextStage = Math.max(1, safeBaseStage - 1);
     adaptiveDelta = nextStage - safeBaseStage;
     adaptiveStatus = nextStage < safeBaseStage ? 'step_down' : 'ease_mode';
   } else {
-    adaptiveDelta = nextStage - safeBaseStage;
-    adaptiveStatus = adaptiveDelta > 0 ? 'level_up' : adaptiveDelta < 0 ? 'step_down' : 'hold';
     stageCleared = false;
+    nextStage = safeBaseStage;
+    adaptiveDelta = 0;
+    adaptiveStatus = 'hold';
   }
 
   const isPriorityDomain = weakestTwoDomains.includes(domain);

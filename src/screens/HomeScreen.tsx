@@ -109,24 +109,28 @@ export function HomeScreen({
         }
       }
 
-      return picked.map((item, idx) => {
-        const game = GAME_MAP[item.slug];
-        const domain = DOMAIN_MAP[item.domain];
-        const stage = Math.max(1, progress[item.slug]?.current_stage ?? 1);
-        const done = completedSet.has(item.slug);
-        const reason = item.isNew
-          ? 'Jogo novo · experimente para mapear sua mente'
-          : getProtocolReason(item.role, idx, scores[item.domain] ?? 0);
-        return { ...item, game, domain, stage, done, reason };
-      });
+      return picked
+        .filter((item) => Boolean(GAME_MAP[item.slug]))
+        .map((item, idx) => {
+          const game = GAME_MAP[item.slug];
+          const domain = DOMAIN_MAP[item.domain];
+          const stage = Math.max(1, progress[item.slug]?.current_stage ?? 1);
+          const done = completedSet.has(item.slug);
+          const reason = item.isNew
+            ? 'Jogo novo · experimente para mapear sua mente'
+            : getProtocolReason(item.role, idx, scores[item.domain] ?? 0);
+          return { ...item, game, domain, stage, done, reason };
+        });
     }
 
     // Todos os jogos já foram experimentados: foca nos domínios e jogos mais baixos para igualar a mente
-    const sorted = [...items].sort((a, b) => {
-      if (a.role === 'maintenance' && b.role !== 'maintenance') return 1;
-      if (b.role === 'maintenance' && a.role !== 'maintenance') return -1;
-      return (scores[a.domain] ?? 0) - (scores[b.domain] ?? 0);
-    });
+    const sorted = [...items]
+      .filter((item) => Boolean(GAME_MAP[item.slug]))
+      .sort((a, b) => {
+        if (a.role === 'maintenance' && b.role !== 'maintenance') return 1;
+        if (b.role === 'maintenance' && a.role !== 'maintenance') return -1;
+        return (scores[a.domain] ?? 0) - (scores[b.domain] ?? 0);
+      });
     return sorted.map((item, idx) => {
       const game = GAME_MAP[item.slug];
       const domain = DOMAIN_MAP[item.domain];

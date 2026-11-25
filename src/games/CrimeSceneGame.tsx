@@ -19,26 +19,29 @@ function shuffle<T>(arr: T[]): T[] {
 interface SceneRound {
   items: { uid: number; emoji: string; isLonely: boolean }[];
   cols: number;
+  lonelyTotal: number;
 }
 
 function createScene(stage: number): SceneRound {
   const lvl = Math.max(1, Math.floor(stage));
-  const pairCount = lvl <= 2 ? 4 : lvl <= 6 ? 5 : lvl <= 11 ? 7 : 9;
-  const cols = pairCount <= 4 ? 3 : 4;
+  // 1 item sem par no início; 2 itens sem par no ritmo moderado/intenso; 3 itens sem par nos ritmos altos!
+  const lonelyTotal = lvl <= 3 ? 1 : lvl <= 9 ? 2 : 3;
+  const pairCount = lvl <= 2 ? 4 : lvl <= 6 ? 5 : lvl <= 11 ? 6 : 7;
+  const cols = pairCount * 2 + lonelyTotal <= 9 ? 3 : 4;
 
-  const chosen = shuffle(EVIDENCE_POOL).slice(0, pairCount + 1);
-  const lonelyEmoji = chosen[0];
-  const pairedEmojis = chosen.slice(1);
+  const chosen = shuffle(EVIDENCE_POOL).slice(0, pairCount + lonelyTotal);
+  const lonelyEmojis = chosen.slice(0, lonelyTotal);
+  const pairedEmojis = chosen.slice(lonelyTotal);
 
   const list = shuffle([
-    { emoji: lonelyEmoji, isLonely: true },
+    ...lonelyEmojis.map((emoji) => ({ emoji, isLonely: true })),
     ...pairedEmojis.flatMap((e) => [
       { emoji: e, isLonely: false },
       { emoji: e, isLonely: false },
     ]),
   ]).map((item, uid) => ({ ...item, uid }));
 
-  return { items: list, cols };
+  return { items: list, cols, lonelyTotal };
 }
 
 export function CrimeSceneGame({
@@ -51,7 +54,9 @@ export function CrimeSceneGame({
   onFinish,
 }: MinigameProps) {
   const [scene, setScene] = useState<SceneRound>(() => createScene(config.stage));
-  const [feedback, setFeedback] = useState<{ uid: number; ok: boolean } | null>(null);
+  const [foundUids, setFoundUids] = useState<number[]>([]);
+  const [wrongUid, setWrongUid] = useState<number | null>(null);
+  const [transitioning, setTransitioning] = useState(false);
 
   const configRef = useRef(config);
   configRef.current = config;
@@ -93,7 +98,8 @@ export function CrimeSceneGame({
   };
 
   const handleTap = (item: { uid: number; isLonely: boolean }) => {
-    if (paused || feedback !== null || statsRef.current.finished) return;
+    if (paused || transitioning || statsRef.current.finished) return;
+    if (foundUids.includes(item.uid)) return;
 
     const now = performance.now();
     const rt = Math.max(120, now - statsRef.current.roundStart);
@@ -104,41 +110,55 @@ export function CrimeSceneGame({
       statsRef.current.rts.push(rt);
       statsRef.current.rawPoints += 140 + Math.min(80, statsRef.current.combo * 14);
       sound.hit(statsRef.current.combo);
-      setFeedback({ uid: item.uid, ok: true });
 
-      const clearedAll = onWaveHit();
-      emitLive();
+      const nextFound = [...foundUids, item.uid];
+      setFoundUids(nextFound);
+      statsRef.current.roundStart = now;
 
-      if (clearedAll) {
-        window.setTimeout(() => finishNow(), 200);
-        return;
+      if (nextFound.length >= scene.lonelyTotal) {
+        setTransitioning(true);
+        const clearedAll = onWaveHit();
+        emitLive();
+
+        if (clearedAll) {
+          window.setTimeout(() => finishNow(), 200);
+          return;
+        }
+
+        window.setTimeout(() => {
+          if (statsRef.current.finished) return;
+          setScene(createScene(configRef.current.stage));
+          setFoundUids([]);
+          setWrongUid(null);
+          setTransitioning(false);
+          statsRef.current.roundStart = performance.now();
+        }, 280);
+      } else {
+        emitLive();
       }
-
-      window.setTimeout(() => {
-        if (statsRef.current.finished) return;
-        setScene(createScene(configRef.current.stage));
-        setFeedback(null);
-        statsRef.current.roundStart = performance.now();
-      }, 280);
     } else {
       statsRef.current.commission++;
       statsRef.current.combo = 0;
       statsRef.current.rawPoints = Math.max(0, statsRef.current.rawPoints - 35);
       sound.miss();
-      setFeedback({ uid: item.uid, ok: false });
+      setWrongUid(item.uid);
       emitLive();
       onWaveError?.();
-      window.setTimeout(() => setFeedback(null), 300);
+      window.setTimeout(() => setWrongUid(null), 300);
     }
   };
+
+  const remaining = Math.max(0, scene.lonelyTotal - foundUids.length);
 
   return (
     <div className="w-full flex flex-col items-center gap-4">
       <div
-        className="text-xs font-extrabold uppercase tracking-wider px-4 py-1.5 rounded-full"
+        className="text-xs font-extrabold uppercase tracking-wider px-4 py-1.5 rounded-full text-center"
         style={{ background: 'var(--bg-subtle)', color: 'var(--accent)', border: '1px solid var(--border)' }}
       >
-        Ache o único item SEM par 🔍
+        {scene.lonelyTotal === 1
+          ? 'Ache o único item SEM par 🔍'
+          : `Ache os ${scene.lonelyTotal} itens SEM par · Faltam ${remaining} 🔍`}
       </div>
 
       <div
@@ -146,25 +166,29 @@ export function CrimeSceneGame({
         style={{ gridTemplateColumns: `repeat(${scene.cols}, minmax(0, 1fr))` }}
       >
         {scene.items.map((item) => {
-          const isFb = feedback?.uid === item.uid;
+          const isFound = foundUids.includes(item.uid);
+          const isWrong = wrongUid === item.uid;
           return (
             <button
               key={item.uid}
               type="button"
               onClick={() => handleTap(item)}
               className={`aspect-square rounded-2xl flex items-center justify-center transition-all duration-150 cursor-pointer select-none ${
-                isFb && !feedback.ok ? 'animate-shake' : ''
+                isWrong ? 'animate-shake' : ''
               }`}
               style={{
-                fontSize: scene.items.length >= 15 ? '1.8rem' : '2.25rem',
-                background: isFb
-                  ? feedback.ok
-                    ? 'rgba(16, 185, 129, 0.22)'
-                    : 'rgba(239, 68, 68, 0.22)'
-                  : 'var(--bg-card)',
-                border: isFb
-                  ? `2px solid ${feedback.ok ? 'var(--ok)' : 'var(--err)'}`
-                  : '1.5px solid var(--border)',
+                fontSize: scene.items.length >= 15 ? '1.75rem' : '2.2rem',
+                background: isFound
+                  ? 'rgba(16, 185, 129, 0.22)'
+                  : isWrong
+                    ? 'rgba(239, 68, 68, 0.22)'
+                    : 'var(--bg-card)',
+                border: isFound
+                  ? '2px solid var(--ok)'
+                  : isWrong
+                    ? '2px solid var(--err)'
+                    : '1.5px solid var(--border)',
+                opacity: isFound ? 0.65 : 1,
               }}
             >
               {item.emoji}
