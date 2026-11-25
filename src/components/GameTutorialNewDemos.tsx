@@ -1,4 +1,17 @@
 import { useEffect, useState } from 'react';
+import {
+  Banknote,
+  Bomb,
+  Check,
+  Circle,
+  Coffee,
+  Crown,
+  Hand,
+  Star,
+  Triangle,
+  X,
+  Zap,
+} from 'lucide-react';
 
 function useStep(total: number, ms: number): number {
   const [step, setStep] = useState(0);
@@ -17,8 +30,9 @@ export function WhackTargetDemo() {
   const hit = step === 1 || step === 3 || step === 5;
   return (
     <div className="flex flex-col items-center gap-2.5 w-full">
-      <div className="text-[11px] font-bold" style={{ color: 'var(--accent)' }}>
-        Toque no alvo assim que acender ⚡
+      <div className="text-[11px] font-bold flex items-center gap-1" style={{ color: 'var(--accent)' }}>
+        <Zap size={13} />
+        <span>Toque no alvo assim que acender</span>
       </div>
       <div className="grid grid-cols-3 gap-2 w-[156px]">
         {Array.from({ length: 9 }, (_, i) => {
@@ -26,7 +40,7 @@ export function WhackTargetDemo() {
           return (
             <div
               key={i}
-              className="aspect-square rounded-xl flex items-center justify-center text-xl transition-all"
+              className="aspect-square rounded-xl flex items-center justify-center transition-all"
               style={{
                 background:
                   isTarget && hit
@@ -40,9 +54,10 @@ export function WhackTargetDemo() {
                     : isTarget
                       ? '2px solid #F59E0B'
                       : '1px solid var(--border)',
+                color: isTarget && hit ? 'var(--ok)' : '#D97706',
               }}
             >
-              {isTarget ? (hit ? '✓' : '⚡') : ''}
+              {isTarget ? (hit ? <Check size={20} strokeWidth={3} /> : <Zap size={20} fill="currentColor" />) : null}
             </div>
           );
         })}
@@ -135,10 +150,10 @@ export function ColorSortDemo() {
   return (
     <div className="flex flex-col items-center gap-3 w-full max-w-[220px]">
       <div
-        className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl"
+        className="w-14 h-14 rounded-2xl flex items-center justify-center"
         style={{ background: `${activeColor}18`, border: `2px solid ${activeColor}`, color: activeColor }}
       >
-        ●
+        <Circle size={28} fill="currentColor" />
       </div>
       <div className="grid grid-cols-2 gap-2 w-full">
         <div
@@ -182,24 +197,24 @@ export function MathVerdictDemo() {
       </div>
       <div className="grid grid-cols-2 gap-2 w-full">
         <div
-          className="py-2 rounded-xl text-center text-xs font-extrabold"
+          className="py-2 rounded-xl text-center text-xs font-extrabold flex items-center justify-center gap-1"
           style={{
             background: pressed && isSecond ? 'rgba(16, 185, 129, 0.24)' : 'rgba(239, 68, 68, 0.14)',
             border: pressed && isSecond ? '2px solid var(--ok)' : '1.5px solid var(--err)',
             color: pressed && isSecond ? 'var(--ok)' : 'var(--err)',
           }}
         >
-          ✕ ERRADA
+          <X size={13} strokeWidth={3} /> ERRADA
         </div>
         <div
-          className="py-2 rounded-xl text-center text-xs font-extrabold"
+          className="py-2 rounded-xl text-center text-xs font-extrabold flex items-center justify-center gap-1"
           style={{
             background: pressed && !isSecond ? 'rgba(16, 185, 129, 0.24)' : 'rgba(16, 185, 129, 0.12)',
             border: pressed && !isSecond ? '2px solid var(--ok)' : '1.5px solid var(--ok)',
             color: 'var(--ok)',
           }}
         >
-          ✓ CERTA
+          <Check size={13} strokeWidth={3} /> CERTA
         </div>
       </div>
     </div>
@@ -216,8 +231,12 @@ export function ExactChangeDemo() {
         className="w-full rounded-xl px-3 py-2.5 flex items-center justify-between text-xs font-extrabold tabular"
         style={{ background: 'var(--bg-card)', border: '1px solid var(--border-strong)' }}
       >
-        <span>☕ R$ 7</span>
-        <span style={{ color: 'var(--ok)' }}>💵 Pagou R$ 20</span>
+        <span className="inline-flex items-center gap-1">
+          <Coffee size={14} /> R$ 7
+        </span>
+        <span className="inline-flex items-center gap-1" style={{ color: 'var(--ok)' }}>
+          <Banknote size={14} /> R$ 20
+        </span>
       </div>
       <div className="grid grid-cols-2 gap-2 w-full">
         {[11, 13].map((v) => (
@@ -285,7 +304,7 @@ export function BombDefuseDemo() {
           return (
             <div
               key={lane}
-              className="h-[76px] rounded-xl flex flex-col items-center justify-center text-2xl"
+              className="h-[74px] rounded-xl flex items-center justify-center"
               style={{
                 background: active
                   ? isBomb
@@ -297,15 +316,16 @@ export function BombDefuseDemo() {
                     ? '2px solid var(--err)'
                     : '2px solid var(--ok)'
                   : '1px solid var(--border)',
+                color: isBomb ? 'var(--err)' : 'var(--ok)',
               }}
             >
-              <span>{active ? (isBomb ? '💣' : '⭐') : ''}</span>
+              {active ? (isBomb ? <Bomb size={26} /> : <Star size={26} fill="currentColor" />) : null}
             </div>
           );
         })}
       </div>
       <div className="text-[11px] font-extrabold" style={{ color: isBomb ? 'var(--err)' : 'var(--ok)' }}>
-        {isBomb ? '💣 Bomba: NÃO toque!' : '⭐ Prêmio: toque rápido!'}
+        {isBomb ? 'Bomba: NÃO toque!' : 'Estrela: toque rápido!'}
       </div>
     </div>
   );
@@ -313,43 +333,71 @@ export function BombDefuseDemo() {
 
 /* 9. MESTRE MANDOU */
 export function SimonSaysDemo() {
-  const step = useStep(4, 950);
+  const step = useStep(4, 1000);
   const master = step < 2;
+  const done = step % 2 === 1;
   return (
-    <div className="flex flex-col items-center gap-2.5 w-full max-w-[230px]">
+    <div className="flex flex-col items-center gap-2.5 w-full max-w-[235px]">
       <div
-        className="w-full py-3 px-3 rounded-xl text-center"
-        style={{ background: 'var(--bg-card)', border: '1.5px solid var(--border-strong)' }}
+        className="w-full py-2.5 px-3 rounded-xl text-center flex flex-col items-center gap-1"
+        style={{
+          background: master ? 'rgba(245, 158, 11, 0.10)' : 'var(--bg-card)',
+          border: master ? '2px solid #D97706' : '1.5px solid var(--border-strong)',
+        }}
       >
         <div
-          className="text-[10px] font-black"
+          className="text-[10px] font-black inline-flex items-center gap-1"
           style={{ color: master ? '#D97706' : 'var(--text-soft)' }}
         >
-          {master ? '👑 O MESTRE MANDOU' : 'Atenção...'}
+          {master ? (
+            <>
+              <Crown size={12} /> O MESTRE MANDOU
+            </>
+          ) : (
+            <>
+              <Hand size={12} /> Sem coroa — aguarde
+            </>
+          )}
         </div>
-        <div className="text-sm font-black mt-0.5">Toque no AZUL</div>
+        <div className="text-sm font-black">Toque no AZUL</div>
       </div>
-      <div className="grid grid-cols-2 gap-2 w-full text-[11px] font-extrabold">
+
+      <div className="grid grid-cols-3 gap-1.5 w-full text-[10px] font-extrabold">
         <div
-          className="py-2 rounded-xl text-center"
+          className="py-2 rounded-xl flex flex-col items-center gap-0.5"
           style={{
-            background: master ? 'rgba(16, 185, 129, 0.24)' : 'rgba(37, 99, 235, 0.12)',
-            border: master ? '2px solid var(--ok)' : '1px solid #2563EB',
-            color: master ? 'var(--ok)' : '#2563EB',
+            background: master && done ? 'rgba(16, 185, 129, 0.24)' : '#2563EB18',
+            border: master && done ? '2px solid var(--ok)' : '1.5px solid #2563EB',
+            color: master && done ? 'var(--ok)' : '#2563EB',
           }}
         >
-          ● AZUL
+          <Circle size={14} fill="currentColor" />
+          <span>AZUL</span>
         </div>
         <div
-          className="py-2 rounded-xl text-center"
-          style={{
-            background: !master ? 'rgba(16, 185, 129, 0.24)' : 'var(--bg-subtle)',
-            border: !master ? '2px solid var(--ok)' : '1px solid var(--border)',
-            color: !master ? 'var(--ok)' : 'var(--text-muted)',
-          }}
+          className="py-2 rounded-xl flex flex-col items-center gap-0.5"
+          style={{ background: '#05966918', border: '1.5px solid #059669', color: '#059669' }}
         >
-          ✋ IGNORAR
+          <Triangle size={14} fill="currentColor" />
+          <span>VERDE</span>
         </div>
+        <div
+          className="py-2 rounded-xl flex flex-col items-center gap-0.5"
+          style={{ background: '#D9770618', border: '1.5px solid #D97706', color: '#D97706' }}
+        >
+          <Star size={14} fill="currentColor" />
+          <span>AMAR.</span>
+        </div>
+      </div>
+
+      <div className="text-[11px] font-extrabold" style={{ color: done ? 'var(--ok)' : 'var(--text-muted)' }}>
+        {master
+          ? done
+            ? 'Com coroa: tocou no AZUL!'
+            : 'Com coroa: toque na cor pedida'
+          : done
+            ? 'Sem coroa: segurou sem tocar!'
+            : 'Sem coroa: NÃO toque em nada'}
       </div>
     </div>
   );

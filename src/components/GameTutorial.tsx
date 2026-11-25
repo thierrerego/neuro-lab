@@ -1847,7 +1847,7 @@ function getTutorialInstruction(slug: GameSlug, config: StageConfig): string {
     case 'complex-patterns':
       return 'Compare os dois padrões e responda SIM se o da direita for o mesmo apenas girado, ou NÃO se for diferente.';
     case 'whack-target':
-      return 'Alvos brilhantes ⚡ acendem rápido na grade — toque neles antes que apaguem e ignore as pedras 🪨.';
+      return 'Alvos brilhantes acendem rápido na grade — toque neles antes que apaguem e ignore os bloqueios cinzas.';
     case 'parity-dash':
       return 'Decida o mais rápido possível se o número (ou o resultado da conta) é PAR ou ÍMPAR.';
     case 'word-radar':
@@ -1861,9 +1861,9 @@ function getTutorialInstruction(slug: GameSlug, config: StageConfig): string {
     case 'double-half':
       return 'Veja se o topo pede DOBRO, METADE ou TRIPLO e toque no resultado certo de cabeça.';
     case 'bomb-defuse':
-      return 'Pegue rápido os prêmios (⭐💎🎁) tocando na pista, mas NÃO toque quando aparecer bomba (💣🧨☠️).';
+      return 'Pegue rápido os prêmios verdes tocando na pista, mas NÃO toque quando aparecer uma bomba vermelha.';
     case 'simon-says':
-      return 'Só toque na cor pedida se aparecer 👑 O MESTRE MANDOU. Sem a coroa, toque em IGNORAR.';
+      return 'Com a coroa "O MESTRE MANDOU", toque na cor pedida. Sem a coroa, segure o dedo e não toque em nada!';
     case 'mirror-words':
       return 'Toque no botão que obedece à PALAVRA escrita (ESQUERDA ou DIREITA), ignorando de que lado o cartão apareceu.';
   }

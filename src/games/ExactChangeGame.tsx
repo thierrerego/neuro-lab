@@ -1,9 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
+import {
+  Banknote,
+  BookOpen,
+  Coffee,
+  Croissant,
+  CupSoda,
+  Fuel,
+  Headphones,
+  Pizza,
+  Utensils,
+} from 'lucide-react';
 import { sound } from '../lib/audio';
 import type { MinigameProps } from './GameProps';
 
+type ShopIconId = 'coffee' | 'bread' | 'meal' | 'juice' | 'pizza' | 'book' | 'headphones' | 'fuel';
+
 interface ChangeRound {
-  itemEmoji: string;
+  iconId: ShopIconId;
   itemName: string;
   price: number;
   paid: number;
@@ -11,16 +24,37 @@ interface ChangeRound {
   options: number[];
 }
 
-const SHOP_ITEMS = [
-  { emoji: '☕', name: 'Café' },
-  { emoji: '🥐', name: 'Pão' },
-  { emoji: '🍔', name: 'Lanche' },
-  { emoji: '🧃', name: 'Suco' },
-  { emoji: '🍕', name: 'Pizza' },
-  { emoji: '📚', name: 'Livro' },
-  { emoji: '🎧', name: 'Fone' },
-  { emoji: '⛽', name: 'Combustível' },
+const SHOP_ITEMS: { iconId: ShopIconId; name: string }[] = [
+  { iconId: 'coffee', name: 'Café' },
+  { iconId: 'bread', name: 'Pão' },
+  { iconId: 'meal', name: 'Lanche' },
+  { iconId: 'juice', name: 'Suco' },
+  { iconId: 'pizza', name: 'Pizza' },
+  { iconId: 'book', name: 'Livro' },
+  { iconId: 'headphones', name: 'Fone' },
+  { iconId: 'fuel', name: 'Combustível' },
 ];
+
+function renderShopIcon(id: ShopIconId) {
+  switch (id) {
+    case 'coffee':
+      return <Coffee size={30} />;
+    case 'bread':
+      return <Croissant size={30} />;
+    case 'meal':
+      return <Utensils size={30} />;
+    case 'juice':
+      return <CupSoda size={30} />;
+    case 'pizza':
+      return <Pizza size={30} />;
+    case 'book':
+      return <BookOpen size={30} />;
+    case 'headphones':
+      return <Headphones size={30} />;
+    case 'fuel':
+      return <Fuel size={30} />;
+  }
+}
 
 function rnd(min: number, max: number) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -69,7 +103,7 @@ function createChangeRound(stage: number): ChangeRound {
   }
 
   return {
-    itemEmoji: item.emoji,
+    iconId: item.iconId,
     itemName: item.name,
     price,
     paid,
@@ -187,8 +221,8 @@ export function ExactChangeGame({
         }}
       >
         <div className="flex flex-col items-center flex-1">
-          <span className="text-3xl">{round.itemEmoji}</span>
-          <span className="text-[11px] font-bold mt-1" style={{ color: 'var(--text-soft)' }}>
+          <div style={{ color: 'var(--accent)' }}>{renderShopIcon(round.iconId)}</div>
+          <span className="text-[11px] font-bold mt-1.5" style={{ color: 'var(--text-soft)' }}>
             {round.itemName}
           </span>
           <span className="text-2xl font-black tabular mt-0.5" style={{ color: 'var(--text)' }}>
@@ -199,8 +233,10 @@ export function ExactChangeGame({
         <div className="w-px h-14" style={{ background: 'var(--border)' }} />
 
         <div className="flex flex-col items-center flex-1">
-          <span className="text-3xl">💵</span>
-          <span className="text-[11px] font-bold mt-1" style={{ color: 'var(--text-soft)' }}>
+          <div style={{ color: 'var(--ok)' }}>
+            <Banknote size={30} />
+          </div>
+          <span className="text-[11px] font-bold mt-1.5" style={{ color: 'var(--text-soft)' }}>
             Pagou com
           </span>
           <span className="text-2xl font-black tabular mt-0.5" style={{ color: 'var(--ok)' }}>

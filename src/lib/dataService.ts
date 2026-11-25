@@ -418,13 +418,21 @@ export async function recordSessionResult(
   const now = getAppNowIso();
   const today = todayIso();
 
-  const prevProg = state.progress[result.gameSlug];
+  const prevProg = state.progress[result.gameSlug] ?? {
+    game_slug: result.gameSlug,
+    domain: result.domain,
+    current_stage: 1,
+    highest_score: 0,
+    total_plays: 0,
+    ease_mode: false,
+    updated_at: now,
+  };
   const updatedProg: GameProgressRecord = {
     game_slug: result.gameSlug,
     domain: result.domain,
     current_stage: result.nextStage,
-    highest_score: Math.max(prevProg.highest_score, result.score),
-    total_plays: prevProg.total_plays + 1,
+    highest_score: Math.max(prevProg.highest_score ?? 0, result.score),
+    total_plays: (prevProg.total_plays ?? 0) + 1,
     ease_mode: result.adaptiveStatus === 'ease_mode',
     updated_at: now,
   };

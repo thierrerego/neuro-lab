@@ -1,11 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
+import { Ban, Gem, ShieldOff, Star, Target, Zap } from 'lucide-react';
 import { sound } from '../lib/audio';
 import type { MinigameProps } from './GameProps';
+
+type HitIconId = 'zap' | 'target' | 'star' | 'gem';
+type DecoyIconId = 'ban' | 'shield';
 
 interface TargetSlot {
   cell: number;
   kind: 'hit' | 'decoy';
-  emoji: string;
+  iconId: HitIconId | DecoyIconId;
   spawnedAt: number;
   ttlMs: number;
 }
@@ -19,8 +23,25 @@ function getSpec(stage: number): { gridSize: number; ttlMs: number; decoyChance:
   return { gridSize: 4, ttlMs: 800, decoyChance: 0.32 };
 }
 
-const HIT_EMOJIS = ['⚡', '🎯', '⭐', '💎'];
-const DECOY_EMOJIS = ['🪨', '🧊'];
+const HIT_ICONS: HitIconId[] = ['zap', 'target', 'star', 'gem'];
+const DECOY_ICONS: DecoyIconId[] = ['ban', 'shield'];
+
+function renderSlotIcon(iconId: HitIconId | DecoyIconId, size: number) {
+  switch (iconId) {
+    case 'zap':
+      return <Zap size={size} fill="currentColor" />;
+    case 'target':
+      return <Target size={size} strokeWidth={2.5} />;
+    case 'star':
+      return <Star size={size} fill="currentColor" />;
+    case 'gem':
+      return <Gem size={size} strokeWidth={2.3} />;
+    case 'ban':
+      return <Ban size={size} strokeWidth={2.5} />;
+    case 'shield':
+      return <ShieldOff size={size} strokeWidth={2.4} />;
+  }
+}
 
 export function WhackTargetGame({
   config,
@@ -86,14 +107,14 @@ export function WhackTargetGame({
     lastCellRef.current = cell;
 
     const isDecoy = Math.random() < cur.decoyChance;
-    const emoji = isDecoy
-      ? DECOY_EMOJIS[Math.floor(Math.random() * DECOY_EMOJIS.length)]
-      : HIT_EMOJIS[Math.floor(Math.random() * HIT_EMOJIS.length)];
+    const iconId = isDecoy
+      ? DECOY_ICONS[Math.floor(Math.random() * DECOY_ICONS.length)]
+      : HIT_ICONS[Math.floor(Math.random() * HIT_ICONS.length)];
 
     setSlot({
       cell,
       kind: isDecoy ? 'decoy' : 'hit',
-      emoji,
+      iconId,
       spawnedAt: performance.now(),
       ttlMs: cur.ttlMs,
     });
@@ -159,12 +180,15 @@ export function WhackTargetGame({
   return (
     <div className="w-full flex flex-col items-center gap-4">
       <div
-        className="text-xs font-extrabold uppercase tracking-wider px-4 py-1.5 rounded-full text-center"
+        className="text-xs font-extrabold uppercase tracking-wider px-4 py-1.5 rounded-full text-center flex items-center gap-1.5"
         style={{ background: 'var(--bg-subtle)', color: 'var(--accent)', border: '1px solid var(--border)' }}
       >
-        {spec.decoyChance > 0
-          ? 'Toque nos alvos brilhantes ⚡ · Ignore pedras 🪨'
-          : 'Toque no alvo assim que acender ⚡'}
+        <Zap size={14} />
+        <span>
+          {spec.decoyChance > 0
+            ? 'Toque nos alvos dourados · Ignore bloqueios'
+            : 'Toque no alvo assim que acender'}
+        </span>
       </div>
 
       <div
@@ -186,7 +210,6 @@ export function WhackTargetGame({
                 isActive ? 'scale-[1.03]' : ''
               } ${isFb && !flash.ok ? 'animate-shake' : ''}`}
               style={{
-                fontSize: gridSize === 3 ? '2.2rem' : '1.75rem',
                 background: isFb
                   ? flash.ok
                     ? 'rgba(16, 185, 129, 0.24)'
@@ -203,10 +226,11 @@ export function WhackTargetGame({
                     : isDecoy
                       ? '2px solid #64748B'
                       : '1.5px solid var(--border)',
+                color: isHit ? '#D97706' : isDecoy ? '#64748B' : 'var(--text)',
                 boxShadow: isHit ? '0 0 18px rgba(245, 158, 11, 0.28)' : 'none',
               }}
             >
-              {isActive ? slot.emoji : ''}
+              {isActive ? renderSlotIcon(slot.iconId, gridSize === 3 ? 34 : 28) : null}
             </button>
           );
         })}

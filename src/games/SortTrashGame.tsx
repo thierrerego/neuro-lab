@@ -1,15 +1,38 @@
 import { useEffect, useRef, useState } from 'react';
+import {
+  Apple,
+  Banana,
+  CupSoda,
+  Egg,
+  FileText,
+  FlaskConical,
+  GlassWater,
+  Leaf,
+  Milk,
+  Newspaper,
+  Package,
+  Recycle,
+  ShoppingBag,
+  Trash2,
+  Wine,
+} from 'lucide-react';
 import { sound } from '../lib/audio';
 import type { MinigameProps } from './GameProps';
 
 type BinId = 'paper' | 'plastic' | 'glass' | 'organic';
+
+interface TrashItemDef {
+  name: string;
+  color: string;
+  render: (size: number) => JSX.Element;
+}
 
 interface BinDef {
   id: BinId;
   label: string;
   color: string;
   bg: string;
-  items: { emoji: string; name: string }[];
+  items: TrashItemDef[];
 }
 
 const BINS: BinDef[] = [
@@ -19,10 +42,10 @@ const BINS: BinDef[] = [
     color: '#2563EB',
     bg: 'rgba(37, 99, 235, 0.16)',
     items: [
-      { emoji: '📰', name: 'Jornal' },
-      { emoji: '📦', name: 'Caixa de papelão' },
-      { emoji: '📄', name: 'Folha de papel' },
-      { emoji: '🛍️', name: 'Sacola de papel' },
+      { name: 'Jornal', color: '#2563EB', render: (s) => <Newspaper size={s} /> },
+      { name: 'Caixa de papelão', color: '#2563EB', render: (s) => <Package size={s} /> },
+      { name: 'Folha de papel', color: '#2563EB', render: (s) => <FileText size={s} /> },
+      { name: 'Sacola de papel', color: '#2563EB', render: (s) => <ShoppingBag size={s} /> },
     ],
   },
   {
@@ -31,10 +54,9 @@ const BINS: BinDef[] = [
     color: '#DC2626',
     bg: 'rgba(220, 38, 38, 0.16)',
     items: [
-      { emoji: '🥤', name: 'Copo plástico' },
-      { emoji: '🧴', name: 'Frasco plástico' },
-      { emoji: '🪣', name: 'Balde plástico' },
-      { emoji: '🪥', name: 'Escova plástica' },
+      { name: 'Copo plástico', color: '#DC2626', render: (s) => <CupSoda size={s} /> },
+      { name: 'Frasco plástico', color: '#DC2626', render: (s) => <Milk size={s} /> },
+      { name: 'Garrafa PET', color: '#DC2626', render: (s) => <GlassWater size={s} /> },
     ],
   },
   {
@@ -43,10 +65,9 @@ const BINS: BinDef[] = [
     color: '#059669',
     bg: 'rgba(5, 150, 105, 0.16)',
     items: [
-      { emoji: '🍾', name: 'Garrafa de vidro' },
-      { emoji: '🫙', name: 'Pote de vidro' },
-      { emoji: '🍷', name: 'Taça de vidro' },
-      { emoji: '🥛', name: 'Copo de vidro' },
+      { name: 'Taça de vidro', color: '#059669', render: (s) => <Wine size={s} /> },
+      { name: 'Frasco de vidro', color: '#059669', render: (s) => <FlaskConical size={s} /> },
+      { name: 'Copo de vidro', color: '#059669', render: (s) => <GlassWater size={s} /> },
     ],
   },
   {
@@ -55,10 +76,10 @@ const BINS: BinDef[] = [
     color: '#92400E',
     bg: 'rgba(146, 64, 14, 0.18)',
     items: [
-      { emoji: '🍌', name: 'Casca de banana' },
-      { emoji: '🍎', name: 'Resto de maçã' },
-      { emoji: '🥚', name: 'Casca de ovo' },
-      { emoji: '🍂', name: 'Folhas secas' },
+      { name: 'Casca de banana', color: '#92400E', render: (s) => <Banana size={s} /> },
+      { name: 'Resto de maçã', color: '#92400E', render: (s) => <Apple size={s} /> },
+      { name: 'Casca de ovo', color: '#92400E', render: (s) => <Egg size={s} /> },
+      { name: 'Folhas secas', color: '#92400E', render: (s) => <Leaf size={s} /> },
     ],
   },
 ];
@@ -66,7 +87,7 @@ const BINS: BinDef[] = [
 interface TrashRound {
   activeBins: BinDef[];
   targetBin: BinId;
-  item: { emoji: string; name: string };
+  item: TrashItemDef;
 }
 
 function createRound(stage: number): TrashRound {
@@ -176,17 +197,18 @@ export function SortTrashGame({
   return (
     <div className="w-full flex flex-col items-center gap-5">
       <div
-        className="text-xs font-extrabold uppercase tracking-wider px-4 py-1.5 rounded-full"
+        className="text-xs font-extrabold uppercase tracking-wider px-4 py-1.5 rounded-full inline-flex items-center gap-1.5"
         style={{ background: 'var(--bg-subtle)', color: 'var(--accent)', border: '1px solid var(--border)' }}
       >
-        Jogue na lixeira certa ♻️
+        <Recycle size={14} />
+        <span>Jogue na lixeira certa</span>
       </div>
 
       <div
-        className="w-44 h-44 rounded-3xl flex flex-col items-center justify-center gap-2 animate-pop"
-        style={{ background: 'var(--bg-card)', border: '2px solid var(--border-strong)', boxShadow: 'var(--card-shadow)' }}
+        className="w-44 h-44 rounded-3xl flex flex-col items-center justify-center gap-2.5 animate-pop"
+        style={{ background: 'var(--bg-card)', border: '2px solid var(--border-strong)', boxShadow: 'var(--card-shadow)', color: round.item.color }}
       >
-        <span className="text-6xl leading-none select-none">{round.item.emoji}</span>
+        {round.item.render(56)}
         <span className="text-xs font-bold" style={{ color: 'var(--text-muted)' }}>
           {round.item.name}
         </span>
@@ -218,7 +240,7 @@ export function SortTrashGame({
                 color: bin.color,
               }}
             >
-              <span className="text-xl leading-none">🗑️</span>
+              <Trash2 size={18} />
               <span>{bin.label}</span>
             </button>
           );

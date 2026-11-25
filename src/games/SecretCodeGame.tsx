@@ -170,7 +170,7 @@ export function SecretCodeGame({
           border: '1px solid var(--border)',
         }}
       >
-        {phase === 'memorize' ? 'Memorize as posições 🔐' : 'Toque na ordem CRESCENTE'}
+        {phase === 'memorize' ? 'Memorize as posições' : 'Toque na ordem CRESCENTE'}
       </div>
 
       <div

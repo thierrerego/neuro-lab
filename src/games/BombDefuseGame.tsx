@@ -1,18 +1,41 @@
 import { useEffect, useRef, useState } from 'react';
+import { Bomb, Flame, Gem, Gift, Skull, Sparkles, Star } from 'lucide-react';
 import { sound } from '../lib/audio';
 import type { MinigameProps } from './GameProps';
+
+type PrizeId = 'star' | 'gem' | 'gift' | 'sparkles';
+type BombId = 'bomb' | 'flame' | 'skull';
 
 interface DropStimulus {
   id: number;
   lane: 0 | 1 | 2;
   kind: 'prize' | 'bomb';
-  emoji: string;
+  iconId: PrizeId | BombId;
   spawnedAt: number;
   ttlMs: number;
 }
 
-const PRIZES = ['⭐', '💎', '🎁', '🪙'];
-const BOMBS = ['💣', '🧨', '☠️'];
+const PRIZES: PrizeId[] = ['star', 'gem', 'gift', 'sparkles'];
+const BOMBS: BombId[] = ['bomb', 'flame', 'skull'];
+
+function renderStimIcon(id: PrizeId | BombId) {
+  switch (id) {
+    case 'star':
+      return <Star size={44} fill="currentColor" />;
+    case 'gem':
+      return <Gem size={44} strokeWidth={2.2} />;
+    case 'gift':
+      return <Gift size={44} strokeWidth={2.2} />;
+    case 'sparkles':
+      return <Sparkles size={44} strokeWidth={2.2} />;
+    case 'bomb':
+      return <Bomb size={44} strokeWidth={2.3} />;
+    case 'flame':
+      return <Flame size={44} fill="currentColor" />;
+    case 'skull':
+      return <Skull size={44} strokeWidth={2.2} />;
+  }
+}
 
 function getSpec(stage: number): { ttlMs: number; bombChance: number } {
   const lvl = Math.max(1, Math.floor(stage));
@@ -80,7 +103,7 @@ export function BombDefuseGame({
     const { ttlMs, bombChance } = getSpec(configRef.current.stage);
     const isBomb = Math.random() < bombChance;
     const lane = Math.floor(Math.random() * 3) as 0 | 1 | 2;
-    const emoji = isBomb
+    const iconId = isBomb
       ? BOMBS[Math.floor(Math.random() * BOMBS.length)]
       : PRIZES[Math.floor(Math.random() * PRIZES.length)];
 
@@ -89,7 +112,7 @@ export function BombDefuseGame({
       id: seqRef.current,
       lane,
       kind: isBomb ? 'bomb' : 'prize',
-      emoji,
+      iconId,
       spawnedAt: performance.now(),
       ttlMs,
     });
@@ -105,7 +128,6 @@ export function BombDefuseGame({
     const expireId = window.setTimeout(() => {
       if (statsRef.current.finished) return;
       if (stim.kind === 'bomb') {
-        // Inibiu corretamente a bomba!
         statsRef.current.correct++;
         statsRef.current.combo++;
         statsRef.current.rawPoints += 115 + Math.min(70, statsRef.current.combo * 10);
@@ -120,7 +142,6 @@ export function BombDefuseGame({
         }
         window.setTimeout(() => setFlash(null), 220);
       } else {
-        // Deixou o prêmio escapar
         statsRef.current.omission++;
         statsRef.current.combo = 0;
         onWaveError?.();
@@ -168,10 +189,11 @@ export function BombDefuseGame({
   return (
     <div className="w-full max-w-[350px] flex flex-col items-center gap-5">
       <div
-        className="text-xs font-extrabold uppercase tracking-wider px-4 py-1.5 rounded-full text-center"
+        className="text-xs font-extrabold uppercase tracking-wider px-4 py-1.5 rounded-full text-center flex items-center gap-1.5"
         style={{ background: 'var(--bg-subtle)', color: 'var(--accent)', border: '1px solid var(--border)' }}
       >
-        Pegue ⭐💎🎁 · NÃO toque em 💣🧨☠️
+        <Star size={14} />
+        <span>Pegue os verdes · NÃO toque nos vermelhos</span>
       </div>
 
       <div className="grid grid-cols-3 gap-3 w-full">
@@ -206,9 +228,10 @@ export function BombDefuseGame({
                     : isPrize
                       ? '2px solid var(--ok)'
                       : '1.5px solid var(--border)',
+                color: isBomb ? 'var(--err)' : isPrize ? 'var(--ok)' : 'var(--text)',
               }}
             >
-              <span className="text-5xl">{active ? stim.emoji : ''}</span>
+              {active ? renderStimIcon(stim.iconId) : null}
               {isFb && (
                 <span
                   className="text-[11px] font-extrabold"

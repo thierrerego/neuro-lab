@@ -1,10 +1,48 @@
 import { useEffect, useRef, useState } from 'react';
+import {
+  Anchor,
+  Bell,
+  Briefcase,
+  Camera,
+  Compass,
+  Crown,
+  Flashlight,
+  Gem,
+  Glasses,
+  KeyRound,
+  Magnet,
+  Search,
+  Smartphone,
+  Umbrella,
+  Watch,
+  Wrench,
+} from 'lucide-react';
 import { sound } from '../lib/audio';
 import type { MinigameProps } from './GameProps';
 
-const EVIDENCE_POOL = [
-  '🔍', '🗝️', '⌚', '👓', '📷', '🧤', '🧭', '🔦',
-  '💼', '🧢', '🕶️', '💍', '🪙', '📱', '🧲', '🗞️',
+interface EvidenceDef {
+  id: string;
+  color: string;
+  render: (size: number) => JSX.Element;
+}
+
+const EVIDENCE_POOL: EvidenceDef[] = [
+  { id: 'key', color: '#D97706', render: (s) => <KeyRound size={s} /> },
+  { id: 'watch', color: '#2563EB', render: (s) => <Watch size={s} /> },
+  { id: 'glasses', color: '#7C3AED', render: (s) => <Glasses size={s} /> },
+  { id: 'camera', color: '#0891B2', render: (s) => <Camera size={s} /> },
+  { id: 'compass', color: '#059669', render: (s) => <Compass size={s} /> },
+  { id: 'flashlight', color: '#EA580C', render: (s) => <Flashlight size={s} /> },
+  { id: 'briefcase', color: '#4F46E5', render: (s) => <Briefcase size={s} /> },
+  { id: 'gem', color: '#EC4899', render: (s) => <Gem size={s} /> },
+  { id: 'phone', color: '#0EA5E9', render: (s) => <Smartphone size={s} /> },
+  { id: 'magnet', color: '#E11D48', render: (s) => <Magnet size={s} /> },
+  { id: 'bell', color: '#CA8A04', render: (s) => <Bell size={s} /> },
+  { id: 'crown', color: '#F59E0B', render: (s) => <Crown size={s} /> },
+  { id: 'anchor', color: '#0284C7', render: (s) => <Anchor size={s} /> },
+  { id: 'umbrella', color: '#9333EA', render: (s) => <Umbrella size={s} /> },
+  { id: 'wrench', color: '#64748B', render: (s) => <Wrench size={s} /> },
+  { id: 'search', color: '#10B981', render: (s) => <Search size={s} /> },
 ];
 
 function shuffle<T>(arr: T[]): T[] {
@@ -17,27 +55,26 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 interface SceneRound {
-  items: { uid: number; emoji: string; isLonely: boolean }[];
+  items: { uid: number; def: EvidenceDef; isLonely: boolean }[];
   cols: number;
   lonelyTotal: number;
 }
 
 function createScene(stage: number): SceneRound {
   const lvl = Math.max(1, Math.floor(stage));
-  // 1 item sem par no início; 2 itens sem par no ritmo moderado/intenso; 3 itens sem par nos ritmos altos!
   const lonelyTotal = lvl <= 3 ? 1 : lvl <= 9 ? 2 : 3;
   const pairCount = lvl <= 2 ? 4 : lvl <= 6 ? 5 : lvl <= 11 ? 6 : 7;
   const cols = pairCount * 2 + lonelyTotal <= 9 ? 3 : 4;
 
   const chosen = shuffle(EVIDENCE_POOL).slice(0, pairCount + lonelyTotal);
-  const lonelyEmojis = chosen.slice(0, lonelyTotal);
-  const pairedEmojis = chosen.slice(lonelyTotal);
+  const lonelyDefs = chosen.slice(0, lonelyTotal);
+  const pairedDefs = chosen.slice(lonelyTotal);
 
   const list = shuffle([
-    ...lonelyEmojis.map((emoji) => ({ emoji, isLonely: true })),
-    ...pairedEmojis.flatMap((e) => [
-      { emoji: e, isLonely: false },
-      { emoji: e, isLonely: false },
+    ...lonelyDefs.map((def) => ({ def, isLonely: true })),
+    ...pairedDefs.flatMap((def) => [
+      { def, isLonely: false },
+      { def, isLonely: false },
     ]),
   ]).map((item, uid) => ({ ...item, uid }));
 
@@ -149,16 +186,20 @@ export function CrimeSceneGame({
   };
 
   const remaining = Math.max(0, scene.lonelyTotal - foundUids.length);
+  const iconSize = scene.items.length >= 15 ? 26 : 32;
 
   return (
     <div className="w-full flex flex-col items-center gap-4">
       <div
-        className="text-xs font-extrabold uppercase tracking-wider px-4 py-1.5 rounded-full text-center"
+        className="text-xs font-extrabold uppercase tracking-wider px-4 py-1.5 rounded-full text-center flex items-center gap-1.5"
         style={{ background: 'var(--bg-subtle)', color: 'var(--accent)', border: '1px solid var(--border)' }}
       >
-        {scene.lonelyTotal === 1
-          ? 'Ache o único item SEM par 🔍'
-          : `Ache os ${scene.lonelyTotal} itens SEM par · Faltam ${remaining} 🔍`}
+        <Search size={14} />
+        <span>
+          {scene.lonelyTotal === 1
+            ? 'Ache o único item SEM par'
+            : `Ache os ${scene.lonelyTotal} itens SEM par · Faltam ${remaining}`}
+        </span>
       </div>
 
       <div
@@ -177,7 +218,6 @@ export function CrimeSceneGame({
                 isWrong ? 'animate-shake' : ''
               }`}
               style={{
-                fontSize: scene.items.length >= 15 ? '1.75rem' : '2.2rem',
                 background: isFound
                   ? 'rgba(16, 185, 129, 0.22)'
                   : isWrong
@@ -188,10 +228,11 @@ export function CrimeSceneGame({
                   : isWrong
                     ? '2px solid var(--err)'
                     : '1.5px solid var(--border)',
+                color: isFound ? 'var(--ok)' : isWrong ? 'var(--err)' : item.def.color,
                 opacity: isFound ? 0.65 : 1,
               }}
             >
-              {item.emoji}
+              {item.def.render(iconSize)}
             </button>
           );
         })}

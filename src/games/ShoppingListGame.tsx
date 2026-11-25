@@ -1,38 +1,64 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check } from 'lucide-react';
+import {
+  Apple,
+  Banana,
+  Beef,
+  CakeSlice,
+  Candy,
+  Carrot,
+  Check,
+  Cherry,
+  Citrus,
+  Coffee,
+  Cookie,
+  Croissant,
+  CupSoda,
+  Donut,
+  Egg,
+  Fish,
+  Grape,
+  IceCreamCone,
+  Milk,
+  Pizza,
+  Popcorn,
+  Salad,
+  Sandwich,
+  Soup,
+} from 'lucide-react';
 import { sound } from '../lib/audio';
 import type { MinigameProps } from './GameProps';
 
 interface MarketItem {
-  emoji: string;
+  emoji: string; // id único
   label: string;
+  color: string;
+  render: (size: number) => JSX.Element;
 }
 
 const MARKET_POOL: MarketItem[] = [
-  { emoji: '🥑', label: 'Abacate' },
-  { emoji: '🥐', label: 'Croissant' },
-  { emoji: '🧀', label: 'Queijo' },
-  { emoji: '🍓', label: 'Morango' },
-  { emoji: '🥛', label: 'Leite' },
-  { emoji: '🍯', label: 'Mel' },
-  { emoji: '🥚', label: 'Ovos' },
-  { emoji: '🥦', label: 'Brócolis' },
-  { emoji: '🍫', label: 'Chocolate' },
-  { emoji: '🍎', label: 'Maçã' },
-  { emoji: '🍌', label: 'Banana' },
-  { emoji: '🥕', label: 'Cenoura' },
-  { emoji: '🍞', label: 'Pão' },
-  { emoji: '🍅', label: 'Tomate' },
-  { emoji: '🍇', label: 'Uva' },
-  { emoji: '🍋', label: 'Limão' },
-  { emoji: '🥨', label: 'Pretzel' },
-  { emoji: '🍪', label: 'Biscoito' },
-  { emoji: '🍉', label: 'Melancia' },
-  { emoji: '🌽', label: 'Milho' },
-  { emoji: '🍗', label: 'Frango' },
-  { emoji: '🐟', label: 'Peixe' },
-  { emoji: '🧁', label: 'Bolinho' },
-  { emoji: '🍕', label: 'Pizza' },
+  { emoji: 'apple', label: 'Maçã', color: '#E11D48', render: (s) => <Apple size={s} /> },
+  { emoji: 'croissant', label: 'Croissant', color: '#D97706', render: (s) => <Croissant size={s} /> },
+  { emoji: 'milk', label: 'Leite', color: '#0EA5E9', render: (s) => <Milk size={s} /> },
+  { emoji: 'egg', label: 'Ovos', color: '#CA8A04', render: (s) => <Egg size={s} /> },
+  { emoji: 'banana', label: 'Banana', color: '#EAB308', render: (s) => <Banana size={s} /> },
+  { emoji: 'carrot', label: 'Cenoura', color: '#EA580C', render: (s) => <Carrot size={s} /> },
+  { emoji: 'grape', label: 'Uva', color: '#7C3AED', render: (s) => <Grape size={s} /> },
+  { emoji: 'citrus', label: 'Limão', color: '#65A30D', render: (s) => <Citrus size={s} /> },
+  { emoji: 'cookie', label: 'Biscoito', color: '#B45309', render: (s) => <Cookie size={s} /> },
+  { emoji: 'fish', label: 'Peixe', color: '#2563EB', render: (s) => <Fish size={s} /> },
+  { emoji: 'pizza', label: 'Pizza', color: '#DC2626', render: (s) => <Pizza size={s} /> },
+  { emoji: 'coffee', label: 'Café', color: '#78350F', render: (s) => <Coffee size={s} /> },
+  { emoji: 'cherry', label: 'Cereja', color: '#BE123C', render: (s) => <Cherry size={s} /> },
+  { emoji: 'cake', label: 'Bolo', color: '#DB2777', render: (s) => <CakeSlice size={s} /> },
+  { emoji: 'candy', label: 'Doce', color: '#EC4899', render: (s) => <Candy size={s} /> },
+  { emoji: 'soda', label: 'Suco', color: '#0891B2', render: (s) => <CupSoda size={s} /> },
+  { emoji: 'donut', label: 'Rosquinha', color: '#F59E0B', render: (s) => <Donut size={s} /> },
+  { emoji: 'icecream', label: 'Sorvete', color: '#8B5CF6', render: (s) => <IceCreamCone size={s} /> },
+  { emoji: 'popcorn', label: 'Pipoca', color: '#D97706', render: (s) => <Popcorn size={s} /> },
+  { emoji: 'salad', label: 'Salada', color: '#059669', render: (s) => <Salad size={s} /> },
+  { emoji: 'sandwich', label: 'Lanche', color: '#EA580C', render: (s) => <Sandwich size={s} /> },
+  { emoji: 'soup', label: 'Sopa', color: '#DC2626', render: (s) => <Soup size={s} /> },
+  { emoji: 'beef', label: 'Carne', color: '#991B1B', render: (s) => <Beef size={s} /> },
 ];
 
 function shuffle<T>(arr: T[]): T[] {
@@ -209,7 +235,7 @@ export function ShoppingListGame({
               className="flex flex-col items-center gap-1 px-3 py-2.5 rounded-2xl min-w-[78px]"
               style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)' }}
             >
-              <span className="text-4xl leading-none select-none">{item.emoji}</span>
+              <div style={{ color: item.color }}>{item.render(34)}</div>
               <span className="text-[11px] font-bold" style={{ color: 'var(--text-muted)' }}>
                 {item.label}
               </span>
@@ -236,7 +262,7 @@ export function ShoppingListGame({
                   isWrong ? 'animate-shake' : ''
                 }`}
                 style={{
-                  fontSize: round.shelf.length >= 16 ? '1.85rem' : '2.25rem',
+                  color: item.color,
                   background: isWrong
                     ? 'rgba(239, 68, 68, 0.18)'
                     : isPicked
@@ -249,7 +275,7 @@ export function ShoppingListGame({
                       : '1.5px solid var(--border)',
                 }}
               >
-                <span>{item.emoji}</span>
+                {item.render(round.shelf.length >= 16 ? 26 : 32)}
                 {isPicked && (
                   <span
                     className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full flex items-center justify-center"

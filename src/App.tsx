@@ -487,6 +487,16 @@ export default function App() {
       nextChallengeLabel = `Próximo exercício · ${nextGameMeta.name}`;
       onNextChallenge = () =>
         startGame(nextPick.slug, 'free', 'app', undefined, undefined, undefined, true);
+    } else if (activePlay.guidedQueue && activePlay.guidedQueue.length > 0) {
+      const queue = activePlay.guidedQueue.filter((s) => Boolean(GAME_MAP[s]));
+      const curIdx = queue.indexOf(activePlay.slug);
+      const nextSlug = curIdx >= 0 && curIdx + 1 < queue.length ? queue[curIdx + 1] : undefined;
+      if (nextSlug) {
+        const nextNum = curIdx + 2;
+        nextChallengeLabel = `Próximo (${nextNum}/${queue.length}) · ${GAME_MAP[nextSlug].name}`;
+        onNextChallenge = () =>
+          startGame(nextSlug, 'free', 'app', undefined, queue);
+      }
     } else if (activePlay.domainFocusQueue) {
       const { domain, slugs } = activePlay.domainFocusQueue;
       const curIdx = slugs.indexOf(activePlay.slug);

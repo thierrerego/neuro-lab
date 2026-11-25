@@ -712,6 +712,27 @@ export function getLocalUserState(userId: string): AppDataState | null {
   const state = db.users[userId];
   if (!state) return null;
 
+  let dirty = false;
+  const nowIso = new Date().toISOString();
+  const nextProg = { ...(state.progress ?? {}) } as Record<GameSlug, GameProgressRecord>;
+  for (const g of GAME_REGISTRY) {
+    if (!nextProg[g.slug]) {
+      nextProg[g.slug] = {
+        game_slug: g.slug,
+        domain: g.domain,
+        current_stage: 1,
+        highest_score: 0,
+        total_plays: 0,
+        ease_mode: false,
+        updated_at: nowIso,
+      };
+      dirty = true;
+    }
+  }
+  if (dirty) {
+    state.progress = nextProg;
+  }
+
   const today = getAppTodayIso();
   if (!state.dailyProtocol || state.dailyProtocol.protocol_date !== today) {
     state.dailyProtocol = generateDailyProtocol(
@@ -720,6 +741,10 @@ export function getLocalUserState(userId: string): AppDataState | null {
       state.profile.selected_domains,
       state.profile.daily_goal_minutes
     );
+    dirty = true;
+  }
+
+  if (dirty) {
     db.users[userId] = state;
     writeDb(db);
   }

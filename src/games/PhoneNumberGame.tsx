@@ -166,7 +166,7 @@ export function PhoneNumberGame({
           border: '1px solid var(--border)',
         }}
       >
-        {phase === 'memorize' ? 'Memorize o número 📞' : 'Digite o número'}
+        {phase === 'memorize' ? 'Memorize o número' : 'Digite o número'}
       </div>
 
       <div

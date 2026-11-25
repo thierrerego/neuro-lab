@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { AlertTriangle, CircleDot, Flag, Flame } from 'lucide-react';
 import { sound } from '../lib/audio';
 import type { MinigameProps } from './GameProps';
 
@@ -198,10 +199,10 @@ export function PassTheBallGame({
         }}
       >
         {phase === 'memorize'
-          ? 'Memorize os perigos 🚧'
+          ? 'Memorize os perigos'
           : hitHazard !== null
-            ? 'Ops! Armadilha 💥'
-            : 'Leve a bola ⚽ até a bandeira 🏁'}
+            ? 'Ops! Armadilha!'
+            : 'Leve a bola até a bandeira'}
       </div>
 
       <div
@@ -253,17 +254,17 @@ export function PassTheBallGame({
                             : '1px solid var(--border)',
               }}
             >
-              {hitHazard === idx
-                ? '💥'
-                : isBall
-                  ? '⚽'
-                  : isGoal
-                    ? '🏁'
-                    : showHazard
-                      ? '🚧'
-                      : isVisited
-                        ? '🟢'
-                        : ''}
+              {hitHazard === idx ? (
+                <Flame size={22} style={{ color: 'var(--err)' }} fill="currentColor" />
+              ) : isBall ? (
+                <CircleDot size={24} style={{ color: 'var(--accent)' }} />
+              ) : isGoal ? (
+                <Flag size={22} style={{ color: '#D97706' }} fill="currentColor" />
+              ) : showHazard ? (
+                <AlertTriangle size={20} style={{ color: 'var(--err)' }} />
+              ) : isVisited ? (
+                <span className="w-3.5 h-3.5 rounded-full" style={{ background: 'var(--ok)' }} />
+              ) : null}
             </button>
           );
         })}

@@ -151,7 +151,7 @@ export function TreasureHuntGame({
         className="text-xs font-extrabold uppercase tracking-wider px-4 py-1.5 rounded-full"
         style={{ background: 'var(--bg-subtle)', color: 'var(--accent)', border: '1px solid var(--border)' }}
       >
-        Qual cor aparece MAIS vezes? 💎
+        Qual cor aparece MAIS vezes?
       </div>
 
       <div
@@ -159,9 +159,14 @@ export function TreasureHuntGame({
         style={{ background: 'var(--bg-card)', border: '1.5px solid var(--border)' }}
       >
         {round.tokens.map((tok, i) => (
-          <span key={i} className="text-3xl leading-none select-none">
-            {tok.emoji}
-          </span>
+          <span
+            key={i}
+            className="w-8 h-8 rounded-full inline-block select-none shadow-sm"
+            style={{
+              background: tok.hex,
+              boxShadow: `0 2px 8px ${tok.hex}44`,
+            }}
+          />
         ))}
       </div>
 
@@ -187,7 +192,10 @@ export function TreasureHuntGame({
                   : `1.5px solid ${opt.hex}55`,
               }}
             >
-              <span className="text-2xl leading-none">{opt.emoji}</span>
+              <span
+                className="w-5 h-5 rounded-full shrink-0"
+                style={{ background: opt.hex }}
+              />
               <span>{opt.label}</span>
             </button>
           );

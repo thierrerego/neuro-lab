@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Shirt } from 'lucide-react';
 import { sound } from '../lib/audio';
 import type { MinigameProps } from './GameProps';
 
@@ -186,7 +187,7 @@ export function FanCountGame({
               border: `2px solid ${fan.hex}`,
             }}
           >
-            <span className="text-2xl leading-none">👕</span>
+            <Shirt size={28} style={{ color: fan.hex }} fill={fan.hex} fillOpacity={0.25} />
             <span
               className="absolute bottom-1 right-1 w-2.5 h-2.5 rounded-full"
               style={{ background: fan.hex }}
