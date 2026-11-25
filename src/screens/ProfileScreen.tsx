@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { ResetCalibrationButton } from '../components/ResetCalibrationButton';
 import type { AppDataState } from '../lib/dataService';
-import { getAgeBracketMeta, scoreToPercent } from '../engine/psychometricEngine';
+import { CALIBRATION_ENABLED, getAgeBracketMeta, scoreToPercent } from '../engine/psychometricEngine';
 import type { ThemeMode } from '../types/cognitive';
 import {
   addFeedbackNote,
@@ -299,7 +299,7 @@ export function ProfileScreen({
           <SlidersHorizontal size={16} /> Ajustar anamnese, faixa e meta diária
         </button>
 
-        <ResetCalibrationButton onConfirm={onResetCalibration} />
+        {CALIBRATION_ENABLED && <ResetCalibrationButton onConfirm={onResetCalibration} />}
 
         <button
           type="button"

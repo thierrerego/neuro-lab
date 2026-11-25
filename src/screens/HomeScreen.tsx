@@ -23,6 +23,7 @@ import {
   getDailyNeuroInsight,
   getProtocolReason,
   isRankingReady,
+  CALIBRATION_ENABLED,
   pickNextFlowGame,
   scoreToPercent,
 } from '../engine/psychometricEngine';
@@ -60,7 +61,7 @@ export function HomeScreen({
   );
   // Some quando o teste termina (ou quando a pessoa já liberou o ranking jogando normalmente)
   const showCalibrationCard =
-    calProgress.next !== null && !isRankingReady(profile, sessions);
+    CALIBRATION_ENABLED && calProgress.next !== null && !isRankingReady(profile, sessions);
 
   const globalPct = scoreToPercent(profile.global_cognitive_index);
   const { basePct, hasBaseline } = useMemo(() => {
@@ -289,7 +290,7 @@ export function HomeScreen({
                   className="text-xs font-semibold px-2.5 py-1 rounded-full"
                   style={{ background: 'var(--bg-subtle)', color: 'var(--text-muted)' }}
                 >
-                  Faça o teste inicial
+                  Jogue sua 1ª partida
                 </span>
               ) : (
                 hasBaseline &&

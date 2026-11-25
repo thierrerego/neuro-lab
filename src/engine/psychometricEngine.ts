@@ -478,6 +478,8 @@ export function evaluateSession(params: {
   weakestTwoDomains: DomainKey[];
   ageBracket?: AgeBracket | string | null;
   previousSameStageAccuracyPct?: number | null;
+  /** Quantas vezes este jogo já foi jogado antes (subida rápida nas 3 primeiras) */
+  priorPlaysOfGame?: number;
 }): ComputedSessionResult {
   const {
     domain,
@@ -649,9 +651,14 @@ export function evaluateSession(params: {
 
   if (gabaritou) {
     stageCleared = true;
-    nextStage = Math.min(30, safeBaseStage + 1);
+    // Subida rápida: nas 3 primeiras partidas de cada jogo, gabaritou RÁPIDO = pula 2 fases
+    // (sem teste inicial, quem já é bom chega logo no seu nível)
+    const earlyPlays = (params.priorPlaysOfGame ?? 99) < 3;
+    const fast = completedEarly || (rtMeanMs > 0 && rtMeanMs <= targetRt);
+    const jump = earlyPlays && fast ? 2 : 1;
+    nextStage = Math.min(30, safeBaseStage + jump);
     adaptiveDelta = nextStage - safeBaseStage;
-    adaptiveStatus = adaptiveDelta > 0 ? 'level_up' : 'hold';
+    adaptiveStatus = adaptiveDelta >= 2 ? 'fast_track' : adaptiveDelta > 0 ? 'level_up' : 'hold';
   } else if (struggled) {
     stageCleared = false;
     nextStage = Math.max(1, safeBaseStage - 1);
@@ -799,6 +806,23 @@ export function getCalibrationDomains(
 }
 
 /**
+ * Chave do TESTE INICIAL. Desligado: o app monta o perfil só com as partidas normais
+ * (recomendações do dia + jogos livres). Para religar, troque para true.
+ */
+export const CALIBRATION_ENABLED = false;
+
+/** Partidas mínimas numa habilidade para mostrar o ranking da idade dela */
+export const MIN_SESSIONS_FOR_DOMAIN_RANKING = 2;
+
+/** Ranking da idade de UMA habilidade: aparece depois de 2 partidas nela */
+export function isDomainRankingReady(
+  domain: DomainKey,
+  sessions: { domain: DomainKey }[]
+): boolean {
+  return sessions.filter((s) => s.domain === domain).length >= MIN_SESSIONS_FOR_DOMAIN_RANKING;
+}
+
+/**
  * Teste inicial: 2 jogos DIFERENTES por habilidade (a nota inicial é a média dos dois),
  * o que deixa a medida bem mais confiável que uma única partida de 30s.
  */
@@ -861,6 +885,11 @@ export function isRankingReady(
   },
   sessions: { domain: DomainKey; created_at?: string }[]
 ): boolean {
+  if (!CALIBRATION_ENABLED) {
+    // Sem teste inicial: o índice geral aparece quando cada habilidade escolhida tiver 2 partidas
+    const chosen = getCalibrationDomains(profile.selected_domains, profile.cognitive_bottlenecks);
+    return chosen.every((d) => isDomainRankingReady(d, sessions));
+  }
   if (profile.calibrated) return true;
   // Se pediu para refazer o teste, só contam as partidas depois disso
   const since = getCalibrationResetAt(profile);

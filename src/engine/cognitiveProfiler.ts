@@ -729,7 +729,7 @@ export function generateCognitiveDossier(params: {
 
   const untestedHint =
     untestedDeclaredDomains.length > 0
-      ? ` Você ainda não testou ${listNames(untestedDeclaredDomains)}, que marcou no questionário: faça esse teste para completar seu mapa.`
+      ? ` Você ainda não jogou ${listNames(untestedDeclaredDomains)}, que marcou no questionário: jogue uma partida para completar seu mapa.`
       : '';
 
   const p3 =
@@ -742,14 +742,14 @@ export function generateCognitiveDossier(params: {
   const calTotal = getCalibrationDomains(profile.selected_domains, profile.cognitive_bottlenecks).length;
   const p1Final = rankingReady
     ? p1
-    : `Teste inicial em andamento: você já mediu ${listNames(measuredKeys)} (${measuredKeys.length} de ${calTotal}). Sua posição frente às pessoas da faixa ${ageLabel} aparece assim que o teste terminar.`;
+    : `Seu perfil está se formando: você já jogou ${listNames(measuredKeys)}. Sua posição frente às pessoas da faixa ${ageLabel} aparece quando cada habilidade escolhida tiver 2 partidas (${measuredKeys.length} de ${calTotal} habilidades medidas).`;
 
   const shareSummaryText = [
     `NeuroLab — Dossiê Cognitivo`,
     `Perfil: ${def.title}`,
     rankingReady
       ? `Índice Global: ${scoreToPercent(profile.global_cognitive_index)}% · Faixa ${ageLabel}: Top ${topPercent}% (superou ${Math.round(globalPct)}%)`
-      : `Índice Global: calibrando (teste inicial em andamento)`,
+      : `Índice Global: calibrando (perfil em formação)`,
     `Pontos fortes: ${top1.name} (${scoreToPercent(top1Score)}%) e ${top2.name} (${scoreToPercent(top2Score)}%)`,
     sessions.length > 0
       ? `Precisão média: ${Math.round(clinical.avgAccuracyPct)}% · Estabilidade de foco: ${clinical.consistencyIndex}%`

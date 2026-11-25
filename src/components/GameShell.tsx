@@ -396,6 +396,7 @@ export function GameShell({
           gameSessions[0] && gameSessions[0].stage_played === stage
             ? Number(gameSessions[0].accuracy_pct)
             : null,
+        priorPlaysOfGame: gameSessions.length,
       });
 
       setResult(evaluated);
@@ -970,7 +971,7 @@ export function GameShell({
                     <div className="text-[15px] font-bold mt-2" style={{ color: 'var(--text)' }}>
                       {showRanking
                         ? `das pessoas da sua faixa etária (${ageLabel})`
-                        : `Sua posição na faixa ${ageLabel} aparece ao terminar o teste inicial (ou após 2 partidas de cada habilidade)`}
+                        : `Sua posição na faixa ${ageLabel} aparece depois de 2 partidas nesta habilidade`}
                     </div>
 
                     {!sandboxMode && coachInsight && (

@@ -30,7 +30,12 @@ import type {
 import { fetchPopulationBenchmarks, type AppDataState } from '../lib/dataService';
 import { DOMAIN_LIST, DOMAIN_MAP, GAME_MAP, GAME_REGISTRY, GAMES_BY_DOMAIN } from '../engine/gameRegistry';
 import { getIntensityLabel } from '../engine/adaptiveEngine';
-import { getAgeBracketMeta, scoreToPercent } from '../engine/psychometricEngine';
+import {
+  CALIBRATION_ENABLED,
+  getAgeBracketMeta,
+  isDomainRankingReady,
+  scoreToPercent,
+} from '../engine/psychometricEngine';
 import {
   adjustDistributionForAge,
   buildExerciseHistory,
@@ -526,7 +531,7 @@ export function StatsScreen({
                     <div className="text-[11px] mt-0.5 leading-snug" style={{ color: 'var(--text-muted)' }}>
                       {dossier.rankingReady
                         ? `Pessoas superadas na faixa ${ageLabel}`
-                        : 'Aparece ao terminar o teste inicial'}
+                        : 'Aparece com 2 partidas em cada habilidade escolhida'}
                     </div>
                   </div>
                 </div>
@@ -575,12 +580,12 @@ export function StatsScreen({
               <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: 'var(--bg-subtle)' }}>
                 <div>
                   <div className="text-xs font-bold tracking-wide mb-1.5" style={{ color: 'var(--text-soft)' }}>
-                    4. Ainda não testado
+                    4. Ainda sem partidas
                   </div>
                   <p className="text-sm leading-relaxed" style={{ color: 'var(--text-muted)' }}>
                     {dossier.untestedDeclaredDomains.length > 0
-                      ? 'Você marcou estas habilidades no questionário, mas ainda não testou. Um teste curto já entra no seu mapa.'
-                      : 'Estas habilidades ainda não foram medidas, então ficam fora das recomendações. Quer testar?'}
+                      ? 'Você marcou estas habilidades no questionário, mas ainda não jogou. Uma partida já entra no seu mapa.'
+                      : 'Estas habilidades ainda não têm partidas, então ficam fora das recomendações. Quer jogar?'}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -599,7 +604,7 @@ export function StatsScreen({
                         style={declared ? { border: `1px solid ${d.color}` } : undefined}
                       >
                         <span className="w-2 h-2 rounded-full" style={{ background: d.color }} />
-                        <span>Testar {d.shortName}</span>
+                        <span>Jogar {d.shortName}</span>
                       </button>
                     );
                   })}
@@ -1010,7 +1015,7 @@ export function StatsScreen({
                               <span className="font-extrabold" style={{ color: 'var(--text)' }}>
                                 {curPct}%
                               </span>
-                              <span>{!isMeasured ? '· Não testado' : dossier.rankingReady ? `· Est. Top ${topP}%` : '· Calibrando…'}</span>
+                              <span>{!isMeasured ? '· Sem partidas' : isDomainRankingReady(d.key, sessions) ? `· Est. Top ${topP}%` : '· Calibrando…'}</span>
                               {diffPct !== 0 && (
                                 <span
                                   className="font-bold"
@@ -1642,7 +1647,7 @@ export function StatsScreen({
           </div>
         </div>
       )}
-      {onResetCalibration && <ResetCalibrationButton variant="link" onConfirm={onResetCalibration} />}
+      {CALIBRATION_ENABLED && onResetCalibration && <ResetCalibrationButton variant="link" onConfirm={onResetCalibration} />}
     </div>
   );
 }

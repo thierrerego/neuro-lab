@@ -18,6 +18,7 @@ import { DOMAIN_LIST, DOMAIN_MAP, GAME_MAP } from '../engine/gameRegistry';
 import {
   AGE_BRACKET_OPTIONS,
   getAgeBracketMeta,
+  CALIBRATION_ENABLED,
   CALIBRATION_GAMES,
   getCalibrationDomains,
   getDailyGamesCount,
@@ -949,7 +950,9 @@ export function OnboardingScreen({
 
             <div>
               <div className="text-xs font-semibold mb-2.5" style={{ color: 'var(--text-soft)' }}>
-                Teste inicial (opcional, no Início) · {calibrationDomains.length * 2} jogos · 2 por habilidade
+                {CALIBRATION_ENABLED
+                  ? `Teste inicial (opcional, no Início) · ${calibrationDomains.length * 2} jogos · 2 por habilidade`
+                  : 'Habilidades em foco · suas notas se formam conforme você joga'}
               </div>
               <div className="grid grid-cols-2 gap-2.5">
                 {calibrationDomains.map((dk) => {
@@ -971,7 +974,9 @@ export function OnboardingScreen({
                       <div className="min-w-0">
                         <div className="text-xs font-bold truncate">{dom.shortName}</div>
                         <div className="text-xs truncate" style={{ color: 'var(--text-soft)' }}>
-                          {games.map((g) => g.name).join(' + ')}
+                          {CALIBRATION_ENABLED
+                            ? games.map((g) => g.name).join(' + ')
+                            : 'Treino do dia + jogos livres'}
                         </div>
                       </div>
                     </div>

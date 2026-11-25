@@ -45,6 +45,8 @@ import {
   getCalibrationProgress,
   getCalibrationResetAt,
   isRankingReady,
+  isDomainRankingReady,
+  CALIBRATION_ENABLED,
   getWeakestDomains,
   scoreToPercent,
 } from './engine/psychometricEngine';
@@ -543,7 +545,11 @@ export default function App() {
         weakestTwo={weakest2}
         previousRef={activePlay.previousRef}
         gameSessions={data.sessions.filter((s) => s.game_slug === activePlay.slug)}
-        rankingReady={isRankingReady(data.profile, data.sessions)}
+        rankingReady={
+          CALIBRATION_ENABLED
+            ? isRankingReady(data.profile, data.sessions)
+            : isDomainRankingReady(GAME_MAP[activePlay.slug].domain, data.sessions)
+        }
         calibrationInfo={activePlay.calibrationInfo}
         workoutProgress={workoutProgress}
         nextChallengeLabel={nextChallengeLabel}
