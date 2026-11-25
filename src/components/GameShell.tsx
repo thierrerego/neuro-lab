@@ -8,13 +8,16 @@ import {
   CheckCircle2,
   Flame,
   HelpCircle,
+  MessageSquarePlus,
   RotateCcw,
+  Send,
   Timer,
   TrendingDown,
   TrendingUp,
 } from 'lucide-react';
 import type {
   AgeBracket,
+  CognitiveSessionRecord,
   ComputedSessionResult,
   DomainKey,
   GameSlug,
@@ -52,6 +55,8 @@ import {
 } from '../lib/labTuning';
 import { GameTutorial } from './GameTutorial';
 import { LabTuningPanel } from './LabTuningPanel';
+import { SessionEvolutionChart } from './StatsCharts';
+import { addFeedbackNote } from '../lib/feedbackNotes';
 import { recordInteractionTelemetry } from '../lib/telemetryService';
 import { generateAdaptiveCoachInsight, type AdaptiveCoachInsight } from '../lib/aiCoachService';
 
@@ -82,6 +87,7 @@ interface GameShellProps {
   sandboxMode?: boolean;
   weakestTwo: DomainKey[];
   previousRef?: PreviousExerciseReference;
+  gameSessions?: CognitiveSessionRecord[];
   calibrationInfo?: CalibrationBannerInfo;
   workoutProgress?: DailyWorkoutProgressInfo;
   nextChallengeLabel?: string;
@@ -103,6 +109,7 @@ export function GameShell({
   stage,
   easeBoost = false,
   mode,
+  theme,
   ageBracket = '25-34',
   userId = 'local-anon',
   sendRemoteTelemetry = false,
@@ -110,6 +117,7 @@ export function GameShell({
   sandboxMode = false,
   weakestTwo,
   previousRef,
+  gameSessions = [],
   calibrationInfo,
   workoutProgress,
   nextChallengeLabel,
@@ -168,6 +176,10 @@ export function GameShell({
     note: '',
   });
   const [sandboxFbSaved, setSandboxFbSaved] = useState(false);
+  const [resultChartTab, setResultChartTab] = useState<'ranking' | 'evolution'>('ranking');
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [noteDraft, setNoteDraft] = useState('');
+  const [noteSavedToast, setNoteSavedToast] = useState(false);
 
   // Fluxo: tutorial -> contagem única no início (3 -> 2 -> 1 -> Vai!) -> exercício contínuo
   const [tutorialSlug, setTutorialSlug] = useState<GameSlug | null>(slug);
@@ -209,6 +221,10 @@ export function GameShell({
     setHelpOpen(false);
     setSandboxFb({ note: '' });
     setSandboxFbSaved(false);
+    setResultChartTab('ranking');
+    setNoteOpen(false);
+    setNoteDraft('');
+    setNoteSavedToast(false);
     setLive({ score: 0, accuracyPct: 100, combo: 0 });
     matchStartMsRef.current = performance.now();
     pausedAccumMsRef.current = 0;
@@ -931,67 +947,116 @@ export function GameShell({
                     )}
                   </div>
 
-                  {/* Curva de Superação SVG */}
-                  <div className="rounded-2xl px-3.5 pt-3.5 pb-2.5" style={{ background: 'var(--bg-subtle)' }}>
-                    <svg viewBox="0 0 300 112" className="w-full h-[108px] block overflow-visible">
-                      <defs>
-                        <linearGradient id="neuroCurveGrad" x1="0" y1="0" x2="1" y2="0">
-                          <stop offset="0%" stopColor="#4F6EF7" stopOpacity="0.22" />
-                          <stop offset="100%" stopColor="#4F6EF7" stopOpacity="0.72" />
-                        </linearGradient>
-                        <clipPath id="neuroCurveClip">
-                          <rect x="0" y="0" width={curveX} height="112" />
-                        </clipPath>
-                      </defs>
-                      <path
-                        d="M 8 98 C 45 97, 72 86, 102 52 C 122 28, 136 16, 150 16 C 164 16, 178 28, 198 52 C 228 86, 255 97, 292 98 L 292 102 L 8 102 Z"
-                        fill="var(--border)"
-                        opacity="0.7"
-                      />
-                      <path
-                        d="M 8 98 C 45 97, 72 86, 102 52 C 122 28, 136 16, 150 16 C 164 16, 178 28, 198 52 C 228 86, 255 97, 292 98 L 292 102 L 8 102 Z"
-                        fill="url(#neuroCurveGrad)"
-                        clipPath="url(#neuroCurveClip)"
-                      />
-                      <path
-                        d="M 8 98 C 45 97, 72 86, 102 52 C 122 28, 136 16, 150 16 C 164 16, 178 28, 198 52 C 228 86, 255 97, 292 98"
-                        fill="none"
-                        stroke="var(--accent)"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                      />
-                      <line
-                        x1={curveX}
-                        y1="22"
-                        x2={curveX}
-                        y2="100"
-                        stroke="var(--ok)"
-                        strokeWidth="2"
-                        strokeDasharray="3 3"
-                      />
-                      <circle cx={curveX} cy={curveY} r="6" fill="var(--ok)" stroke="#FFFFFF" strokeWidth="2.5" />
-                      <g transform={`translate(${clampedTagX}, 14)`}>
-                        <rect x="-30" y="-11" width="60" height="20" rx="10" fill="var(--ok)" />
-                        <text
-                          x="0"
-                          y="2.5"
-                          textAnchor="middle"
-                          fill="#FFFFFF"
-                          fontSize="10"
-                          fontWeight="800"
-                        >
-                          VOCÊ
-                        </text>
-                      </g>
-                    </svg>
+                  {/* Abas do gráfico: Ranking da idade | Minha evolução neste jogo */}
+                  <div className="flex flex-col gap-2">
                     <div
-                      className="flex items-center justify-between text-[11px] font-bold mt-1 px-0.5"
-                      style={{ color: 'var(--text-soft)' }}
+                      className="grid grid-cols-2 gap-1 p-1 rounded-xl"
+                      style={{ background: 'var(--bg-subtle)' }}
                     >
-                      <span>Início</span>
-                      <span>Média (50%)</span>
-                      <span>Topo (99%)</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          sound.tap();
+                          setResultChartTab('ranking');
+                        }}
+                        className={`py-1.5 px-2 rounded-lg text-xs font-bold cursor-pointer transition-all ${
+                          resultChartTab === 'ranking' ? 'btn-accent' : ''
+                        }`}
+                        style={
+                          resultChartTab === 'ranking' ? undefined : { color: 'var(--text-muted)' }
+                        }
+                      >
+                        Ranking da idade
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          sound.tap();
+                          setResultChartTab('evolution');
+                        }}
+                        className={`py-1.5 px-2 rounded-lg text-xs font-bold cursor-pointer transition-all ${
+                          resultChartTab === 'evolution' ? 'btn-accent' : ''
+                        }`}
+                        style={
+                          resultChartTab === 'evolution' ? undefined : { color: 'var(--text-muted)' }
+                        }
+                      >
+                        Minha evolução
+                      </button>
                     </div>
+
+                    {resultChartTab === 'ranking' ? (
+                      <div className="rounded-2xl px-3.5 pt-3.5 pb-2.5" style={{ background: 'var(--bg-subtle)' }}>
+                        <svg viewBox="0 0 300 112" className="w-full h-[108px] block overflow-visible">
+                          <defs>
+                            <linearGradient id="neuroCurveGrad" x1="0" y1="0" x2="1" y2="0">
+                              <stop offset="0%" stopColor="#4F6EF7" stopOpacity="0.22" />
+                              <stop offset="100%" stopColor="#4F6EF7" stopOpacity="0.72" />
+                            </linearGradient>
+                            <clipPath id="neuroCurveClip">
+                              <rect x="0" y="0" width={curveX} height="112" />
+                            </clipPath>
+                          </defs>
+                          <path
+                            d="M 8 98 C 45 97, 72 86, 102 52 C 122 28, 136 16, 150 16 C 164 16, 178 28, 198 52 C 228 86, 255 97, 292 98 L 292 102 L 8 102 Z"
+                            fill="var(--border)"
+                            opacity="0.7"
+                          />
+                          <path
+                            d="M 8 98 C 45 97, 72 86, 102 52 C 122 28, 136 16, 150 16 C 164 16, 178 28, 198 52 C 228 86, 255 97, 292 98 L 292 102 L 8 102 Z"
+                            fill="url(#neuroCurveGrad)"
+                            clipPath="url(#neuroCurveClip)"
+                          />
+                          <path
+                            d="M 8 98 C 45 97, 72 86, 102 52 C 122 28, 136 16, 150 16 C 164 16, 178 28, 198 52 C 228 86, 255 97, 292 98"
+                            fill="none"
+                            stroke="var(--accent)"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                          />
+                          <line
+                            x1={curveX}
+                            y1="22"
+                            x2={curveX}
+                            y2="100"
+                            stroke="var(--ok)"
+                            strokeWidth="2"
+                            strokeDasharray="3 3"
+                          />
+                          <circle cx={curveX} cy={curveY} r="6" fill="var(--ok)" stroke="#FFFFFF" strokeWidth="2.5" />
+                          <g transform={`translate(${clampedTagX}, 14)`}>
+                            <rect x="-30" y="-11" width="60" height="20" rx="10" fill="var(--ok)" />
+                            <text
+                              x="0"
+                              y="2.5"
+                              textAnchor="middle"
+                              fill="#FFFFFF"
+                              fontSize="10"
+                              fontWeight="800"
+                            >
+                              VOCÊ
+                            </text>
+                          </g>
+                        </svg>
+                        <div
+                          className="flex items-center justify-between text-[11px] font-bold mt-1 px-0.5"
+                          style={{ color: 'var(--text-soft)' }}
+                        >
+                          <span>Início</span>
+                          <span>Média (50%)</span>
+                          <span>Topo (99%)</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <SessionEvolutionChart
+                        sessions={gameSessions}
+                        color={domainMeta.color}
+                        title={`Evolução · ${game.name}`}
+                        theme={theme}
+                        height={122}
+                        emptyText="Sua evolução neste jogo começa a aparecer aqui."
+                      />
+                    )}
                   </div>
 
                   {/* Alerta automático no Log de Calibração (apenas ADM) */}
@@ -1150,6 +1215,91 @@ export function GameShell({
                           style={{ width: `${domainAfterPct}%`, background: domainMeta.color }}
                         />
                       </div>
+                    </div>
+                  )}
+
+                  {/* Botão discreto para anotar feedback / melhoria sobre este exercício */}
+                  {!sandboxMode && (
+                    <div className="flex flex-col gap-2">
+                      {!noteOpen ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            sound.tap();
+                            setNoteOpen(true);
+                            setNoteSavedToast(false);
+                          }}
+                          className="w-full py-2.5 px-3.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
+                          style={{
+                            background: 'var(--bg-subtle)',
+                            color: noteSavedToast ? 'var(--ok)' : 'var(--text-muted)',
+                            border: '1px dashed var(--border-strong)',
+                          }}
+                        >
+                          <MessageSquarePlus size={14} />
+                          <span>
+                            {noteSavedToast
+                              ? '✓ Anotação salva! Tocar para adicionar outra'
+                              : 'Anotar melhoria ou feedback sobre este exercício'}
+                          </span>
+                        </button>
+                      ) : (
+                        <div
+                          className="rounded-2xl p-3 flex flex-col gap-2 animate-pop"
+                          style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border-strong)' }}
+                        >
+                          <div className="flex items-center justify-between text-xs font-bold">
+                            <span style={{ color: 'var(--accent)' }}>Anotação · {game.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => setNoteOpen(false)}
+                              className="text-[11px] font-semibold cursor-pointer"
+                              style={{ color: 'var(--text-soft)' }}
+                            >
+                              Fechar
+                            </button>
+                          </div>
+                          <textarea
+                            rows={2}
+                            value={noteDraft}
+                            onChange={(e) => setNoteDraft(e.target.value)}
+                            placeholder="Escreva uma ideia, bug ou ajuste pra depois..."
+                            className="w-full px-3 py-2 rounded-xl text-xs outline-none resize-none"
+                            style={{
+                              background: 'var(--bg-card)',
+                              border: '1px solid var(--border)',
+                              color: 'var(--text)',
+                            }}
+                          />
+                          <button
+                            type="button"
+                            disabled={!noteDraft.trim()}
+                            onClick={() => {
+                              const saved = addFeedbackNote({
+                                text: noteDraft,
+                                gameSlug: slug,
+                                gameName: game.name,
+                                intensityLabel: getIntensityLabel(
+                                  result.equilibriumIndex ?? result.stagePlayed
+                                ),
+                                accuracyPct: result.accuracyPct,
+                                rtMeanMs: result.rtMeanMs,
+                                percentile: result.percentile,
+                              });
+                              if (saved) {
+                                sound.tap();
+                                setNoteDraft('');
+                                setNoteOpen(false);
+                                setNoteSavedToast(true);
+                              }
+                            }}
+                            className="w-full py-2.5 px-3 rounded-xl font-bold text-xs btn-accent flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
+                          >
+                            <Send size={13} />
+                            <span>Salvar anotação</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
 

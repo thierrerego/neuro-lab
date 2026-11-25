@@ -1,7 +1,29 @@
-import { ArrowLeft, LogOut, Moon, RefreshCw, Shield, SlidersHorizontal, Sun } from 'lucide-react';
+import { useState } from 'react';
+import {
+  ArrowLeft,
+  Check,
+  Copy,
+  LogOut,
+  MessageSquarePlus,
+  Moon,
+  RefreshCw,
+  Send,
+  Shield,
+  SlidersHorizontal,
+  Sun,
+  Trash2,
+} from 'lucide-react';
 import type { AppDataState } from '../lib/dataService';
 import { getAgeBracketMeta, scoreToPercent } from '../engine/psychometricEngine';
 import type { ThemeMode } from '../types/cognitive';
+import {
+  addFeedbackNote,
+  clearAllFeedbackNotes,
+  deleteFeedbackNote,
+  formatFeedbackNotesForExport,
+  listFeedbackNotes,
+  type FeedbackNoteItem,
+} from '../lib/feedbackNotes';
 
 interface ProfileScreenProps {
   data: AppDataState;
@@ -27,6 +49,33 @@ export function ProfileScreen({
   onLogout,
 }: ProfileScreenProps) {
   const { profile } = data;
+  const [notes, setNotes] = useState<FeedbackNoteItem[]>(() => listFeedbackNotes());
+  const [newNoteText, setNewNoteText] = useState('');
+  const [copiedNotes, setCopiedNotes] = useState(false);
+
+  const handleAddNote = () => {
+    const saved = addFeedbackNote({ text: newNoteText });
+    if (saved) {
+      setNotes(listFeedbackNotes());
+      setNewNoteText('');
+    }
+  };
+
+  const handleCopyAllNotes = async () => {
+    const text = formatFeedbackNotesForExport(notes);
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    setCopiedNotes(true);
+    window.setTimeout(() => setCopiedNotes(false), 2000);
+  };
 
   return (
     <div className="flex flex-col gap-5 animate-pop">
@@ -105,6 +154,113 @@ export function ProfileScreen({
             <Moon size={17} /> Escuro Noturno
           </button>
         </div>
+      </div>
+
+      {/* Área de Anotações & Melhorias */}
+      <div className="surface-card p-5 flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <MessageSquarePlus size={16} style={{ color: 'var(--accent)' }} />
+            <div className="text-sm font-bold">Anotações & Melhorias ({notes.length})</div>
+          </div>
+          {notes.length > 0 && (
+            <button
+              type="button"
+              onClick={() => void handleCopyAllNotes()}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold btn-accent flex items-center gap-1.5 cursor-pointer"
+            >
+              {copiedNotes ? <Check size={13} /> : <Copy size={13} />}
+              <span>{copiedNotes ? 'Copiado!' : 'Copiar tudo'}</span>
+            </button>
+          )}
+        </div>
+
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={newNoteText}
+            onChange={(e) => setNewNoteText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && newNoteText.trim()) handleAddNote();
+            }}
+            placeholder="Escreva uma anotação ou ideia de melhoria..."
+            className="flex-1 px-3.5 py-2.5 rounded-xl text-xs outline-none"
+            style={{
+              background: 'var(--bg-subtle)',
+              border: '1px solid var(--border)',
+              color: 'var(--text)',
+            }}
+          />
+          <button
+            type="button"
+            disabled={!newNoteText.trim()}
+            onClick={handleAddNote}
+            className="px-3.5 py-2.5 rounded-xl font-bold text-xs btn-accent flex items-center justify-center cursor-pointer disabled:opacity-40 shrink-0"
+            title="Salvar anotação"
+          >
+            <Send size={14} />
+          </button>
+        </div>
+
+        {notes.length === 0 ? (
+          <div className="text-xs py-2 text-center" style={{ color: 'var(--text-soft)' }}>
+            Nenhuma anotação ainda. Você pode anotar aqui ou no final de qualquer exercício.
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2 max-h-[260px] overflow-y-auto pr-0.5">
+            {notes.map((n) => {
+              const dt = new Date(n.createdAt).toLocaleString('pt-BR', {
+                day: '2-digit',
+                month: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+              });
+              return (
+                <div
+                  key={n.id}
+                  className="rounded-xl p-3 flex items-start justify-between gap-2.5"
+                  style={{ background: 'var(--bg-subtle)' }}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[11px] font-bold flex flex-wrap items-center gap-1.5" style={{ color: 'var(--accent)' }}>
+                      <span>{n.gameName ?? 'Anotação geral'}</span>
+                      <span style={{ color: 'var(--text-soft)' }}>· {dt}</span>
+                      {n.intensityLabel && (
+                        <span style={{ color: 'var(--text-soft)' }}>· {n.intensityLabel}</span>
+                      )}
+                    </div>
+                    <p className="text-xs mt-1 leading-relaxed break-words" style={{ color: 'var(--text)' }}>
+                      {n.text}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setNotes(deleteFeedbackNote(n.id))}
+                    className="p-1.5 rounded-lg cursor-pointer opacity-60 hover:opacity-100 shrink-0"
+                    style={{ color: 'var(--err)' }}
+                    title="Apagar anotação"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {notes.length > 1 && (
+          <button
+            type="button"
+            onClick={() => {
+              clearAllFeedbackNotes();
+              setNotes([]);
+            }}
+            className="mx-auto text-[11px] font-semibold cursor-pointer"
+            style={{ color: 'var(--text-soft)' }}
+          >
+            Limpar todas as anotações
+          </button>
+        )}
       </div>
 
       {/* Protocolo e sincronização */}

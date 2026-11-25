@@ -512,6 +512,7 @@ export default function App() {
         sandboxMode={Boolean(activePlay.sandboxMode)}
         weakestTwo={weakest2}
         previousRef={activePlay.previousRef}
+        gameSessions={data.sessions.filter((s) => s.game_slug === activePlay.slug)}
         calibrationInfo={activePlay.calibrationInfo}
         workoutProgress={workoutProgress}
         nextChallengeLabel={nextChallengeLabel}
