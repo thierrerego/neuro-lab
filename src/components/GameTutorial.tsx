@@ -2,6 +2,31 @@ import { useEffect, useState } from 'react';
 import { Check, Hand, Play } from 'lucide-react';
 import type { GameSlug, StageConfig } from '../types/cognitive';
 import { DOMAIN_MAP, GAME_MAP } from '../engine/gameRegistry';
+import {
+  AncientNumbersDemo,
+  ComplexPatternsDemo,
+  ConjunctionSearchDemo,
+  CrimeSceneDemo,
+  FanCountDemo,
+  FishOutOfWaterDemo,
+  HiddenGoldDemo,
+  IdenticalItemsDemo,
+  InvertedSignalDemo,
+  LogicBalanceDemo,
+  MatchPairsDemo,
+  MissingNumberDemo,
+  PassTheBallDemo,
+  PhoneNumberDemo,
+  QuickEstimateDemo,
+  QuickPairDemo,
+  ReverseDigitsDemo,
+  SecretAnagramsDemo,
+  SecretCodeDemo,
+  ShoppingListDemo,
+  SortTrashDemo,
+  StrangeSignalsDemo,
+  TreasureHuntDemo,
+} from './GameTutorialExtraDemos';
 
 interface GameTutorialProps {
   slug: GameSlug;
@@ -1890,51 +1915,51 @@ function TutorialStageVisual({ slug, config }: { slug: GameSlug; config: StageCo
     case 'rule-switch':
       return <RuleSwitchDemo />;
     case 'conjunction-search':
-      return <VisualSearchDemo />;
+      return <ConjunctionSearchDemo />;
     case 'reverse-digits':
-      return <SpatialSpanDemo reverseOrder={true} />;
+      return <ReverseDigitsDemo />;
     case 'logic-balance':
-      return <MissingOperatorDemo />;
+      return <LogicBalanceDemo />;
     case 'quick-pair':
-      return <FlashMatchDemo />;
+      return <QuickPairDemo />;
     case 'quick-estimate':
-      return <NumberComparisonDemo />;
+      return <QuickEstimateDemo />;
     case 'inverted-signal':
-      return <OppositeArrowDemo />;
+      return <InvertedSignalDemo />;
     case 'pass-the-ball':
-      return <PathLogicDemo alternating={false} />;
+      return <PassTheBallDemo />;
     case 'hidden-gold':
-      return <PhotoRecallDemo />;
+      return <HiddenGoldDemo />;
     case 'shopping-list':
-      return <PhotoRecallDemo />;
+      return <ShoppingListDemo />;
     case 'match-pairs':
-      return <MemoryPairsDemo />;
+      return <MatchPairsDemo />;
     case 'phone-number':
-      return <SpatialSpanDemo reverseOrder={false} />;
+      return <PhoneNumberDemo />;
     case 'secret-code':
-      return <SchulteOrderDemo />;
+      return <SecretCodeDemo />;
     case 'strange-signals':
-      return <SpatialSpanDemo reverseOrder={false} />;
+      return <StrangeSignalsDemo />;
     case 'ancient-numbers':
-      return <SchulteOrderDemo />;
+      return <AncientNumbersDemo />;
     case 'crime-scene':
-      return <OddOneOutDemo />;
+      return <CrimeSceneDemo />;
     case 'treasure-hunt':
-      return <VisualSearchDemo />;
+      return <TreasureHuntDemo />;
     case 'identical-items':
-      return <FlashMatchDemo />;
+      return <IdenticalItemsDemo />;
     case 'missing-number':
-      return <NumberSequenceDemo />;
+      return <MissingNumberDemo />;
     case 'fan-count':
-      return <VisualSearchDemo />;
+      return <FanCountDemo />;
     case 'secret-anagrams':
-      return <LogicIntruderDemo />;
+      return <SecretAnagramsDemo />;
     case 'fish-out-of-water':
-      return <LogicIntruderDemo />;
+      return <FishOutOfWaterDemo />;
     case 'sort-trash':
-      return <RuleSwitchDemo />;
+      return <SortTrashDemo />;
     case 'complex-patterns':
-      return <RavenMatricesDemo />;
+      return <ComplexPatternsDemo />;
   }
 }
 

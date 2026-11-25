@@ -150,7 +150,7 @@ export function CatalogScreen({ data, backendOnline, onStartGame }: CatalogScree
                           className="px-2.5 py-1 rounded-full text-xs font-semibold tabular"
                           style={{ background: 'var(--bg-subtle)', color: 'var(--text-muted)' }}
                         >
-                          Nível {Math.max(1, prog?.current_stage ?? 1)}
+                          Carga {Math.max(1, prog?.current_stage ?? 1)}
                         </span>
                       </div>
 

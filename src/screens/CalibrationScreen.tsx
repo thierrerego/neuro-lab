@@ -119,7 +119,7 @@ export function CalibrationScreen({
           className="mx-auto py-2 px-4 text-xs font-semibold cursor-pointer opacity-80 hover:opacity-100 transition-opacity"
           style={{ color: 'var(--text-soft)' }}
         >
-          Pular por agora (iniciar no Nível 1)
+          Pular por agora (iniciar no modo adaptativo)
         </button>
       )}
     </div>

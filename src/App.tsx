@@ -509,6 +509,8 @@ export default function App() {
         mode={activePlay.mode}
         theme={theme}
         ageBracket={data.profile.age_bracket}
+        userId={data.profile.id}
+        sendRemoteTelemetry={effectiveBackendOnline && !data.profile.isLocalGuest}
         isAdminSession={isAdminSession}
         sandboxMode={Boolean(activePlay.sandboxMode)}
         weakestTwo={weakest2}
@@ -644,6 +646,7 @@ export default function App() {
         <AdminUsersScreen
           users={listLocalUsers()}
           activeUserId={data.profile.id}
+          backendOnline={effectiveBackendOnline}
           onSelectUser={handleSelectLocalUser}
           onCreateUser={handleCreateLocalUser}
           onResetDb={handleResetLocalDb}

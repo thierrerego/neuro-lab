@@ -30,6 +30,7 @@ import {
   createWaveState,
   getWaveBarPct,
   getWaveEffectiveConfig,
+  regressWaveError,
 } from '../engine/waveEngine';
 import { evaluateSession, getAgeBracketMeta } from '../engine/psychometricEngine';
 import {
@@ -50,6 +51,8 @@ import {
 } from '../lib/labTuning';
 import { GameTutorial } from './GameTutorial';
 import { LabTuningPanel } from './LabTuningPanel';
+import { recordInteractionTelemetry } from '../lib/telemetryService';
+import { generateAdaptiveCoachInsight, type AdaptiveCoachInsight } from '../lib/aiCoachService';
 
 export interface CalibrationBannerInfo {
   currentIndex: number; // 1..total
@@ -72,6 +75,8 @@ interface GameShellProps {
   mode: SessionMode;
   theme: ThemeMode;
   ageBracket?: AgeBracket;
+  userId?: string;
+  sendRemoteTelemetry?: boolean;
   isAdminSession?: boolean;
   sandboxMode?: boolean;
   weakestTwo: DomainKey[];
@@ -98,6 +103,8 @@ export function GameShell({
   easeBoost = false,
   mode,
   ageBracket = '25-34',
+  userId = 'local-anon',
+  sendRemoteTelemetry = false,
   isAdminSession = false,
   sandboxMode = false,
   weakestTwo,
@@ -151,6 +158,7 @@ export function GameShell({
   const [finishRequested, setFinishRequested] = useState(false);
   const [live, setLive] = useState<LiveMetrics>({ score: 0, accuracyPct: 100, combo: 0 });
   const [result, setResult] = useState<ComputedSessionResult | null>(null);
+  const [coachInsight, setCoachInsight] = useState<AdaptiveCoachInsight | null>(null);
   const [endFreeze, setEndFreeze] = useState<'time_up' | 'cleared' | null>(null);
   const [showWorkoutComplete, setShowWorkoutComplete] = useState(false);
   const [confirmExitOpen, setConfirmExitOpen] = useState(false);
@@ -180,6 +188,7 @@ export function GameShell({
   const matchStartMsRef = useRef<number>(performance.now());
   const pausedAccumMsRef = useRef<number>(0);
   const pauseStartedAtRef = useRef<number | null>(null);
+  const helpOpensRef = useRef<number>(0);
   const finishedRef = useRef(false);
 
   useEffect(() => {
@@ -192,6 +201,7 @@ export function GameShell({
     setTimeLeft(dur);
     setFinishRequested(false);
     setResult(null);
+    setCoachInsight(null);
     setEndFreeze(null);
     setShowWorkoutComplete(false);
     setConfirmExitOpen(false);
@@ -202,6 +212,7 @@ export function GameShell({
     matchStartMsRef.current = performance.now();
     pausedAccumMsRef.current = 0;
     pauseStartedAtRef.current = null;
+    helpOpensRef.current = 0;
     finishedRef.current = false;
   }, [slug, stage, easeBoost, playRun]);
 
@@ -266,7 +277,10 @@ export function GameShell({
   }, []);
 
   const handleWaveError = useCallback(() => {
-    // Fluxo contínuo: sem pausa e sem retrocesso
+    if (finishedRef.current) return;
+    const { next } = regressWaveError(waveRef.current);
+    waveRef.current = next;
+    setWave(next);
   }, []);
 
   const handleFinish = useCallback(
@@ -301,19 +315,83 @@ export function GameShell({
       setEndFreeze(evaluated.completedEarly ? 'cleared' : 'time_up');
       if (evaluated.completedEarly || evaluated.stageCleared) sound.stageClear();
       else sound.stageFail();
+
+      if (!sandboxMode) {
+        void generateAdaptiveCoachInsight(evaluated, ageBracket).then((insight) => {
+          setCoachInsight(insight);
+        });
+      }
+
+      if (!sandboxMode) {
+        recordInteractionTelemetry(
+          {
+            userId,
+            ageBracket,
+            domain: game.domain,
+            gameSlug: slug,
+            mode,
+            difficultyStart: stage,
+            difficultyEnd: curWave.effectiveDifficulty,
+            outcome: evaluated.completedEarly ? 'completed' : 'time_up',
+            hits: evaluated.hits ?? curWave.totalHits,
+            targetHits: evaluated.targetHits ?? curWave.totalTargetHits,
+            commissionErrors: evaluated.commissionErrors,
+            omissionErrors: evaluated.omissionErrors,
+            accuracyPct: evaluated.accuracyPct,
+            rtMeanMs: evaluated.rtMeanMs,
+            elapsedMs: Math.round(activeElapsedMs),
+            timeRemainingMs: remainingMs,
+            helpOpens: helpOpensRef.current,
+          },
+          sendRemoteTelemetry
+        );
+      }
+
       void onComplete(evaluated);
       window.setTimeout(() => {
         setEndFreeze(null);
       }, 1250);
     },
-    [game.domain, slug, mode, stage, effectiveConfig, totalDurationMs, weakestTwo, ageBracket, onComplete]
+    [game.domain, slug, mode, stage, effectiveConfig, totalDurationMs, weakestTwo, ageBracket, onComplete, sandboxMode, userId, sendRemoteTelemetry]
   );
+
+  const recordAbandonIfNeeded = useCallback(() => {
+    if (sandboxMode || finishedRef.current || result) return;
+    finishedRef.current = true;
+    const curWave = waveRef.current;
+    const activeElapsedMs = showTutorial
+      ? 0
+      : Math.max(0, performance.now() - matchStartMsRef.current - pausedAccumMsRef.current);
+    recordInteractionTelemetry(
+      {
+        userId,
+        ageBracket,
+        domain: game.domain,
+        gameSlug: slug,
+        mode,
+        difficultyStart: stage,
+        difficultyEnd: curWave.effectiveDifficulty,
+        outcome: showTutorial ? 'abandoned_tutorial' : 'abandoned',
+        hits: curWave.totalHits,
+        targetHits: curWave.totalTargetHits,
+        commissionErrors: 0,
+        omissionErrors: 0,
+        accuracyPct: live.accuracyPct,
+        rtMeanMs: 0,
+        elapsedMs: Math.round(activeElapsedMs),
+        timeRemainingMs: Math.max(0, timeLeft * 1000),
+        helpOpens: helpOpensRef.current,
+      },
+      sendRemoteTelemetry
+    );
+  }, [sandboxMode, result, showTutorial, userId, ageBracket, game.domain, slug, mode, stage, live.accuracyPct, timeLeft, sendRemoteTelemetry]);
 
   const handleBackClick = () => {
     if (mode === 'calibration' && !result && !showTutorial) {
       setConfirmExitOpen(true);
       return;
     }
+    recordAbandonIfNeeded();
     onExit();
   };
 
@@ -471,8 +549,10 @@ export function GameShell({
 
           <div className="text-center min-w-0 px-2">
             <div className="text-[16px] font-bold leading-tight truncate">{game.name}</div>
-            <div className="text-xs font-medium truncate mt-0.5" style={{ color: 'var(--text-muted)' }}>
-              Nível {stage} · {getStageShortBadge(slug, effectiveConfig)}
+            <div className="text-xs font-medium truncate mt-0.5 tabular" style={{ color: 'var(--text-muted)' }}>
+              {sandboxMode
+                ? `Nível ${stage} · ${getStageShortBadge(slug, effectiveConfig)}`
+                : `Adaptativo · Carga ${wave.effectiveDifficulty.toFixed(1)}`}
             </div>
           </div>
 
@@ -482,6 +562,7 @@ export function GameShell({
                 type="button"
                 onClick={() => {
                   sound.tap();
+                  helpOpensRef.current += 1;
                   setHelpOpen(true);
                 }}
                 className="w-10 h-10 rounded-2xl flex items-center justify-center btn-soft cursor-pointer"
@@ -711,16 +792,20 @@ export function GameShell({
                       <div className="min-w-0">
                         <div
                           className="text-sm font-extrabold leading-tight truncate"
-                          style={{ color: passedStage ? 'var(--ok)' : 'var(--err)' }}
+                          style={{ color: passedStage ? 'var(--ok)' : 'var(--accent)' }}
                         >
-                          {nextStageUnlocked
-                            ? `Passou! Nível ${result.nextStage} liberado`
-                            : passedStage
-                              ? 'Fase aprovada!'
-                              : 'Não passou desta vez'}
+                          {sandboxMode
+                            ? nextStageUnlocked
+                              ? `Passou! Nível ${result.nextStage} liberado`
+                              : passedStage
+                                ? 'Fase aprovada!'
+                                : 'Não passou desta vez'
+                            : `Equilíbrio ${(result.equilibriumIndex ?? result.stagePlayed).toFixed(1)} · ${result.equilibriumBand ?? 'Adaptativo'}`}
                         </div>
                         <div className="text-xs font-medium truncate" style={{ color: 'var(--text-muted)' }}>
-                          {game.name} · Nível {result.stagePlayed}
+                          {sandboxMode
+                            ? `${game.name} · Nível ${result.stagePlayed}`
+                            : `${game.name} · Média ${ageLabel}: ${(result.ageExpectedEquilibrium ?? 6.0).toFixed(1)}`}
                         </div>
                       </div>
                     </div>
@@ -757,8 +842,27 @@ export function GameShell({
                     </div>
 
                     <div className="text-[15px] font-bold mt-2" style={{ color: 'var(--text)' }}>
-                      das pessoas que fizeram este teste
+                      das pessoas da sua faixa etária ({ageLabel})
                     </div>
+
+                    {!sandboxMode && coachInsight && (
+                      <div
+                        className="mt-3 rounded-2xl p-3.5 text-left flex flex-col gap-1"
+                        style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)' }}
+                      >
+                        <div className="flex items-center justify-between text-[11px] font-bold">
+                          <span style={{ color: 'var(--accent)' }}>
+                            {coachInsight.source === 'gemini' ? 'Análise IA · Gemini' : 'Análise Científica Adaptativa'}
+                          </span>
+                          <span className="tabular" style={{ color: 'var(--text-soft)' }}>
+                            Carga {(result.equilibriumIndex ?? result.stagePlayed).toFixed(1)} / Ref {(result.ageExpectedEquilibrium ?? 6).toFixed(1)}
+                          </span>
+                        </div>
+                        <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                          {coachInsight.text}
+                        </p>
+                      </div>
+                    )}
 
                     <div className="text-xs font-medium mt-1" style={{ color: 'var(--text-soft)' }}>
                       {beatsPct >= 50
@@ -1036,14 +1140,14 @@ export function GameShell({
                       </div>
                     ) : (
                       <>
-                        {/* Botão 1: Próxima fase (destaque quando passou e liberou o próximo nível) */}
-                        {mode !== 'calibration' && nextStageUnlocked && (
+                        {/* Botão 1: Próxima rodada adaptativa */}
+                        {mode !== 'calibration' && (
                           <button
                             type="button"
                             onClick={handlePlayNextStage}
                             className="w-full min-h-[54px] py-4 px-5 rounded-2xl font-bold text-[15px] btn-accent flex items-center justify-center gap-2 cursor-pointer"
                           >
-                            <span>Próxima fase (Nível {result.nextStage})</span>
+                            <span>Continuar calibração adaptativa</span>
                             <ArrowRight size={18} />
                           </button>
                         )}
@@ -1059,7 +1163,7 @@ export function GameShell({
                                 : onExit
                           }
                           className={`w-full min-h-[50px] py-3.5 px-5 rounded-2xl font-bold text-[15px] flex items-center justify-center gap-2 cursor-pointer ${
-                            mode !== 'calibration' && nextStageUnlocked ? 'btn-soft' : 'btn-accent'
+                            mode !== 'calibration' ? 'btn-soft' : 'btn-accent'
                           }`}
                         >
                           <span>
@@ -1067,22 +1171,10 @@ export function GameShell({
                               ? 'Continuar · Resumo do Dia'
                               : onNextChallenge && nextChallengeLabel
                                 ? `Continuar · ${nextChallengeLabel}`
-                                : 'Continuar'}
+                                : 'Voltar ao início'}
                           </span>
                           <ArrowRight size={17} />
                         </button>
-
-                        {/* Botão 3: Jogar novamente (repetir o nível atual) */}
-                        {mode !== 'calibration' && (
-                          <button
-                            type="button"
-                            onClick={handleReplaySameStage}
-                            className="w-full min-h-[48px] py-3 px-4 rounded-2xl text-sm font-semibold btn-soft flex items-center justify-center gap-2 cursor-pointer"
-                          >
-                            <RotateCcw size={16} />
-                            <span>Jogar novamente (Nível {stage})</span>
-                          </button>
-                        )}
                       </>
                     )}
 
@@ -1163,6 +1255,7 @@ export function GameShell({
                 type="button"
                 onClick={() => {
                   setConfirmExitOpen(false);
+                  recordAbandonIfNeeded();
                   onExit();
                 }}
                 className="w-full min-h-[48px] py-3 rounded-2xl font-semibold text-sm btn-soft cursor-pointer"

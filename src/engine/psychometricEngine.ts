@@ -16,6 +16,12 @@ import type {
 } from '../types/cognitive';
 import { DOMAIN_LIST, DOMAIN_MAP, GAME_REGISTRY, GAMES_BY_DOMAIN } from './gameRegistry';
 import { TOTAL_WAVE_HITS } from './waveEngine';
+import {
+  buildAgeComparisonNote,
+  computeEquilibriumIndex,
+  getEquilibriumBandLabel,
+  getExpectedAgeEquilibrium,
+} from './adaptiveEngine';
 
 /**
  * Faixas etárias calibradas com fatores de velocidade da literatura psicométrica
@@ -348,10 +354,28 @@ export function evaluateSession(params: {
         : Math.max(0, Math.min(levelCeiling, Math.round((rawCombined / 1000) * levelCeiling)));
 
   const performanceIndex = scoreToPercent(finalScore);
-  const percentile = scoreToPercentile(rawCombined, safeBaseStage, accuracyPct, perf.correct, ageBracket);
+
+  // Ponto de equilíbrio contínuo atingido + simulação científica frente à faixa etária
+  const equilibriumIndex = computeEquilibriumIndex(
+    wave.difficultyTrail ?? [wave.effectiveDifficulty],
+    wave.effectiveDifficulty
+  );
+  const ageNorm = getExpectedAgeEquilibrium(ageBracket, domain, gameSlug);
+  const ageLabel = getAgeBracketMeta(ageBracket).label;
+  const equilibriumBand = getEquilibriumBandLabel(equilibriumIndex);
+  const ageComparisonNote = buildAgeComparisonNote(equilibriumIndex, ageNorm.expected, ageLabel);
+
+  // Combina o percentil psicométrico da execução (precisão + RT) com o percentil do ponto de equilíbrio frente à idade
+  const execPercentile = scoreToPercentile(rawCombined, safeBaseStage, accuracyPct, perf.correct, ageBracket);
+  const eqPercentile = Math.max(1.0, Math.min(99.5, normalCDF(equilibriumIndex, ageNorm.expected, ageNorm.sd) * 100));
+  const percentile =
+    perf.correct <= 0 || accuracyPct < 50
+      ? execPercentile
+      : Number(Math.max(1.0, Math.min(99.5, execPercentile * 0.65 + eqPercentile * 0.35)).toFixed(1));
+
   const tier = getCognitiveTier(finalScore);
 
-  // Evolução de nível suave e motivadora (piso = Nível 1, sobe com facilidade para dar sensação de progresso)
+  // Evolução contínua baseada no ponto de equilíbrio real (sem depender de degraus fixos 1..20)
   let adaptiveDelta = 0;
   let adaptiveStatus: AdaptiveStatus = 'hold';
   let stageCleared = false;
@@ -360,34 +384,33 @@ export function evaluateSession(params: {
     safeBaseStage <= 2 && wave.totalHits >= Math.ceil(targetHits * 0.75) && accuracyPct >= 80;
   const passedFull = (wavesCompleted === 5 || wave.isCleared) && accuracyPct >= 80;
 
+  let nextStage = Math.max(1, Math.min(20, Math.round(equilibriumIndex)));
+
   if (passedFull || passedBasicComfort) {
     stageCleared = true;
-    if (accuracyPct === 100 && completedEarly && safeBaseStage >= 2 && speedScore >= 85) {
-      adaptiveDelta = 2;
+    if (accuracyPct === 100 && completedEarly && speedScore >= 85) {
+      nextStage = Math.max(nextStage, Math.min(20, safeBaseStage + 2));
+      adaptiveDelta = nextStage - safeBaseStage;
       adaptiveStatus = 'fast_track';
     } else {
-      adaptiveDelta = 1;
+      nextStage = Math.max(nextStage, Math.min(20, safeBaseStage + 1));
+      adaptiveDelta = nextStage - safeBaseStage;
       adaptiveStatus = 'level_up';
     }
   } else if (failedAccuracyGate) {
     stageCleared = false;
-    if (safeBaseStage > 1) {
-      adaptiveDelta = -1;
-      adaptiveStatus = 'step_down';
-    } else {
-      adaptiveDelta = 0;
-      adaptiveStatus = 'ease_mode';
-    }
+    nextStage = Math.max(1, Math.min(safeBaseStage, Math.floor(equilibriumIndex)));
+    adaptiveDelta = nextStage - safeBaseStage;
+    adaptiveStatus = nextStage < safeBaseStage ? 'step_down' : 'ease_mode';
   } else {
-    adaptiveDelta = 0;
-    adaptiveStatus = 'hold';
+    adaptiveDelta = nextStage - safeBaseStage;
+    adaptiveStatus = adaptiveDelta > 0 ? 'level_up' : adaptiveDelta < 0 ? 'step_down' : 'hold';
     stageCleared = false;
   }
 
-  const nextStage = Math.max(1, Math.min(20, safeBaseStage + adaptiveDelta));
   const isPriorityDomain = weakestTwoDomains.includes(domain);
 
-  // Evolução motivadora do domínio (cresce visivelmente quando o usuário avança de nível)
+  // Evolução motivadora do domínio (cresce visivelmente quando o usuário avança de equilíbrio)
   const domainDelta =
     perf.correct <= 0
       ? -12
@@ -431,6 +454,10 @@ export function evaluateSession(params: {
     targetRtMs: targetRt,
     hits: wave.totalHits,
     targetHits,
+    equilibriumIndex,
+    ageExpectedEquilibrium: ageNorm.expected,
+    equilibriumBand,
+    ageComparisonNote,
   };
 }
 

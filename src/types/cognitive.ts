@@ -106,6 +106,12 @@ export interface WaveState {
   totalTargetHits: number;   // 16
   effectiveDifficulty: number;
   isCleared: boolean;
+  /** Estado da escada adaptativa contínua (CAT 2-up/1-down) */
+  adaptiveLocked?: boolean;
+  adaptiveStreak?: number;
+  adaptiveReversals?: number;
+  adaptiveDirection?: 'up' | 'down' | null;
+  difficultyTrail?: number[];
 }
 
 export type AdaptiveStatus = 'fast_track' | 'level_up' | 'hold' | 'step_down' | 'ease_mode';
@@ -160,6 +166,11 @@ export interface ComputedSessionResult {
   targetRtMs?: number;       // tempo-alvo esperado do exercício + nível + faixa etária
   hits?: number;
   targetHits?: number;
+  /** Ponto de equilíbrio contínuo atingido (1..20) e comparação científica por idade */
+  equilibriumIndex?: number;
+  ageExpectedEquilibrium?: number;
+  equilibriumBand?: string;
+  ageComparisonNote?: string;
 }
 
 export interface OnboardingProfileData {

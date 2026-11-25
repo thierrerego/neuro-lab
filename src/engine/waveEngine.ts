@@ -1,5 +1,10 @@
 import type { GameSlug, StageConfig, WaveState } from '../types/cognitive';
 import { getStageConfig } from './stageEngine';
+import {
+  createAdaptiveStaircase,
+  stepAdaptiveError,
+  stepAdaptiveHit,
+} from './adaptiveEngine';
 
 /** Meta padrão de referência (mantida para compatibilidade) */
 export const TOTAL_WAVES = 5;
@@ -100,15 +105,16 @@ export function createWaveState(
   slug?: GameSlug,
   tuning?: WaveTuningOverride
 ): WaveState {
-  const safeBase = Math.max(1, Math.floor(baseStage));
-  const effectiveBase =
-    tuning?.effectiveLevel !== undefined
-      ? Math.max(1, Math.min(20, Number(tuning.effectiveLevel)))
-      : safeBase;
+  const safeBase = Math.max(1, Number(baseStage) || 1);
+  const locked = tuning?.effectiveLevel !== undefined;
+  const effectiveBase = locked
+    ? Math.max(1, Math.min(20, Number(tuning!.effectiveLevel)))
+    : safeBase;
   const targetHits =
     tuning?.targetHits !== undefined
       ? Math.max(2, Math.min(25, Math.round(tuning.targetHits)))
       : getTargetHitsForGame(slug);
+  const staircase = createAdaptiveStaircase(effectiveBase);
   return {
     baseStage: effectiveBase,
     currentWave: 1,
@@ -117,13 +123,21 @@ export function createWaveState(
     wavesCompleted: 0,
     totalHits: 0,
     totalTargetHits: targetHits,
-    effectiveDifficulty: calcContinuousDiff(effectiveBase, 0, targetHits),
+    effectiveDifficulty: locked
+      ? calcContinuousDiff(effectiveBase, 0, targetHits)
+      : staircase.currentLoad,
     isCleared: false,
+    adaptiveLocked: locked,
+    adaptiveStreak: staircase.streakHits,
+    adaptiveReversals: staircase.reversals,
+    adaptiveDirection: staircase.lastDirection,
+    difficultyTrail: staircase.trail,
   };
 }
 
 /**
- * Registra 1 acerto de forma 100% contínua (0 -> targetHits), sem pausas nem divisões em blocos.
+ * Registra 1 acerto de forma 100% contínua (0 -> targetHits),
+ * ajustando a dificuldade dinamicamente pela escada adaptativa (CAT 2-up/1-down).
  */
 export function advanceWaveHit(state: WaveState): {
   next: WaveState;
@@ -140,6 +154,36 @@ export function advanceWaveHit(state: WaveState): {
   const matchCleared = nextTotalHits >= targetHits;
   const completedQ = hitsToCompletedQuintiles(nextTotalHits, targetHits, matchCleared);
 
+  if (state.adaptiveLocked) {
+    return {
+      next: {
+        ...state,
+        currentWave: Math.min(TOTAL_WAVES, completedQ + 1),
+        waveHits: nextTotalHits,
+        waveQuota: targetHits,
+        wavesCompleted: completedQ,
+        totalHits: nextTotalHits,
+        totalTargetHits: targetHits,
+        effectiveDifficulty: calcContinuousDiff(state.baseStage, nextTotalHits, targetHits),
+        isCleared: matchCleared,
+      },
+      waveJustCleared: false,
+      matchCleared,
+      clearedWaveNum: matchCleared ? TOTAL_WAVES : 0,
+    };
+  }
+
+  const nextStair = stepAdaptiveHit(
+    {
+      currentLoad: state.effectiveDifficulty,
+      streakHits: state.adaptiveStreak ?? 0,
+      reversals: state.adaptiveReversals ?? 0,
+      lastDirection: state.adaptiveDirection ?? null,
+      trail: state.difficultyTrail ?? [state.effectiveDifficulty],
+    },
+    targetHits
+  );
+
   return {
     next: {
       ...state,
@@ -149,8 +193,12 @@ export function advanceWaveHit(state: WaveState): {
       wavesCompleted: completedQ,
       totalHits: nextTotalHits,
       totalTargetHits: targetHits,
-      effectiveDifficulty: calcContinuousDiff(state.baseStage, nextTotalHits, targetHits),
+      effectiveDifficulty: nextStair.currentLoad,
       isCleared: matchCleared,
+      adaptiveStreak: nextStair.streakHits,
+      adaptiveReversals: nextStair.reversals,
+      adaptiveDirection: nextStair.lastDirection,
+      difficultyTrail: nextStair.trail,
     },
     waveJustCleared: false,
     matchCleared,
@@ -158,15 +206,43 @@ export function advanceWaveHit(state: WaveState): {
   };
 }
 
+/**
+ * Registra 1 erro: no modo adaptativo contínuo, alivia suavemente a dificuldade
+ * para convergir no ponto de equilíbrio real do usuário (~78% de acerto).
+ */
 export function regressWaveError(state: WaveState): {
   next: WaveState;
   regressed: boolean;
   fromWave: number;
   toWave: number;
 } {
+  if (state.adaptiveLocked || state.isCleared) {
+    return {
+      next: state,
+      regressed: false,
+      fromWave: state.currentWave,
+      toWave: state.currentWave,
+    };
+  }
+
+  const nextStair = stepAdaptiveError({
+    currentLoad: state.effectiveDifficulty,
+    streakHits: state.adaptiveStreak ?? 0,
+    reversals: state.adaptiveReversals ?? 0,
+    lastDirection: state.adaptiveDirection ?? null,
+    trail: state.difficultyTrail ?? [state.effectiveDifficulty],
+  });
+
   return {
-    next: state,
-    regressed: false,
+    next: {
+      ...state,
+      effectiveDifficulty: nextStair.currentLoad,
+      adaptiveStreak: nextStair.streakHits,
+      adaptiveReversals: nextStair.reversals,
+      adaptiveDirection: nextStair.lastDirection,
+      difficultyTrail: nextStair.trail,
+    },
+    regressed: nextStair.currentLoad < state.effectiveDifficulty,
     fromWave: state.currentWave,
     toWave: state.currentWave,
   };

@@ -1121,7 +1121,7 @@ export function StatsScreen({
                             {domMeta.shortName}
                           </span>
                           <span>·</span>
-                          <span>Nível {item.currentStage}</span>
+                          <span>Carga {item.currentStage}</span>
                           <span>·</span>
                           <span>{item.totalPlays} sessões</span>
                         </div>
@@ -1208,7 +1208,7 @@ export function StatsScreen({
                         onClick={() => onStartGame(item.slug, 'free')}
                         className="w-full min-h-[48px] py-3.5 px-4 rounded-2xl font-bold text-sm btn-accent cursor-pointer flex items-center justify-center gap-2"
                       >
-                        <span>Praticar {gameMeta.name} (Nível {item.currentStage})</span>
+                        <span>Treinar {gameMeta.name} (Adaptativo)</span>
                         <ArrowRight size={16} />
                       </button>
                     </div>
@@ -1307,7 +1307,7 @@ export function StatsScreen({
                               <span className="font-semibold" style={{ color: domMeta.color }}>
                                 {domMeta.shortName}
                               </span>
-                              <span>· Nível {entry.stagePlayed}</span>
+                              <span>· Carga {entry.stagePlayed}</span>
                               <span>· {entry.accuracyPct}%</span>
                               {entry.rtMeanMs > 0 && <span>· {entry.rtMeanMs}ms</span>}
                               {entry.timeLabel && <span>· {entry.timeLabel}</span>}

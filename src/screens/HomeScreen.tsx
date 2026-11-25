@@ -517,7 +517,7 @@ export function HomeScreen({
                     className="text-xs font-semibold tabular px-2.5 py-1 rounded-full shrink-0"
                     style={{ background: 'var(--bg-subtle)', color: 'var(--text-muted)' }}
                   >
-                    Nível {task.stage}
+                    Carga {task.stage}
                   </span>
                 </div>
 
